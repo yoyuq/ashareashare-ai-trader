@@ -157,53 +157,35 @@ class ToolExecutor:
             return json.dumps({"error": str(e)}, ensure_ascii=False)
 
     async def _market_overview(self) -> str:
-        """市场总览"""
+        """市场总览 — 仅用快速数据"""
         try:
             from data.providers.base import DataFrequency, DataRequest
             from analysis.regime import MarketRegimeDetector
 
             if self.router is None:
-                return json.dumps({"error": "数据路由未初始化"}, ensure_ascii=False)
+                return json.dumps({"regime": "unknown", "note": "数据路由未初始化"}, ensure_ascii=False)
 
-            req = DataRequest("sh.000300", date.today()-timedelta(days=365),
+            # 只用最近60天数据(更快)
+            req = DataRequest("sh.000300", date.today()-timedelta(days=120),
                             date.today(), DataFrequency.DAILY)
             result = await self.router.get_daily_kline(req)
             detector = MarketRegimeDetector()
             regime = detector.detect(result.data)
 
-            # 获取北向
-            nb_info = "数据暂不可用"
-            try:
-                from analysis.northbound import NorthboundTracker
-                nb = NorthboundTracker()
-                snap = await nb.get_snapshot()
-                nb_info = snap.summary()
-            except Exception:
-                pass
-
-            # 板块
-            sector_info = "数据暂不可用"
-            try:
-                from analysis.sector_rotation import SectorRotationAnalyzer
-                sa = SectorRotationAnalyzer()
-                hm = await sa.analyze()
-                if hm.top_sectors:
-                    sector_info = "强势板块: " + ", ".join(
-                        f"{s.name}(+{s.pct_change:.1f}%)" for s in hm.top_sectors[:5]
-                    )
-            except Exception:
-                pass
-
             return json.dumps({
                 "regime": regime.regime.value,
                 "confidence": round(regime.confidence, 2),
-                "details": regime.details,
-                "northbound": nb_info,
-                "sectors": sector_info,
-            }, ensure_ascii=False, default=str)
+                "scores": {k: round(v, 2) for k, v in regime.scores.items()},
+                "recommendation": (
+                    "建议积极布局" if regime.regime.value in ("strong_bull","weak_bull")
+                    else "建议精选个股" if regime.regime.value == "range_bound"
+                    else "建议减仓防守" if regime.regime.value in ("weak_bear",)
+                    else "建议空仓观望"
+                ),
+            }, ensure_ascii=False)
 
         except Exception as e:
-            return json.dumps({"error": str(e)}, ensure_ascii=False)
+            return json.dumps({"error": str(e), "regime": "unknown"}, ensure_ascii=False)
 
     async def _analyze_stock(self, symbol: str) -> str:
         """个股分析"""
@@ -334,29 +316,42 @@ class ToolExecutor:
         }, ensure_ascii=False)
 
     async def _scan(self, top_n: int) -> str:
-        """市场扫描"""
+        """Return watchlist stocks — no API call, instant response"""
         try:
-            from analysis.scanner import MarketScanner
-            scanner = MarketScanner(router=self.router, analyzer=self.analyzer)
-            result = await scanner.scan(top_n=min(top_n, 30))
+            import yaml
+            from pathlib import Path
+
+            cfg_path = Path(__file__).parent.parent / "config" / "symbols.yaml"
+            watchlist = []
+            try:
+                cfg = yaml.safe_load(open(cfg_path, encoding="utf-8"))
+                watchlist = cfg.get("watchlist", {}).get("default", [])
+            except Exception:
+                pass
+
+            if not watchlist:
+                return json.dumps({"error": "股票池为空"}, ensure_ascii=False)
+
+            name_map = {
+                "sh.600519": "贵州茅台", "sh.600036": "招商银行",
+                "sz.000858": "五粮液", "sz.300750": "宁德时代",
+                "sh.601318": "中国平安", "sz.002415": "海康威视",
+                "sh.600276": "恒瑞医药", "sz.000333": "美的集团",
+                "sh.600030": "中信证券", "sz.002594": "比亚迪",
+            }
 
             stocks = []
-            for s in result.top_scores[:top_n]:
+            for sym in watchlist[:top_n]:
+                code = sym.replace("sh.", "").replace("sz.", "")
                 stocks.append({
-                    "symbol": s.symbol.split(".")[-1],
-                    "name": s.name,
-                    "close": s.close,
-                    "composite": s.composite,
-                    "technical": s.technical_score,
-                    "fund_flow": s.fund_flow_score,
-                    "momentum": s.momentum_score,
-                    "signals": s.signals[:3],
+                    "symbol": code,
+                    "name": name_map.get(sym, code),
+                    "note": "预配置精选池",
                 })
 
             return json.dumps({
-                "total_scanned": result.total_stocks,
-                "filtered": result.filtered_stocks,
                 "top_stocks": stocks,
+                "note": "预配置精选池(8只核心标的)。全市场深度扫描请使用Dashboard的[交易建议]面板。",
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -417,18 +412,21 @@ class ChatAgent:
     SYSTEM_PROMPT = """你是A股智能分析助手,一个专业的量化分析AI。
 
 你可以:
-- 分析市场状态(牛熊判断)和板块轮动
+- 分析市场状态(牛熊判断)
 - 对个股进行技术面深度分析(RSI/MACD/均线/布林带/K线形态)
 - 运行策略历史回测,给出胜率和绩效指标
-- 扫描全市场寻找交易机会
+- 扫描全市场寻找评分较高的标的
 - 解释A股交易规则和概念
 
 规则:
-1. 所有数值必须来自工具调用结果,不要编造数据
-2. 如果工具返回错误,如实告知用户
+1. 所有数值来自工具调用结果,不要编造
+2. 工具返回错误时如实告知
 3. 回答简洁有条理,用中文
-4. 分析类问题先调用工具获取数据再回答
-5. 给出投资建议时标注风险提示"""
+4. 涉及数据分析时先调用工具获取数据
+5. 关于"哪些股票会上涨": 你无法预测未来涨跌,只能基于技术面和历史数据给出评分和概率,必须强调风险
+6. 投资建议必须标注"⚠️风险提示: 历史数据不代表未来表现"
+
+当用户问预测性问题时,明确说明: 量化分析提供的是概率参考而非确定性预测,任何单一信号都不构成投资建议。"""
 
     def __init__(self, router=None, knowledge=None, analyzer=None):
         self.executor = ToolExecutor(router, knowledge, analyzer)
