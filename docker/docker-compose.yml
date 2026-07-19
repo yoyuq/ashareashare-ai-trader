@@ -1,0 +1,78 @@
+# A股智能分析Agent — 基础服务编排
+# Phase 0 环境搭建
+version: "3.8"
+
+services:
+  # ═══════════════════════════════════════════════════════════════
+  # PostgreSQL + TimescaleDB (时序数据存储)
+  # ═══════════════════════════════════════════════════════════════
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: ashare-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ashare_trader}
+      POSTGRES_USER: ${POSTGRES_USER:-ashare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ashare}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ashare} -d ${POSTGRES_DB:-ashare_trader}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ashare-net
+
+  # ═══════════════════════════════════════════════════════════════
+  # Redis (缓存 + 消息队列)
+  # ═══════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: ashare-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ashare-net
+
+  # ═══════════════════════════════════════════════════════════════
+  # Ollama (本地LLM推理 — 仅Linux, Windows需要单独安装)
+  # ═══════════════════════════════════════════════════════════════
+  # 注意: Ollama在Docker中无法使用GPU,如需GPU推理请在宿主机安装
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ashare-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    profiles:
+      - linux-only   # Windows用户请在宿主机安装Ollama
+    networks:
+      - ashare-net
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  ashare-net:
+    driver: bridge

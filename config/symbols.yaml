@@ -1,0 +1,81 @@
+# ====== 股票池配置 ======
+# 分池管理: 不同策略使用不同的股票池
+
+stock_pools:
+  # ---- 主股票池: 沪深300 + 中证500 成分股 ----
+  default:
+    name: "默认池"
+    description: "流动性好的大盘中盘股"
+    source: ["hs300", "csi500"]
+    filter:
+      exclude_st: true
+      exclude_new_listing_days: 60
+      min_daily_amount: 50000000    # 日均成交额 > 5000万
+      max_price: null               # 无价格上限
+      min_price: 2                  # 最低价>2元(排除仙股)
+
+  # ---- 中小盘成长池 ----
+  small_cap:
+    name: "小盘成长池"
+    description: "中证1000 + 创业板 + 科创板"
+    source: ["csi1000", "chinext", "star_market"]
+    filter:
+      exclude_st: true
+      exclude_new_listing_days: 120
+      min_daily_amount: 30000000
+      min_total_mv: 1e9              # 总市值>10亿
+      max_total_mv: 50e9             # 总市值<500亿
+
+  # ---- 打板策略专用池 ----
+  limit_up:
+    name: "涨停板池"
+    description: "当日涨停非ST股票"
+    source: ["all_a_share"]
+    filter:
+      exclude_st: true
+      exclude_new_listing_days: 120
+      min_daily_amount: 100000000    # 成交额>1亿(保证流动性)
+      max_price: 100
+
+  # ---- ETF池 ----
+  etf:
+    name: "ETF池"
+    description: "主流宽基+行业ETF"
+    symbols:
+      - "sh.510050"   # 上证50ETF
+      - "sh.510300"   # 沪深300ETF
+      - "sh.510500"   # 中证500ETF
+      - "sz.159915"   # 创业板ETF
+      - "sh.588000"   # 科创50ETF
+      - "sh.510880"   # 红利ETF
+      - "sh.512880"   # 证券ETF
+      - "sh.512100"   # 1000ETF
+
+# ---- 自定义监控列表 ----
+watchlist:
+  default:
+    - "sh.600519"    # 贵州茅台
+    - "sh.600036"    # 招商银行
+    - "sz.000858"    # 五粮液
+    - "sz.300750"    # 宁德时代
+    - "sh.601318"    # 中国平安
+    - "sz.002415"    # 海康威视
+    - "sh.600276"    # 恒瑞医药
+    - "sz.000333"    # 美的集团
+
+# ---- 指数监控列表 ----
+indices:
+  - code: "sh.000001"
+    name: "上证综指"
+  - code: "sz.399001"
+    name: "深证成指"
+  - code: "sz.399006"
+    name: "创业板指"
+  - code: "sh.000688"
+    name: "科创50"
+  - code: "sh.000300"
+    name: "沪深300"
+  - code: "sh.000905"
+    name: "中证500"
+  - code: "sh.000852"
+    name: "中证1000"
