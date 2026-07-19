@@ -76,7 +76,7 @@ with t3:
     ds_key = os.getenv("DEEPSEEK_API_KEY", "")
     st.caption(f"{'🟢' if 'sk-' in ds_key else '⚪'} DeepSeek")
 
-mode = st.radio("分析模式", ["📊 市场总览", "🔍 个股分析", "📋 交易建议", "🧪 策略回测", "⚔️ 多空辩论"],
+mode = st.radio("分析模式", ["💬 AI问答", "📊 市场总览", "🔍 个股分析", "📋 交易建议", "🧪 策略回测"],
                 horizontal=True, label_visibility="collapsed")
 
 # ═══════════════════════ 标的选择(紧凑) ═══════════════════════
@@ -121,6 +121,54 @@ detector = comps.get("detector")
 knowledge = comps.get("knowledge")
 
 today = date.today()
+
+# ──── AI问答 (新增 v2.8) ────
+if mode == "💬 AI问答":
+    st.caption("用自然语言提问,AI自动调用分析工具回答。试试问:"市场怎么样"/"分析600519"/"回测茅台双均线"/"有哪些策略"")
+
+    # 初始化聊天历史
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    # 显示历史消息
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # 输入框
+    if prompt := st.chat_input("输入你的问题,如: 今天市场怎么样? 帮我分析一下茅台"):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("思考中..."):
+                try:
+                    from agent.chat_agent import ChatAgent
+
+                    agent = ChatAgent(
+                        router=router,
+                        knowledge=knowledge,
+                        analyzer=analyzer,
+                    )
+
+                    async def chat():
+                        return await agent.chat(prompt, session_id="dashboard")
+
+                    reply = asyncio.run(chat())
+                    st.markdown(reply)
+                    st.session_state.chat_history.append(
+                        {"role": "assistant", "content": reply}
+                    )
+                except Exception as e:
+                    error_msg = f"出错了: {e}"
+                    st.error(error_msg)
+
+    # 清除按钮
+    if st.session_state.chat_history:
+        if st.button("🗑️ 清除对话", key="clear_chat"):
+            st.session_state.chat_history = []
+            st.rerun()
 
 # ──── 市场总览 ────
 if mode == "📊 市场总览":
