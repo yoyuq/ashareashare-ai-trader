@@ -79,18 +79,15 @@ class MarketScanner:
     async def scan(
         self,
         top_n: int = 50,
-        min_daily_amount: float = 5e7,   # 最低日成交额5000万
+        min_daily_amount: float = 5e7,
         min_price: float = 3.0,
-        max_concurrent: int = 15,
+        max_concurrent: int = 8,
     ) -> ScanResult:
         """
-        全市场扫描
+        全市场扫描 (两阶段: 快速筛选 → 深度分析)
 
-        Args:
-            top_n: 返回前N只
-            min_daily_amount: 最低日成交额
-            min_price: 最低股价(过滤仙股)
-            max_concurrent: 并发分析数
+        Phase 1: 用实时行情数据快速评分(毫秒级,无需K线)
+        Phase 2: Top 50标的获取K线做深度分析
         """
         # Step 1: 获取股票列表
         all_stocks = await self._get_stock_list()
@@ -107,20 +104,33 @@ class MarketScanner:
         filtered = self._basic_filter(all_stocks, min_daily_amount, min_price)
         logger.info(f"全市场扫描: {total}→{len(filtered)}只 (过滤ST/仙股/僵尸股)")
 
-        # Step 3: 批量评分(并发)
+        # Step 3: 🔥 Phase 1 — 快速评分(仅用实时行情,无需K线,秒级完成)
+        quick_scores = self._quick_score_batch(filtered)
+
+        # 取Top候选进入深度分析
+        deep_candidates = quick_scores[:50]  # 最多50只做深度分析
+        logger.info(f"快速筛选: {len(quick_scores)}→{len(deep_candidates)}只进入深度分析")
+
+        # Step 4: Phase 2 — 深度评分(K线数据, 并发)
         sem = asyncio.Semaphore(max_concurrent)
         tasks = []
-        for _, row in filtered.iterrows():
-            tasks.append(self._score_stock(row, sem))
+        for s in deep_candidates:
+            tasks.append(self._deep_score_stock(s, sem))
 
-        scores = await asyncio.gather(*tasks, return_exceptions=True)
+        deep_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Step 4: 排序
+        # 合并: 深度结果优先,其余用快速评分
         valid_scores = []
-        for s in scores:
-            if isinstance(s, Exception):
+        deep_map = {}
+        for r in deep_results:
+            if isinstance(r, Exception) or r is None:
                 continue
-            if s is not None and s.composite > 0:
+            deep_map[r.symbol] = r
+            valid_scores.append(r)
+
+        # 补充快速评分的(未进入深度分析的)
+        for s in quick_scores:
+            if s.symbol not in deep_map:
                 valid_scores.append(s)
 
         valid_scores.sort(key=lambda x: x.composite, reverse=True)
@@ -202,26 +212,110 @@ class MarketScanner:
         return df.reset_index(drop=True)
 
     # ═══════════════════════════════════════════════════════════════
-    # 单只评分
+    # Phase 1: 快速评分 (仅用实时行情, 无需K线, <1秒)
     # ═══════════════════════════════════════════════════════════════
 
-    async def _score_stock(
-        self, row: pd.Series, sem: asyncio.Semaphore
-    ) -> Optional[StockScore]:
-        """对单只标的打分"""
-        async with sem:
+    def _quick_score_batch(self, df: pd.DataFrame) -> List[StockScore]:
+        """快速批量评分 — 只用spot数据,不拉K线"""
+
+        # 列名适配
+        name_col = "名称" if "名称" in df.columns else "name"
+        code_col = "代码" if "代码" in df.columns else "code"
+        price_col = "最新价" if "最新价" in df.columns else "price"
+        pct_col = "涨跌幅" if "涨跌幅" in df.columns else "pct_change"
+        amount_col = "成交额" if "成交额" in df.columns else "amount"
+        turnover_col = "换手率" if "换手率" in df.columns else "turnover"
+        mv_col = "总市值" if "总市值" in df.columns else "total_mv"
+        pe_col = "市盈率-动态" if "市盈率-动态" in df.columns else "pe_ttm"
+
+        scores = []
+        for _, row in df.iterrows():
             try:
-                code = str(row.get("代码", row.get("code", "")))
-                name = str(row.get("名称", row.get("name", "")))
-                price = float(row.get("最新价", row.get("price", 0)))
-                mv = float(row.get("总市值", row.get("total_mv", 0))) / 1e8
+                code = str(row.get(code_col, ""))
+                name = str(row.get(name_col, ""))
+                price = float(row.get(price_col, 0))
+                pct = float(row.get(pct_col, 0))
+                amount = float(row.get(amount_col, 0))
+                turnover = float(row.get(turnover_col, 3.0))
+                mv = float(row.get(mv_col, 0)) / 1e8 if row.get(mv_col, 0) else 0
+
+                if price <= 0:
+                    continue
 
                 sym = f"sh.{code}" if code.startswith("6") else f"sz.{code}"
 
-                # 拉取日K线
+                # 技术面(用涨跌幅+换手率近似)
+                tech = 50.0
+                if 2 <= pct <= 7: tech += 15
+                elif 0 < pct < 2: tech += 5
+                elif pct < -3: tech -= 10
+                if 2 <= turnover <= 8: tech += 8
+                elif turnover > 15: tech -= 5
+
+                # 资金面(用成交额+涨跌+换手近似)
+                fund = 50.0
+                if amount > 5e8: fund += 15
+                elif amount > 1e8: fund += 8
+                if pct > 1 and turnover > 3: fund += 10
+                if pct < -2 and turnover > 5: fund -= 10
+
+                # 动量面(用涨跌幅近似)
+                mom = 50.0
+                if pct > 5: mom += 12
+                elif pct > 2: mom += 6
+                elif pct < -5: mom -= 10
+
+                # 质量面(用市值+换手率近似)
+                qual = 50.0
+                if mv > 100: qual += 8
+                elif mv < 10: qual -= 5
+                if 2 <= turnover <= 10: qual += 5
+                if pe := row.get(pe_col, 0):
+                    pe_val = float(pe) if str(pe).replace(".","").replace("-","").isdigit() else 0
+                    if 0 < pe_val < 30: qual += 5
+                    elif pe_val > 100: qual -= 5
+
+                composite = tech*0.40 + fund*0.25 + mom*0.20 + qual*0.15
+
+                # 简单信号
+                signals = []
+                if pct > 5: signals.append("强势上涨")
+                if pct > 2 and turnover > 5: signals.append("放量上涨")
+                if pct > 0: signals.append("收涨")
+                if pct < -5: signals.append("超跌")
+
+                scores.append(StockScore(
+                    symbol=sym, name=name, close=round(price, 2),
+                    market_cap=round(mv, 1),
+                    technical_score=round(tech, 1),
+                    fund_flow_score=round(fund, 1),
+                    momentum_score=round(mom, 1),
+                    quality_score=round(qual, 1),
+                    composite=round(composite, 1),
+                    signals=signals,
+                ))
+            except Exception:
+                continue
+
+        scores.sort(key=lambda x: x.composite, reverse=True)
+        return scores
+
+    # ═══════════════════════════════════════════════════════════════
+    # Phase 2: 深度评分 (K线数据, 每只~2秒)
+    # ═══════════════════════════════════════════════════════════════
+
+    async def _deep_score_stock(
+        self, stock: StockScore, sem: asyncio.Semaphore
+    ) -> Optional[StockScore]:
+        """深度评分 — 拉K线计算指标"""
+        async with sem:
+            try:
+                sym = stock.symbol
+
+                # 拉取日K线(只取最近120天)
                 from data.providers.base import DataFrequency, DataRequest
                 if self.router is None:
-                    return None
+                    return stock  # 返回快速评分
 
                 req = DataRequest(
                     symbol=sym,
@@ -229,8 +323,15 @@ class MarketScanner:
                     end_date=date.today(),
                     frequency=DataFrequency.DAILY,
                 )
-                result = await self.router.get_daily_kline(req)
-                df = result.data
+                try:
+                    result = await asyncio.wait_for(
+                        self.router.get_daily_kline(req), timeout=8.0
+                    )
+                    df = result.data
+                except asyncio.TimeoutError:
+                    return stock  # 超时,用快速评分
+                except Exception:
+                    return stock
 
                 if df.empty or len(df) < 30:
                     return None

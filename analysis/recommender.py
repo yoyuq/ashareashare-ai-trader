@@ -17,6 +17,11 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+# 延迟导入避免循环依赖
+from .scanner import ScanResult
+from .sector_rotation import SectorHeatmap
+from .northbound import NorthboundTracker
+
 
 @dataclass
 class TradeRecommendation:
@@ -400,24 +405,42 @@ class RecommendationEngine:
 
         流程: 市场状态 → 北向资金 → 板块轮动 → 全市场扫描 → 策略匹配 → 真实回测 → 信号分级 → 风控 → 输出
         """
-        # Step 1: 市场状态
-        regime, regime_conf = await self._get_regime()
-
-        # Step 2: 北向资金
+        # Step 1-3: 并行获取市场状态+北向+板块 (3个独立任务)
         from .northbound import NorthboundTracker
+        from .sector_rotation import SectorRotationAnalyzer
+
         nb_tracker = NorthboundTracker()
-        nb_snapshot = await nb_tracker.get_snapshot()
+        sector_analyzer = SectorRotationAnalyzer()
+
+        # 并行执行, 单个超时10秒
+        async def safe_regime():
+            try: return await asyncio.wait_for(self._get_regime(), timeout=10)
+            except: return ("range_bound", 0.5)
+
+        async def safe_northbound():
+            try: return await asyncio.wait_for(nb_tracker.get_snapshot(), timeout=10)
+            except: return NorthboundTracker()._empty_snapshot()
+
+        async def safe_sector():
+            try: return await asyncio.wait_for(sector_analyzer.analyze(), timeout=10)
+            except: return SectorHeatmap(date=date.today().isoformat())
+
+        (regime, regime_conf), nb_snapshot, sector_heatmap = await asyncio.gather(
+            safe_regime(), safe_northbound(), safe_sector()
+        )
         nb_signal = nb_snapshot.signal
 
-        # Step 3: 板块轮动
-        from .sector_rotation import SectorRotationAnalyzer
-        sector_analyzer = SectorRotationAnalyzer()
-        sector_heatmap = await sector_analyzer.analyze()
-
-        # Step 4: 全市场扫描
+        # Step 4: 全市场扫描 (已有两阶段优化)
         from .scanner import MarketScanner
         scanner = MarketScanner(router=self.router, analyzer=self.analyzer)
-        scan_result = await scanner.scan(top_n=100)
+        try:
+            scan_result = await asyncio.wait_for(scanner.scan(top_n=100), timeout=120)
+        except asyncio.TimeoutError:
+            logger.warning("全市场扫描超时,使用空结果")
+            scan_result = ScanResult(
+                scan_date=date.today().isoformat(),
+                total_stocks=0, filtered_stocks=0,
+            )
 
         if not scan_result.top_scores:
             return DailyRecommendations(

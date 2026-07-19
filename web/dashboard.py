@@ -302,9 +302,9 @@ elif mode == "📋 交易建议":
                     )
 
                     async def gen():
-                        return await engine.generate(capital=capital, top_n=20)
+                        return await engine.generate(capital=capital, top_n=15)
 
-                    with st.spinner("全市场扫描中... (约5000只A股,筛选Top信号)"):
+                    with st.spinner("分析中(并行获取市场状态+北向+板块+扫描)..."):
                         recs = asyncio.run(gen())
 
                     if not recs.recommendations:
