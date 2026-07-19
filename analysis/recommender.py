@@ -398,15 +398,25 @@ class RecommendationEngine:
         """
         生成每日交易建议
 
-        流程: 全市场扫描 → Top N评分 → 每标的策略匹配 → 真实回测 → 仓位计算 → 排序输出
+        流程: 市场状态 → 北向资金 → 板块轮动 → 全市场扫描 → 策略匹配 → 真实回测 → 信号分级 → 风控 → 输出
         """
         # Step 1: 市场状态
         regime, regime_conf = await self._get_regime()
 
-        # Step 2: 全市场扫描
+        # Step 2: 北向资金
+        from .northbound import NorthboundTracker
+        nb_tracker = NorthboundTracker()
+        nb_snapshot = await nb_tracker.get_snapshot()
+        nb_signal = nb_snapshot.signal
+
+        # Step 3: 板块轮动
+        from .sector_rotation import SectorRotationAnalyzer
+        sector_analyzer = SectorRotationAnalyzer()
+        sector_heatmap = await sector_analyzer.analyze()
+
+        # Step 4: 全市场扫描
         from .scanner import MarketScanner
         scanner = MarketScanner(router=self.router, analyzer=self.analyzer)
-
         scan_result = await scanner.scan(top_n=100)
 
         if not scan_result.top_scores:
@@ -515,33 +525,62 @@ class RecommendationEngine:
                 target = close * (1 + atr_pct * 3.5)
                 rr = (target - entry) / (entry - stop) if entry > stop else 1.5
 
+                # v2.6: 北向+板块调整评分
+                adj_score = stock.composite
+                adj_note = ""
+                if nb_signal != "neutral":
+                    adj_score, adj_note = nb_tracker.adjust_signal(adj_score, stock.symbol)
+
+                if sector_heatmap.sectors:
+                    industry = stock.industry or sector_heatmap.sectors[0].name
+                    adj_score, s_note = sector_analyzer.adjust_score_by_sector(
+                        sector_heatmap, industry, adj_score
+                    )
+                    adj_note += "; " + s_note if adj_note else s_note
+
+                # 信号分级
+                from .risk_controls import SignalGrader
+                s_rank = sector_heatmap.get_sector_rank(stock.industry or "") if sector_heatmap.sectors else 0
+                signal_card = SignalGrader.grade(
+                    adj_score, wr, regime, nb_signal,
+                    s_rank
+                )
+                grade = signal_card.level.label
+                direction = signal_card.direction
+
+                # 只保留WATCH以上 (>=50) 或 BUY以上
+                if signal_card.level.value[1] < 45:
+                    continue
+
                 # 质量评分
                 from .multiframe import SignalQualityScorer
-                quality, grade = SignalQualityScorer.score(
+                quality, _ = SignalQualityScorer.score(
                     wr, pf, bt["signals"], 6, 3, 0.25
                 )
-
-                # 只保留B级以上
                 if grade in ("D", "F"):
                     continue
 
                 # 风险
                 risks = self._gen_risks(strat, regime, stock)
 
-                # 理由
+                # 理由 (v2.6: 含北向+板块+信号分级)
                 signals_str = ", ".join(stock.signals[:3])
-                reason = (
-                    f"{stock.name}综合评分{stock.composite:.0f}分, "
-                    f"{strat.get('name', sid)}在{regime}下胜率{wr:.0%}, "
-                    f"触发信号: {signals_str}"
-                )
+                reason_parts = [
+                    f"{stock.name}综合{adj_score:.0f}分({signal_card.level.emoji}{signal_card.level.label})",
+                    f"{strat.get('name', sid)}胜率{wr:.0%}",
+                ]
+                if adj_note:
+                    reason_parts.append(adj_note)
+                if signals_str:
+                    reason_parts.append(f"信号: {signals_str}")
+                reason = "; ".join(reason_parts)
 
                 recs.append(TradeRecommendation(
                     symbol=stock.symbol,
                     symbol_name=stock.name,
                     strategy_id=sid,
                     strategy_name=strat.get("name", sid),
-                    direction="long",
+                    direction=direction,
                     entry_price=round(entry, 2),
                     stop_loss=round(stop, 2),
                     take_profit=round(target, 2),

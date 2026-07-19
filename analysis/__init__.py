@@ -40,6 +40,15 @@ from .recommender import (
     RecommendationEngine,
     TradeRecommendation,
 )
+from .northbound import NorthboundSnapshot, NorthboundTracker
+from .sector_rotation import SectorHeatmap, SectorInfo, SectorRotationAnalyzer
+from .risk_controls import (
+    PortfolioRiskManager,
+    PortfolioRiskState,
+    SignalCard,
+    SignalGrader,
+    SignalLevel,
+)
 
 __all__ = [
     "TechnicalAnalyzer",
@@ -69,4 +78,15 @@ __all__ = [
     "MarketScanner",
     "ScanResult",
     "StockScore",
+    # v2.6
+    "NorthboundTracker",
+    "NorthboundSnapshot",
+    "SectorRotationAnalyzer",
+    "SectorHeatmap",
+    "SectorInfo",
+    "PortfolioRiskManager",
+    "PortfolioRiskState",
+    "SignalGrader",
+    "SignalCard",
+    "SignalLevel",
 ]
