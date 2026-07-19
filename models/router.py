@@ -123,6 +123,7 @@ class ModelRouter:
 
         # 快速健康标记
         self._ollama_available: Optional[bool] = None  # None=未检测, True/False
+        self._ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 
         # 初始化各层客户端
         self._ollama_client = None
@@ -132,7 +133,7 @@ class ModelRouter:
         self._call_log: List[RouteResult] = []
 
     async def _detect_ollama(self) -> bool:
-        """快速检测Ollama是否可用(仅检测一次)"""
+        """快速检测Ollama是否可用(仅检测一次,缓存结果)"""
         if self._ollama_available is not None:
             return self._ollama_available
 
@@ -141,22 +142,28 @@ class ModelRouter:
             client = AsyncClient(
                 host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
             )
-            # 快速ping (1秒超时)
-            import asyncio
-            await asyncio.wait_for(client.list(), timeout=1.0)
-            self._ollama_client = client
-            self._ollama_available = True
-            logger.info("Ollama可用")
-            return True
+            # 快速ping + 检查模型存在
+            import asyncio as aio
+            result = await aio.wait_for(client.list(), timeout=2.0)
+            models = [m.get("model", m.get("name", "")) for m in (result.get("models", []) if isinstance(result, dict) else result)]
+            has_model = any(self._ollama_model.split(":")[0] in m for m in models)
+            if has_model:
+                self._ollama_client = client
+                self._ollama_available = True
+                logger.info(f"Ollama可用 (模型: {self._ollama_model})")
+            else:
+                self._ollama_available = False
+                logger.info(f"Ollama运行中但缺少模型{self._ollama_model}, 请运行: ollama pull {self._ollama_model}")
+            return self._ollama_available
         except Exception:
             self._ollama_available = False
-            logger.info("Ollama不可用,本地层跳过(所有任务将由DeepSeek处理)")
+            logger.info("Ollama不可用,本地层跳过")
             return False
 
     def _init_clients(self):
         """初始化LLM客户端"""
         self._ollama_client = None
-        self._ollama_available = None  # 延迟检测
+        self._ollama_available = None
 
         try:
             from openai import AsyncOpenAI
@@ -164,17 +171,7 @@ class ModelRouter:
                 api_key=os.getenv("DEEPSEEK_API_KEY", ""),
                 base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             )
-            logger.info("DeepSeek客户端初始化完成")
-        except Exception as e:
-            logger.warning(f"DeepSeek初始化失败: {e}")
-
-        try:
-            from openai import AsyncOpenAI
-            self._deepseek_client = AsyncOpenAI(
-                api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-                base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            )
-            logger.info("DeepSeek客户端初始化完成")
+            logger.info("DeepSeek客户端就绪")
         except Exception as e:
             logger.warning(f"DeepSeek初始化失败: {e}")
 
@@ -312,10 +309,8 @@ class ModelRouter:
         if self._ollama_client is None:
             raise RuntimeError("Ollama客户端未初始化")
 
-        model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
-
         response = await self._ollama_client.chat(
-            model=model,
+            model=self._ollama_model,
             messages=messages,
             options={
                 "temperature": 0.1,
