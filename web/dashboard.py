@@ -124,7 +124,7 @@ today = date.today()
 
 # ──── AI问答 (新增 v2.8) ────
 if mode == "💬 AI问答":
-    st.caption("用自然语言提问,AI自动调用分析工具回答。试试问:"市场怎么样"/"分析600519"/"回测茅台双均线"/"有哪些策略"")
+    st.caption('用自然语言提问,AI自动调用分析工具回答。试试问: 市场怎么样 / 分析600519 / 回测茅台双均线 / 有哪些策略')
 
     # 初始化聊天历史
     if "chat_history" not in st.session_state:
