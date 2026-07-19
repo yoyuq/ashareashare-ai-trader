@@ -662,6 +662,100 @@ class TestKnowledgeBase:
 
 
 # ═══════════════════════════════════════════════════════════════
+# 6.5. Code-as-Reasoning (v2.1)
+# ═══════════════════════════════════════════════════════════════
+
+class TestCodeAsReasoning:
+    """代码即推理层测试"""
+
+    def test_code_executor_safe_code(self):
+        """安全代码执行"""
+        from agent.tools.code_executor import CodeExecutor
+        executor = CodeExecutor()
+
+        code = """
+import numpy as np
+import pandas as pd
+
+data = np.array([10, 11, 12, 13, 14, 15])
+ma_5 = float(pd.Series(data).rolling(5).mean().iloc[-1])
+"""
+        results = executor.execute(code, {})
+        assert "ma_5" in results
+        assert abs(results["ma_5"] - 13.0) < 0.01
+
+    def test_code_executor_dangerous_code(self):
+        """危险代码拦截"""
+        from agent.tools.code_executor import CodeExecutor
+        executor = CodeExecutor()
+
+        # 禁止导入系统模块
+        dangerous_code = "import os; os.system('echo bad')"
+        try:
+            executor.execute(dangerous_code, {})
+            assert False, "应该抛出异常"
+        except RuntimeError as e:
+            assert "禁止导入" in str(e)
+
+        # 禁止exec/eval
+        dangerous_code2 = "exec('print(123)')"
+        try:
+            executor.execute(dangerous_code2, {})
+            assert False, "应该抛出异常"
+        except RuntimeError as e:
+            assert "禁止调用" in str(e)
+
+    def test_numeric_safety_checker(self):
+        """数字安全校验"""
+        from agent.tools.code_executor import NumericSafetyChecker, ComputedNumber
+
+        computed = {
+            "rsi_14": ComputedNumber("rsi_14", 58.3, source="rsi calculation"),
+            "ma_20": ComputedNumber("ma_20", 10.52, source="ma calculation"),
+        }
+
+        checker = NumericSafetyChecker(computed)
+
+        # 报告中使用已计算的值 — 应该通过
+        safe_report = "RSI(14)为58.3,处于中性区间。MA20为10.52,价格位于均线上方。"
+        is_safe, violations = checker.validate_report(safe_report)
+        assert is_safe, f"应该通过,但发现违规: {violations}"
+
+        # 报告中编造了未计算的值 — 应该被拦截
+        fake_report = "RSI为62.0, MACD为0.85, 建议买入。"  # 62.0和0.85都不在computed中
+        is_safe2, violations2 = checker.validate_report(fake_report)
+        assert not is_safe2, "编造的数字应该被拦截"
+        assert len(violations2) >= 1
+
+    def test_code_as_reasoning_pipeline_init(self):
+        """Code-as-Reasoning流水线初始化"""
+        from agent.tools.code_executor import CodeAsReasoningPipeline
+        pipeline = CodeAsReasoningPipeline()
+        assert pipeline.executor is not None
+
+    def test_code_executor_context(self):
+        """带上下文的代码执行"""
+        from agent.tools.code_executor import CodeExecutor
+        executor = CodeExecutor()
+
+        # 模拟OHLCV数据
+        import numpy as np
+        context = {
+            "close": np.array([10, 10.5, 10.3, 10.8, 11.0, 11.2, 11.5, 11.3, 11.8, 12.0]),
+        }
+
+        code = """
+import numpy as np
+close = np.array(close)
+ret = np.diff(np.log(close))
+volatility = float(np.std(ret) * np.sqrt(252) * 100)
+"""
+        results = executor.execute(code, context)
+        assert "volatility" in results
+        assert results["volatility"] > 0
+
+
+# ═══════════════════════════════════════════════════════════════
 # 7. Integration (不依赖外部服务)
 # ═══════════════════════════════════════════════════════════════
 
