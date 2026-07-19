@@ -121,6 +121,9 @@ class ModelRouter:
         self._monthly_cost = 0.0
         self._daily_reset_date = datetime.now().date()
 
+        # 快速健康标记
+        self._ollama_available: Optional[bool] = None  # None=未检测, True/False
+
         # 初始化各层客户端
         self._ollama_client = None
         self._deepseek_client = None
@@ -128,16 +131,42 @@ class ModelRouter:
 
         self._call_log: List[RouteResult] = []
 
-    def _init_clients(self):
-        """初始化LLM客户端"""
+    async def _detect_ollama(self) -> bool:
+        """快速检测Ollama是否可用(仅检测一次)"""
+        if self._ollama_available is not None:
+            return self._ollama_available
+
         try:
             from ollama import AsyncClient
-            self._ollama_client = AsyncClient(
+            client = AsyncClient(
                 host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
             )
-            logger.info("Ollama客户端初始化完成")
+            # 快速ping (1秒超时)
+            import asyncio
+            await asyncio.wait_for(client.list(), timeout=1.0)
+            self._ollama_client = client
+            self._ollama_available = True
+            logger.info("Ollama可用")
+            return True
+        except Exception:
+            self._ollama_available = False
+            logger.info("Ollama不可用,本地层跳过(所有任务将由DeepSeek处理)")
+            return False
+
+    def _init_clients(self):
+        """初始化LLM客户端"""
+        self._ollama_client = None
+        self._ollama_available = None  # 延迟检测
+
+        try:
+            from openai import AsyncOpenAI
+            self._deepseek_client = AsyncOpenAI(
+                api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+                base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            )
+            logger.info("DeepSeek客户端初始化完成")
         except Exception as e:
-            logger.warning(f"Ollama初始化失败(将跳过本地层): {e}")
+            logger.warning(f"DeepSeek初始化失败: {e}")
 
         try:
             from openai import AsyncOpenAI
@@ -212,14 +241,24 @@ class ModelRouter:
         """执行请求,失败时沿降级链回退"""
         errors = []
 
-        # 降级链: PRO → FLASH → LOCAL
-        chain = {
+        # 快速检测Ollama状态(仅首次)
+        ollama_ok = await self._detect_ollama()
+
+        # 降级链: 如果Ollama不可用,从链中移除LOCAL
+        full_chain = {
             ModelTier.PRO: [ModelTier.PRO, ModelTier.FLASH, ModelTier.LOCAL],
             ModelTier.FLASH: [ModelTier.FLASH, ModelTier.LOCAL],
             ModelTier.LOCAL: [ModelTier.LOCAL],
         }
+        chain = full_chain.get(tier, [ModelTier.LOCAL])
 
-        for attempt_tier in chain.get(tier, [ModelTier.LOCAL]):
+        # 如果Ollama不可用,移除LOCAL (跳过无意义的3次重试)
+        if not ollama_ok:
+            chain = [t for t in chain if t != ModelTier.LOCAL]
+            if not chain:
+                chain = [ModelTier.FLASH]  # 至少有一个
+
+        for attempt_tier in chain:
             last_error = None
             for retry in range(max_retries + 1):
                 try:
