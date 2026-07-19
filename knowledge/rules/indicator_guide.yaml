@@ -1,0 +1,102 @@
+# ====== 技术指标使用指南 ======
+# 每个指标的含义、使用方法、A股经验阈值
+
+indicators:
+  # ---- 趋势类 ----
+  MA:
+    description: "移动平均线,平滑价格趋势"
+    periods:
+      - {n: 5, use: "超短线趋势,灵敏度最高"}
+      - {n: 10, use: "短线趋势"}
+      - {n: 20, use: "中短线趋势,月度趋势"}
+      - {n: 60, use: "中长线趋势,季度趋势"}
+      - {n: 120, use: "半年线,牛熊分界线"}
+      - {n: 250, use: "年线,长期牛熊分界线"}
+    interpretation:
+      - "价格在MA之上→多头环境; 之下→空头环境"
+      - "短期MA上穿长期MA→金叉看涨; 反之→死叉看跌"
+      - "MA多头排列(短>中>长)→强多头; MA空头排列→强空头"
+    ashare_tip: "A股散户多关注5/10/20/60日线,机构关注120/250日线"
+
+  MACD:
+    description: "指数平滑异同移动平均线,捕捉趋势转折"
+    components: ["DIF", "DEA", "MACD柱(红绿柱)"]
+    interpretation:
+      - "DIF上穿DEA→金叉看涨"
+      - "DIF下穿DEA→死叉看跌"
+      - "MACD柱变红→动能转多; 变绿→动能转空"
+      - "顶背离(价格新高但MACD不新高)→顶部信号,警惕回落"
+      - "底背离(价格新低但MACD不新低)→底部信号,可能反弹"
+    ashare_tip: "A股日线MACD金叉配合放量更可靠; 周线MACD用于判断中期趋势"
+
+  RSI:
+    description: "相对强弱指标,衡量价格动量的超买超卖程度"
+    periods:
+      - {n: 6, use: "超短线RSI"}
+      - {n: 14, use: "标准RSI"}
+      - {n: 24, use: "长周期RSI(更平滑)"}
+    thresholds:
+      overbought: 70
+      oversold: 30
+      extreme_overbought: 85
+      extreme_oversold: 15
+    ashare_tip: "A股强势行情中RSI可长时间维持在70以上; 熊市中RSI可长期在30以下"
+
+  ADX:
+    description: "平均趋向指数,衡量趋势强度(非趋势方向)"
+    thresholds:
+      no_trend: 20       # <20: 无明显趋势(震荡)
+      weak_trend: 25     # 20-25: 趋势形成中
+      strong_trend: 40   # >40: 强趋势
+      extreme: 60        # >60: 极强趋势(接近尾声)
+    ashare_tip: "ADX>25时趋势策略有效; ADX<20时应用震荡策略"
+
+  # ---- 波动率类 ----
+  BollingerBands:
+    description: "布林带,价格通道指标"
+    interpretation:
+      - "价格触及上轨→超买,可能回落"
+      - "价格触及下轨→超卖,可能反弹"
+      - "带宽收窄(BB Squeeze)→酝酿大行情"
+      - "带宽扩张→当前趋势加速"
+    ashare_tip: "A股布林带收窄后向上突破的概率略大于向下(偏多市场特征)"
+
+  ATR:
+    description: "平均真实波幅,衡量波动率"
+    usage:
+      - "止损设置: 入场价 - N * ATR(14)"
+      - "仓位计算: 风险金额 / (ATR * 合约乘数)"
+    ashare_tip: "A股ATR(14)的20-30%可作为动态止损基准"
+
+  # ---- 成交量类 ----
+  OBV:
+    description: "能量潮,量价配合指标"
+    interpretation:
+      - "价格涨+OBV涨→健康上涨"
+      - "价格涨+OBV跌→量价背离,警惕"
+      - "价格跌+OBV跌→健康下跌"
+      - "价格跌+OBV涨→资金在低位吸筹"
+
+  # ---- 形态类 ----
+  candlestick_patterns:
+    Doji:
+      reliability: "中等"
+      description: "十字星,开盘价=收盘价,供需平衡"
+    Hammer:
+      reliability: "高(在下跌趋势末端)"
+      description: "锤子线,长下影线,可能见底"
+    ShootingStar:
+      reliability: "高(在上涨趋势末端)"
+      description: "射击之星,长上影线,可能见顶"
+    BullishEngulfing:
+      reliability: "较高"
+      description: "看涨吞没,阳线完全吞没前一根阴线"
+    BearishEngulfing:
+      reliability: "较高"
+      description: "看跌吞没,阴线完全吞没前一根阳线"
+    ThreeWhiteSoldiers:
+      reliability: "较高"
+      description: "红三兵,连续三根阳线,趋势延续信号"
+    ThreeBlackCrows:
+      reliability: "较高"
+      description: "三只乌鸦,连续三根阴线,趋势反转警告"

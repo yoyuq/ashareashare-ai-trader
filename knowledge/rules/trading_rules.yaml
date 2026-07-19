@@ -1,0 +1,69 @@
+# ====== A股交易规则知识 ======
+# v2.1 口径硬化: 所有计算口径在此硬编码,禁止LLM自行定义
+
+trading_hours:
+  morning: ["09:30", "11:30"]
+  afternoon: ["13:00", "15:00"]
+  call_auction_morning: ["09:15", "09:25"]
+  call_auction_afternoon: ["14:57", "15:00"]  # 深市收盘集合竞价
+
+settlement:
+  type: "T+1"
+  description: "当日买入的股票,次日(T+1)才能卖出"
+  exception: "T+0仅限部分ETF和可转债"
+
+price_limits:
+  main_board: 0.10      # 主板 ±10%
+  chinext: 0.20          # 创业板 ±20%
+  star_market: 0.20       # 科创板 ±20%
+  beijing: 0.30           # 北交所 ±30%
+  st_stock: 0.05          # ST/*ST ±5%
+  new_stock_first_day:     # 新股首日
+    main_board: 0.44       # 44%上限
+    chinext_star: null     # 无限制
+
+fees:
+  stamp_duty:
+    rate: 0.0005          # 0.05% (2023年8月28日起减半)
+    side: "sell_only"     # 仅卖出时征收
+  commission:
+    rate: 0.0003          # 万3 (市场常见,实际可与券商协商)
+    min_per_trade: 5.0    # 最低5元
+  transfer_fee:
+    rate: 0.00001           # 0.001% (万分之0.1)
+    exchange: "shanghai_only"  # 仅上交所(含科创板)
+    note: "深交所自2022年12月起免收"
+
+lot_size:
+  min_lot: 100            # 最小交易单位(股)
+  lot_increment: 100      # 递增单位(股)
+  odd_lot_rule: "卖出可以零股,买入必须整手"
+
+trading_signals:
+  # 🆕 v2.1 口径硬化: 所有信号定义在此明确
+  volume_expansion:       # 放量定义
+    formula: "volume > vol_ma_5 * 1.5"
+    threshold: 1.5
+    lookback: 5
+  volume_contraction:     # 缩量定义
+    formula: "volume < vol_ma_20 * 0.5"
+    threshold: 0.5
+    lookback: 20
+  limit_up_lock:          # 封板定义
+    formula: "close >= pre_close * 1.095 AND close == high"
+    threshold: 0.095
+  limit_up_crack:         # 炸板定义
+    formula: "high >= pre_close * 1.095 AND close < pre_close * 1.05"
+  ma_golden_cross:        # 金叉
+    formula: "ma_short crosses above ma_long"
+    description: "短期均线上穿长期均线"
+  ma_death_cross:         # 死叉
+    formula: "ma_short crosses below ma_long"
+  rsi_overbought:         # 超买
+    formula: "RSI_14 > 70"
+  rsi_oversold:           # 超卖
+    formula: "RSI_14 < 30"
+
+circuit_breaker:
+  enabled: false
+  description: "A股目前无熔断机制(2016年1月试行后暂停)"

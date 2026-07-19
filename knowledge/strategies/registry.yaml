@@ -1,0 +1,137 @@
+# ====== 策略注册表 (v2.0) ======
+# 9个核心策略 + v2.1 capacity_limit字段
+
+strategies:
+  # ====== 趋势跟踪 (3个) ======
+  - id: dual_ma_trend
+    name: "双均线趋势跟踪"
+    category: "trend_following"
+    description: "短期均线上穿长期均线做多,下穿做空"
+    params:
+      ma_fast: 10
+      ma_slow: 30
+      stop_loss_pct: 0.05
+    timeframes: ["daily", "weekly"]
+    market_regimes: ["strong_bull", "weak_bull"]
+    capacity_limit: 10000000  # v2.1: 容量上限(元)
+    version: "1.0"
+
+  - id: macd_trend
+    name: "MACD趋势策略"
+    category: "trend_following"
+    description: "MACD金叉+成交量确认入场,死叉离场"
+    params:
+      macd_fast: 12
+      macd_slow: 26
+      macd_signal: 9
+      volume_confirm: true
+    timeframes: ["daily"]
+    market_regimes: ["strong_bull", "weak_bull", "range_bound"]
+    capacity_limit: 8000000
+    version: "1.0"
+
+  - id: turtle_trend
+    name: "海龟趋势突破"
+    category: "trend_following"
+    description: "20日/55日通道突破入场,ATR动态止损"
+    params:
+      entry_period: 20
+      exit_period: 10
+      atr_period: 20
+      atr_stop_multiplier: 2
+    timeframes: ["daily"]
+    market_regimes: ["strong_bull", "strong_bear"]
+    capacity_limit: 5000000
+    version: "1.0"
+
+  # ====== 均值回归 (2个) ======
+  - id: bollinger_reversal
+    name: "布林带均值回归"
+    category: "mean_reversion"
+    description: "价格突破布林下轨做多(超卖反弹),突破上轨做空(超买回落)"
+    params:
+      bb_period: 20
+      bb_std: 2
+      rsi_filter: true
+      rsi_threshold_low: 30
+      rsi_threshold_high: 70
+    timeframes: ["daily", "60min"]
+    market_regimes: ["range_bound", "weak_bull", "weak_bear"]
+    capacity_limit: 3000000
+    version: "1.0"
+
+  - id: rsi_mean_reversion
+    name: "RSI均值回归"
+    category: "mean_reversion"
+    description: "RSI超卖+底背离→做多, RSI超买+顶背离→做空"
+    params:
+      rsi_period: 14
+      oversold: 30
+      overbought: 70
+      divergence_lookback: 20
+    timeframes: ["daily"]
+    market_regimes: ["range_bound"]
+    capacity_limit: 3000000
+    version: "1.0"
+
+  # ====== 动量/打板 (2个) ======
+  - id: momentum_breakout
+    name: "动量突破策略"
+    category: "momentum"
+    description: "20日动量排名前10%+突破箱体上沿入场"
+    params:
+      momentum_period: 20
+      top_pct: 10
+      volume_surge: 1.5
+    timeframes: ["daily"]
+    market_regimes: ["strong_bull", "weak_bull"]
+    capacity_limit: 5000000
+    version: "1.0"
+
+  - id: limit_up_chase
+    name: "涨停追击策略"
+    category: "ashare_special"
+    description: "首板+题材驱动+封单强→次日竞价买入"
+    params:
+      max_consecutive_boards: 1
+      seal_time_before: "10:30"  # 早盘封板
+      crack_count: 0             # 未炸板
+      seal_order_ratio: 0.3      # 封单/成交>30%
+      next_day_entry: "call_auction"
+    timeframes: ["daily", "tick"]
+    market_regimes: ["strong_bull", "weak_bull", "range_bound"]
+    capacity_limit: 1000000  # 打板容量小
+    version: "1.0"
+    note: "高风险策略,需严格止损"
+
+  # ====== 多因子 (2个) ======
+  - id: multi_factor
+    name: "多因子选股策略"
+    category: "multi_factor"
+    description: "动量+波动率+趋势+成交量+质量 五因子融合"
+    params:
+      factor_weights:
+        momentum: 0.25
+        volatility: 0.15
+        trend: 0.30
+        volume: 0.15
+        quality: 0.15
+      rebalance: "weekly"
+    timeframes: ["daily"]
+    market_regimes: ["strong_bull", "weak_bull", "range_bound", "weak_bear"]
+    capacity_limit: 15000000
+    version: "1.0"
+
+  - id: low_volatility
+    name: "低波动异象策略"
+    category: "multi_factor"
+    description: "买入低波动率+高ROE的股票,利用A股低波异象"
+    params:
+      vol_period: 60
+      roe_threshold: 0.15
+      top_n: 30
+      rebalance: "monthly"
+    timeframes: ["daily"]
+    market_regimes: ["strong_bull", "weak_bull", "range_bound", "weak_bear"]
+    capacity_limit: 20000000
+    version: "1.0"
