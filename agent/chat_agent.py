@@ -507,13 +507,15 @@ class ChatAgent:
             return f"抱歉,处理您的请求时出错了: {e}\n请稍后重试或尝试其他问题。"
 
     async def _call_llm(self, messages: List[Dict]) -> Dict:
-        """调用DeepSeek API"""
-        try:
-            from openai import AsyncOpenAI
+        """调用DeepSeek API (同步客户端+线程池, 兼容代理)"""
+        import asyncio
 
-            client = AsyncOpenAI(
+        def _sync_call():
+            from openai import OpenAI
+            client = OpenAI(
                 api_key=os.getenv("DEEPSEEK_API_KEY", ""),
                 base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+                timeout=30.0,
             )
 
             kwargs = {
@@ -523,15 +525,13 @@ class ChatAgent:
                 "max_tokens": 2000,
             }
 
-            # 只在非工具响应时传tools
-            has_tool_results = any(
-                m.get("role") == "tool" for m in messages
-            )
+            # 只在还没调过工具时传tools
+            has_tool_results = any(m.get("role") == "tool" for m in messages)
             if not has_tool_results:
                 kwargs["tools"] = TOOLS
                 kwargs["tool_choice"] = "auto"
 
-            response = await client.chat.completions.create(**kwargs)
+            response = client.chat.completions.create(**kwargs)
             choice = response.choices[0]
 
             result = {}
@@ -549,27 +549,32 @@ class ChatAgent:
                     }
                     for tc in choice.message.tool_calls
                 ]
-
             return result
 
+        try:
+            return await asyncio.to_thread(_sync_call)
         except Exception as e:
-            # Fallback: 没有API时的简单回复
-            logger.warning(f"LLM调用失败: {e}")
+            logger.warning(f"LLM call failed: {e}")
             return {"content": self._fallback_reply(messages[-1].get("content", ""))}
 
     def _fallback_reply(self, user_msg: str) -> str:
-        """无API时的降级回复"""
+        """No-API fallback"""
         msg = user_msg.lower()
-        if "涨" in msg or "跌" in msg or "市场" in msg:
-            return "当前需要DeepSeek API来分析市场。请确保API Key已配置。您可以查看Dashboard的\"市场总览\"面板获取实时数据。"
-        if "策略" in msg or "回测" in msg:
-            return "回测功能需要DeepSeek API。您可以直接在\"策略回测\"面板中手动运行回测。"
-        if "股票" in msg or "分析" in msg:
-            return "个股分析需要DeepSeek API。请在\"个股分析\"面板中输入股票代码查看技术指标。"
-        return "您好!我是A股智能分析助手。当前DeepSeek API未连接,您可以: \n1. 在.env文件中配置DEEPSEEK_API_KEY\n2. 使用Dashboard面板查看实时数据\n3. 问我A股交易规则相关问题"
+        if any(w in msg for w in ["涨","跌","市场","分析"]):
+            return ("当前DeepSeek API暂时不可用。您可以:\n"
+                    "1. 在Dashboard的[市场总览]面板查看实时市场数据\n"
+                    "2. 在[个股分析]面板输入代码查看技术指标\n"
+                    "3. 在[策略回测]面板手动运行回测\n"
+                    "4. 检查.env中的DEEPSEEK_API_KEY配置")
+        return ("您好!我是A股智能分析助手。\n\n"
+                "当前API连接异常,请检查:\n"
+                "1. .env文件中的DEEPSEEK_API_KEY\n"
+                "2. 代理设置(HTTP_PROXY/HTTPS_PROXY)\n"
+                "3. 网络连接\n\n"
+                "其他面板(市场总览/个股分析/策略回测)仍可使用。")
 
     async def _execute_tools(self, tool_calls: List[Dict]) -> List[Dict]:
-        """执行工具调用"""
+        """Execute tool calls with timeout"""
         results = []
         for tc in tool_calls:
             name = tc["function"]["name"]
@@ -577,6 +582,17 @@ class ChatAgent:
                 args = json.loads(tc["function"]["arguments"])
             except json.JSONDecodeError:
                 args = {}
-            result = await self.executor.execute(name, args)
+
+            try:
+                # 15s timeout per tool
+                result = await asyncio.wait_for(
+                    self.executor.execute(name, args), timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                result = json.dumps(
+                    {"error": f"工具{name}执行超时,请稍后重试或减少数据量"},
+                    ensure_ascii=False,
+                )
+
             results.append({"id": tc["id"], "result": result})
         return results
