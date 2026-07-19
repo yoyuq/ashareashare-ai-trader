@@ -34,6 +34,11 @@ from .multiframe import (
     SignalQualityScorer,
     TimeframeSignal,
 )
+from .recommender import (
+    DailyRecommendations,
+    RecommendationEngine,
+    TradeRecommendation,
+)
 
 __all__ = [
     "TechnicalAnalyzer",
@@ -55,4 +60,8 @@ __all__ = [
     "BayesianICDecayDetector",
     "FactorHealth",
     "SignalQualityScorer",
+    # v2.4
+    "RecommendationEngine",
+    "TradeRecommendation",
+    "DailyRecommendations",
 ]

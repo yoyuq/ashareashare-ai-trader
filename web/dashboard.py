@@ -76,7 +76,7 @@ with t3:
     ds_key = os.getenv("DEEPSEEK_API_KEY", "")
     st.caption(f"{'🟢' if 'sk-' in ds_key else '⚪'} DeepSeek")
 
-mode = st.radio("分析模式", ["📊 市场总览", "🔍 个股分析", "🧪 策略回测", "⚔️ 多空辩论"],
+mode = st.radio("分析模式", ["📊 市场总览", "🔍 个股分析", "📋 交易建议", "🧪 策略回测", "⚔️ 多空辩论"],
                 horizontal=True, label_visibility="collapsed")
 
 # ═══════════════════════ 标的选择(紧凑) ═══════════════════════
@@ -279,6 +279,104 @@ elif mode == "🧪 策略回测":
                 st.line_chart(r.equity_curve)
             except Exception as e:
                 st.error(str(e))
+
+# ──── 交易建议 (新增 v2.4) ────
+elif mode == "📋 交易建议":
+    st.caption("分析→策略匹配→快速回测→胜率统计→交易建议")
+
+    capital = st.number_input("总资金(元)", value=100000, step=10000, min_value=10000,
+                              format="%d", key="rec_capital")
+
+    if st.button("🔮 生成交易建议", type="primary"):
+        if not symbols:
+            st.warning("请在上方选择标的")
+        else:
+            with st.spinner("分析中: 拉取数据→计算指标→匹配策略→回测验证→生成建议..."):
+                try:
+                    from analysis.recommender import RecommendationEngine
+
+                    engine = RecommendationEngine(
+                        router=router,
+                        knowledge=knowledge,
+                        analyzer=analyzer,
+                    )
+
+                    async def gen():
+                        return await engine.generate(symbols, capital=capital)
+
+                    recs = asyncio.run(gen())
+
+                    if not recs.recommendations:
+                        st.warning("当前市场环境下未找到符合条件的交易机会,建议观望。")
+                    else:
+                        st.success(f"找到 {recs.total_opportunities} 个交易机会")
+
+                        # 总览表
+                        st.subheader("📊 胜率总览")
+                        overview_data = []
+                        for r in recs.recommendations:
+                            overview_data.append({
+                                "标的": r.symbol.split(".")[-1],
+                                "策略": r.strategy_name,
+                                "方向": r.direction.upper(),
+                                "入场": f"{r.entry_price:.2f}",
+                                "止损": f"{r.stop_loss:.2f}",
+                                "止盈": f"{r.take_profit:.2f}",
+                                "**胜率**": f"**{r.win_rate:.1%}**",
+                                "盈亏比": f"{r.profit_factor:.1f}x",
+                                "期望值": f"{r.expected_value:+.1f}%",
+                                "夏普": f"{r.sharpe:.2f}",
+                                "建议仓位": f"{r.suggested_amount:,.0f}",
+                                "评级": f"{r.confidence}",
+                            })
+                        st.dataframe(pd.DataFrame(overview_data), use_container_width=True, hide_index=True)
+
+                        # 仓位汇总
+                        st.metric("建议总仓位", f"¥{recs.suggested_total_exposure:,.0f}",
+                                 f"{recs.suggested_total_exposure/capital*100:.1f}%总资金")
+
+                        # 逐个详细建议
+                        st.subheader("📋 详细建议")
+                        for r in recs.recommendations:
+                            emoji_map = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
+                            e = emoji_map.get(r.confidence, "⚪")
+
+                            with st.expander(
+                                f"{e} {r.symbol.split('.')[-1]} — {r.strategy_name} "
+                                f"| 胜率{r.win_rate:.0%} | {r.confidence}级 | ¥{r.suggested_amount:,.0f}",
+                                expanded=(len(recs.recommendations) <= 3)
+                            ):
+                                c1, c2, c3 = st.columns(3)
+
+                                with c1:
+                                    st.metric("入场价", f"¥{r.entry_price:.2f}")
+                                    st.metric("止损价", f"¥{r.stop_loss:.2f}",
+                                             f"{(r.stop_loss/r.entry_price-1)*100:+.1f}%")
+                                    st.metric("止盈价", f"¥{r.take_profit:.2f}",
+                                             f"{(r.take_profit/r.entry_price-1)*100:+.1f}%")
+                                    st.caption(f"盈亏比: 1:{r.risk_reward_ratio:.1f}")
+
+                                with c2:
+                                    st.metric("**历史胜率**", f"**{r.win_rate:.1%}**")
+                                    st.metric("历史盈亏比", f"{r.profit_factor:.1f}x")
+                                    st.metric("期望值", f"{r.expected_value:+.2f}%")
+                                    st.metric("夏普比率", f"{r.sharpe:.2f}")
+
+                                with c3:
+                                    st.metric("**建议仓位**", f"¥{r.suggested_amount:,.0f}")
+                                    st.metric("仓位比例", f"{r.position_pct:.1%}")
+                                    st.metric("建议股数", f"{r.shares}股")
+                                    st.metric("质量评分", f"{r.quality_score:.0f}/100 ({r.confidence}级)")
+
+                                st.info(f"💡 {r.key_reason}")
+
+                                if r.risks:
+                                    st.warning("⚠️ " + " | ".join(r.risks[:4]))
+
+                                st.caption(f"回测区间: {r.backtest_period} | 最大回撤: {r.max_drawdown:.1f}%")
+
+                except Exception as e:
+                    st.error(f"推荐生成失败: {e}")
 
 # ──── 多空辩论 ────
 elif mode == "⚔️ 多空辩论":
