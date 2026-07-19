@@ -1,0 +1,57 @@
+# ====== Python ======
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.eggs/
+*.whl
+venv/
+.venv/
+env/
+
+# ====== 环境变量 ======
+.env
+
+# ====== 数据文件 ======
+*.db
+*.sqlite3
+data_storage/
+*.parquet.bak
+
+# ====== 日志 ======
+logs/
+*.log
+
+# ====== 向量库(可重建) ======
+knowledge/vector_store/chroma/
+
+# ====== 回测产物 ======
+knowledge/strategies/**/backtest_log.json
+
+# ====== IDE ======
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ====== OS ======
+.DS_Store
+Thumbs.db
+
+# ====== Docker ======
+docker-compose.override.yml
+
+# ====== Pytest ======
+.pytest_cache/
+htmlcov/
+.coverage
+
+# ====== Jupyter ======
+.ipynb_checkpoints/
+*.ipynb

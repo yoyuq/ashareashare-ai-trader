@@ -1,0 +1,152 @@
+# ====== A股智能分析Agent — 全局配置 ======
+
+project:
+  name: "ashare-ai-trader"
+  version: "2.1.0"
+  description: "AI驱动的A股量化分析助手"
+
+# ---- 数据源配置 ----
+data_sources:
+  primary: akshare
+  fallback: baostock
+  advanced:
+    tushare:
+      enabled: false  # 需要Pro token
+      priority: 3
+    efinance:
+      enabled: true
+      priority: 2
+
+  # 另类数据源 (v2.1)
+  alternative:
+    irm_qa: true          # 互动易问答
+    shareholder_count: true # 股东户数变化
+    limit_up_reason: true  # 涨停原因归因
+    margin_detail: true    # 融资融券明细
+    unlock_calendar: true  # 限售解禁日历
+    block_trades: true     # 大宗交易
+    stock_heat: true       # 个股热度排名
+
+# ---- 数据存储 ----
+storage:
+  postgres:
+    host: "${POSTGRES_HOST:-localhost}"
+    port: "${POSTGRES_PORT:-5432}"
+    database: "${POSTGRES_DB:-ashare_trader}"
+    user: "${POSTGRES_USER:-ashare}"
+    password: "${POSTGRES_PASSWORD}"
+    pool_size: 10
+    max_overflow: 20
+
+  redis:
+    host: "${REDIS_HOST:-localhost}"
+    port: "${REDIS_PORT:-6379}"
+    db: "${REDIS_DB:-0}"
+    cache_ttl:
+      realtime_quote: 3    # 实时行情缓存3秒
+      daily_kline: 3600    # 日K线缓存1小时
+      stock_list: 86400    # 股票列表缓存1天
+      financials: 86400    # 财务数据缓存1天
+
+  timescaledb:
+    chunk_interval: "7 days"
+    retention:
+      tick_data: "90 days"
+      daily_data: "10 years"
+      minute_data: "2 years"
+
+# ---- 回测默认参数 ----
+backtest:
+  initial_capital: 100000   # 初始资金(元)
+  commission_rate: 0.0003   # 佣金费率(万3)
+  stamp_duty: 0.0005        # 印花税(千0.5,仅卖出)
+  min_commission: 5.0       # 最低佣金(元)
+  slippage: 0.001           # 默认滑点(0.1%)
+  min_lot_size: 100         # A股最小交易单位(股)
+  price_limit_10: 0.10      # 主板涨跌停
+  price_limit_20: 0.20      # 科创板/创业板
+  price_limit_30: 0.30      # 北交所
+
+  # 过拟合防控
+  overfitting:
+    train_split: 0.60       # 训练集60%
+    validation_split: 0.20  # 验证集20%
+    test_split: 0.20        # 测试集20%
+    min_test_periods: 252   # 最少测试天数
+    monte_carlo_runs: 1000  # Monte Carlo模拟次数
+    pbo_threshold: 0.05     # PBO显著水平
+
+  # 冲击成本建模 (v2.1)
+  impact_cost:
+    model: "square_root"    # Almgren-Chriss平方根律
+    eta: 0.1                # 市场弹性参数
+    gamma: 0.15             # 风险厌恶系数
+    daily_volume_pct: 0.01  # 单日最大成交量占比
+
+# ---- 分析引擎 ----
+analysis:
+  # 技术指标
+  indicators:
+    ta_lib_enabled: true
+    pandas_ta_fallback: true
+    default_periods:
+      ma_short: 5
+      ma_mid: 20
+      ma_long: 60
+      rsi: 14
+      macd_fast: 12
+      macd_slow: 26
+      macd_signal: 9
+      boll_period: 20
+      boll_std: 2
+
+  # 市场状态识别
+  market_regime:
+    lookback: 252
+    states:
+      - strong_bull
+      - weak_bull
+      - range_bound
+      - weak_bear
+      - strong_bear
+      - crisis
+
+  # 增量计算
+  incremental:
+    auto_update: true
+    max_lag_hours: 1
+    batch_size: 500
+
+# ---- AI Agent ----
+agent:
+  # 工作流
+  workflow:
+    max_retries: 2
+    timeout_per_node: 120  # 单Agent超时(秒)
+    parallel_nodes: 5      # 可并行的Agent数
+
+  # 搜索空间
+  scan:
+    max_stocks: 5000       # 全市场扫描上限
+    pre_filter_rules:      # 预过滤规则
+      - "剔除ST/*ST"
+      - "剔除上市<60天"
+      - "剔除日均成交额<2000万"
+
+# ---- 通知 ----
+notifications:
+  enabled: true
+  channels:
+    - type: "console"
+      enabled: true
+    - type: "wecom_webhook"
+      enabled: false
+    - type: "dingtalk"
+      enabled: false
+
+  triggers:
+    signal_high_confidence: true  # 高置信度信号
+    daily_summary: true           # 每日分析摘要
+    cost_alert: true              # API费用告警
+    data_error: true              # 数据异常
+    crash_alert: true             # 系统异常

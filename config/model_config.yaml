@@ -1,0 +1,114 @@
+# ====== 模型路由配置 — 三层漏斗混合调度 ======
+# v2.0+ 核心配置: Ollama本地 + DeepSeek云端
+
+models:
+  # ---- Tier 1: Ollama本地模型 (免费,处理60%日常任务) ----
+  local:
+    ollama:
+      host: "${OLLAMA_HOST:-http://localhost:11434}"
+      primary_model: "qwen3:4b"          # Qwen3 4B Q4_K_M ~2.8GB VRAM
+      fallback_model: "qwen2.5:3b"       # 备选,更轻量
+      max_context_length: 32768
+      max_output_tokens: 4096
+      temperature: 0.1                     # 低温度,确保一致性
+      request_timeout: 60
+      # 适用任务:
+      # - 技术指标解读(指标值已由代码计算)
+      # - 简单市场总结
+      # - K线形态匹配描述
+      # - 文本分类与标签
+
+  # ---- Tier 2: DeepSeek V4-Flash (¥1-2/百万tokens,处理30%中等任务) ----
+  flash:
+    provider: "deepseek"
+    model: "deepseek-chat"               # V4-Flash (性价比最高)
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+    max_context_length: 131072           # 128K
+    max_output_tokens: 16384
+    temperature: 0.3
+    request_timeout: 90
+    # 价格 (2026年7月):
+    #   输入: ¥1/M tokens
+    #   输出: ¥2/M tokens
+    #   高峰(9:00-12:00, 14:00-18:00): ×2
+    # 适用任务:
+    # - 多维度综合研判
+    # - 策略匹配与评分
+    # - Few-shot推理
+    # - 回测结果解读
+
+  # ---- Tier 3: DeepSeek V4-Pro (¥3-6/百万tokens,处理10%复杂任务) ----
+  pro:
+    provider: "deepseek"
+    model: "deepseek-reasoner"           # V4-Pro (最强推理)
+    api_key: "${DEEPSEEK_API_KEY}"
+    base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+    max_context_length: 131072
+    max_output_tokens: 32768
+    temperature: 0.6
+    request_timeout: 180
+    # 价格 (2026年7月):
+    #   输入: ¥3/M tokens
+    #   输出: ¥6/M tokens
+    #   高峰: ×2
+    # 适用任务:
+    # - 深度多空辩论(Judge)
+    # - 综合分析报告生成
+    # - 复杂市场环境研判
+    # - 策略优化建议
+
+# ---- 路由规则 ----
+routing:
+  # 任务复杂度 → 模型层级
+  complexity_rules:
+    simple:    # <5K tokens, 纯文本
+      tier: local
+      examples: ["技术指标解读", "K线形态描述", "新闻摘要"]
+    medium:    # 5K-40K tokens, 结构化推理
+      tier: flash
+      examples: ["多维度综合研判", "策略匹配", "信号验证"]
+    complex:   # >40K tokens, 深度推理
+      tier: pro
+      examples: ["综合研判报告", "多空辩论", "策略优化"]
+
+  # 高峰时段自动降级
+  peak_hours_downgrade:
+    enabled: true
+    peak_windows:
+      - ["09:00", "12:00"]   # 早盘+上午
+      - ["14:00", "18:00"]   # 下午+收盘后
+    strategy: "complexity_lower"  # 高峰时降低一级
+
+  # 降级容灾
+  fallback:
+    max_retries: 2
+    retry_delay: 1.0
+    # 降级链: Pro→Flash→Local
+    degradation_chain:
+      - from: pro
+        to: flash
+        condition: "rate_limit_exceeded or timeout"
+      - from: flash
+        to: local
+        condition: "rate_limit_exceeded or timeout"
+
+# ---- 成本控制 ----
+cost_control:
+  daily_budget: 1.0           # 日预算(元)
+  monthly_budget: 15.0        # 月预算(元)
+  alert_threshold: 0.8        # 使用80%时告警
+  cost_tracking: true
+
+  # DeepSeek V4 peak-valley pricing (2026-07)
+  pricing:
+    flash:
+      input: 1.0    # ¥/百万tokens
+      output: 2.0   # ¥/百万tokens
+    pro:
+      input: 3.0    # ¥/百万tokens
+      output: 6.0   # ¥/百万tokens
+    peak_multiplier: 2.0
+    peak_hours:
+      - ["09:00", "12:00"]
+      - ["14:00", "18:00"]
