@@ -16,6 +16,7 @@ import pandas as pd
 from loguru import logger
 
 from .providers.akshare_provider import AKShareProvider
+from .providers.baostock_provider import BaostockProvider
 from .providers.base import DataFrequency, DataProvider, DataRequest, DataResult, DataSource
 
 

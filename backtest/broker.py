@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 
 
 class OrderSide(Enum):
@@ -97,7 +98,6 @@ class Account:
     win_count: int = 0
     loss_count: int = 0
 
-    @property
     def total_asset(self, prices: Optional[Dict[str, float]] = None) -> float:
         """总资产 = 现金 + 持仓市值"""
         if prices is None:

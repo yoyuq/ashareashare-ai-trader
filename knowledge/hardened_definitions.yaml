@@ -1,0 +1,126 @@
+# 🆕 v2.1 口径硬化字典
+#
+# 所有回测和信号生成中使用的概念必须在此硬编码,
+# LLM不得自行定义或改写任何计算口径。
+#
+# 使用方式:
+#   from knowledge.manager import KnowledgeManager
+#   km = KnowledgeManager()
+#   defn = km.get_hardened_definition("volume_expansion")
+#   # → {"formula": "volume > vol_ma_5 * 1.5", "threshold": 1.5, "lookback": 5}
+
+definitions:
+  # ---- 成交量信号 ----
+  volume_expansion:
+    formula: "volume > vol_ma_5 * threshold"
+    threshold: 1.5
+    lookback: 5
+    comment: "放量: 当日成交量超过5日均量的1.5倍"
+
+  volume_contraction:
+    formula: "volume < vol_ma_20 * threshold"
+    threshold: 0.5
+    lookback: 20
+    comment: "缩量: 当日成交量低于20日均量的0.5倍"
+
+  volume_extreme:
+    formula: "volume > vol_ma_20 * threshold"
+    threshold: 3.0
+    lookback: 20
+    comment: "天量: 当日成交量超过20日均量的3倍"
+
+  # ---- 涨跌停信号 ----
+  limit_up:
+    formula: "close >= pre_close * (1 + limit_rate - epsilon)"
+    limit_rate: 0.10
+    epsilon: 0.001
+    comment: "涨停: 收盘价达到涨幅上限"
+
+  limit_up_seal:
+    formula: "limit_up AND close == high"
+    comment: "封板: 涨停且收盘价等于最高价(全天未开板)"
+
+  limit_up_crack:
+    formula: "high >= pre_close * 1.095 AND close < pre_close * 1.05"
+    comment: "炸板: 盘中触及涨停但收盘回落至5%以下"
+
+  # ---- 趋势信号 ----
+  ma_golden_cross:
+    formula: "ma_short[t] > ma_long[t] AND ma_short[t-1] <= ma_long[t-1]"
+    comment: "金叉: 短期均线上穿长期均线"
+
+  ma_death_cross:
+    formula: "ma_short[t] < ma_long[t] AND ma_short[t-1] >= ma_long[t-1]"
+    comment: "死叉: 短期均线下穿长期均线"
+
+  ma_bull_alignment:
+    formula: "ma_5 > ma_20 AND ma_20 > ma_60 AND ma_60 > ma_120"
+    comment: "多头排列: 短期>中期>长期均线"
+
+  ma_bear_alignment:
+    formula: "ma_5 < ma_20 AND ma_20 < ma_60 AND ma_60 < ma_120"
+    comment: "空头排列: 短期<中期<长期均线"
+
+  # ---- 超买超卖 ----
+  rsi_overbought:
+    formula: "rsi_14 > threshold"
+    threshold: 70
+    comment: "RSI超买"
+
+  rsi_oversold:
+    formula: "rsi_14 < threshold"
+    threshold: 30
+    comment: "RSI超卖"
+
+  rsi_extreme_overbought:
+    formula: "rsi_14 > threshold"
+    threshold: 85
+    comment: "RSI极度超买"
+
+  rsi_extreme_oversold:
+    formula: "rsi_14 < threshold"
+    threshold: 15
+    comment: "RSI极度超卖"
+
+  # ---- 背离 ----
+  bullish_divergence:
+    formula: "price_makes_lower_low AND rsi_makes_higher_low"
+    lookback: 20
+    comment: "底背离: 价格创新低但RSI不创新低"
+
+  bearish_divergence:
+    formula: "price_makes_higher_high AND rsi_makes_lower_high"
+    lookback: 20
+    comment: "顶背离: 价格创新高但RSI不创新高"
+
+  # ---- 波动率信号 ----
+  bb_squeeze:
+    formula: "bb_width_20 < bb_width_20_ma_20 * threshold"
+    threshold: 0.8
+    comment: "布林带收窄: 带宽小于20日均值的80%"
+
+  volatility_expansion:
+    formula: "atr_14 > atr_14_ma_20 * threshold"
+    threshold: 1.5
+    comment: "波动率放大: ATR超过20日均值的1.5倍"
+
+  # ---- 冲高回落 ----
+  upper_shadow_signal:
+    formula: "(high - max(open, close)) / (high - low + epsilon) > threshold"
+    threshold: 0.6
+    comment: "长上影线: 上影线占总振幅60%以上"
+
+  fake_breakout:
+    formula: "high > entry_price * 1.03 AND close < entry_price"
+    comment: "假突破: 盘中突破关键位3%以上但收盘回落"
+
+  # ---- 持仓管理 ----
+  trailing_stop:
+    formula: "stop_price = max(stop_price, close * (1 - trailing_pct))"
+    trailing_pct: 0.08
+    comment: "移动止损: 随价格上涨上移止损位(回撤8%)"
+
+  time_stop:
+    formula: "holding_days > max_holding_days"
+    max_holding_days: 20
+    comment: "时间止损: 持仓超过20个交易日未达预期则离场"
