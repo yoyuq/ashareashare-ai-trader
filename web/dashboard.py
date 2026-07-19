@@ -302,30 +302,37 @@ elif mode == "📋 交易建议":
                     )
 
                     async def gen():
-                        return await engine.generate(symbols, capital=capital)
+                        return await engine.generate(capital=capital, top_n=20)
 
-                    recs = asyncio.run(gen())
+                    with st.spinner("全市场扫描中... (约5000只A股,筛选Top信号)"):
+                        recs = asyncio.run(gen())
 
                     if not recs.recommendations:
-                        st.warning("当前市场环境下未找到符合条件的交易机会,建议观望。")
+                        st.warning(
+                            f"扫描了{recs.total_scanned}只→过滤后{recs.total_filtered}只, "
+                            "无符合条件的机会,建议观望。"
+                        )
                     else:
-                        st.success(f"找到 {recs.total_opportunities} 个交易机会")
+                        st.success(
+                            f"全市场{recs.total_scanned}只→过滤{recs.total_filtered}只→"
+                            f"精选 {len(recs.recommendations)} 个交易机会"
+                        )
 
                         # 总览表
                         st.subheader("📊 胜率总览")
                         overview_data = []
                         for r in recs.recommendations:
                             overview_data.append({
-                                "标的": r.symbol.split(".")[-1],
+                                "标的": r.symbol_name or r.symbol.split(".")[-1],
+                                "代码": r.symbol.split(".")[-1],
                                 "策略": r.strategy_name,
-                                "方向": r.direction.upper(),
                                 "入场": f"{r.entry_price:.2f}",
                                 "止损": f"{r.stop_loss:.2f}",
                                 "止盈": f"{r.take_profit:.2f}",
                                 "**胜率**": f"**{r.win_rate:.1%}**",
                                 "盈亏比": f"{r.profit_factor:.1f}x",
                                 "期望值": f"{r.expected_value:+.1f}%",
-                                "夏普": f"{r.sharpe:.2f}",
+                                "信号数": r.signal_count,
                                 "建议仓位": f"{r.suggested_amount:,.0f}",
                                 "评级": f"{r.confidence}",
                             })

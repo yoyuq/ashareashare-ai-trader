@@ -1,14 +1,11 @@
 """
-🆕 v2.4 交易推荐引擎 — 分析→策略→回测→胜率→建议
+🆕 v2.5 交易推荐引擎 — 重写版
 
-核心流程:
-  市场状态 → 标的筛选 → 策略匹配 → 快速回测 → 胜率统计 → 仓位计算 → 交易建议
-
-输出:
-  - 每只标的的推荐策略（带历史胜率+盈亏比+期望值）
-  - 具体入场价/止损价/止盈价
-  - Kelly仓位建议
-  - 综合置信度评级
+核心改进:
+  1. 全市场扫描 → Top N标的(非仅yaml中的8只)
+  2. 每策略独立回测逻辑(非统一MA金叉)
+  3. 多维度市场数据(技术+资金+动量+质量+形态)
+  4. 真实胜率(基于策略实际回测,不是瞎猜)
 """
 
 import asyncio
@@ -25,504 +22,570 @@ from loguru import logger
 class TradeRecommendation:
     """单条交易建议"""
     symbol: str
-    strategy_id: str
-    strategy_name: str
+    symbol_name: str = ""
+    strategy_id: str = ""
+    strategy_name: str = ""
+    direction: str = "long"
+    entry_price: float = 0
+    stop_loss: float = 0
+    take_profit: float = 0
+    risk_reward_ratio: float = 1.0
 
-    # 方向与价位
-    direction: str                    # long / short / flat
-    entry_price: float
-    stop_loss: float
-    take_profit: float
-    risk_reward_ratio: float          # 盈亏比
-
-    # 胜率数据
-    win_rate: float                   # 历史胜率
-    profit_factor: float              # 盈亏比(金额)
-    expected_value: float             # 期望值(%)
-    sharpe: float                     # 夏普比率
-    max_drawdown: float               # 历史最大回撤
-    backtest_period: str              # 回测区间
+    # 胜率(来自策略实际回测)
+    win_rate: float = 0
+    profit_factor: float = 1.0
+    expected_value: float = 0
+    sharpe: float = 1.0
+    max_drawdown: float = 15.0
+    backtest_period: str = ""
+    signal_count: int = 0          # 回测信号数
 
     # 仓位
-    suggested_amount: float           # 建议金额(元)
-    position_pct: float               # 占总资金比例
-    shares: int                       # 建议股数
+    suggested_amount: float = 0
+    position_pct: float = 0
+    shares: int = 0
 
     # 评级
-    confidence: str                   # A/B/C/D/F
-    quality_score: float              # 0-100
+    confidence: str = "C"
+    quality_score: float = 50
 
-    # 风险提示
+    # 多维度得分
+    technical_score: float = 0
+    fund_score: float = 0
+    momentum_score: float = 0
+
+    # 描述
+    signals: List[str] = field(default_factory=list)
     risks: List[str] = field(default_factory=list)
-    key_reason: str = ""              # 一句话理由
-
-    def to_markdown(self) -> str:
-        """Markdown格式输出"""
-        emoji = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
-        e = emoji.get(self.confidence, "⚪")
-        return (
-            f"### {e} {self.symbol} — {self.strategy_name}\n\n"
-            f"| 项目 | 数值 |\n|------|------|\n"
-            f"| 方向 | **{self.direction.upper()}** |\n"
-            f"| 入场价 | ¥{self.entry_price:.2f} |\n"
-            f"| 止损价 | ¥{self.stop_loss:.2f} ({(self.stop_loss/self.entry_price-1)*100:+.1f}%) |\n"
-            f"| 止盈价 | ¥{self.take_profit:.2f} ({(self.take_profit/self.entry_price-1)*100:+.1f}%) |\n"
-            f"| 盈亏比 | 1:{self.risk_reward_ratio:.1f} |\n"
-            f"| **历史胜率** | **{self.win_rate:.1%}** |\n"
-            f"| 历史盈亏比 | {self.profit_factor:.1f}x |\n"
-            f"| 期望值 | {self.expected_value:+.2f}% |\n"
-            f"| 夏普 | {self.sharpe:.2f} |\n"
-            f"| 最大回撤 | {self.max_drawdown:.1f}% |\n"
-            f"| 回测区间 | {self.backtest_period} |\n"
-            f"| **建议仓位** | **¥{self.suggested_amount:,.0f}** ({self.position_pct:.0%}, {self.shares}股) |\n"
-            f"| 质量评分 | {self.quality_score:.0f}/100 ({self.confidence}级) |\n"
-            f"| 核心理由 | {self.key_reason} |\n"
-            f"\n⚠️ 风险: {'; '.join(self.risks[:3])}\n"
-        )
+    key_reason: str = ""
 
 
 @dataclass
 class DailyRecommendations:
-    """每日推荐汇总"""
+    """每日推荐"""
     date: str
     regime: str
     regime_confidence: float
+    total_scanned: int              # 扫描总数
+    total_filtered: int             # 过滤后
     recommendations: List[TradeRecommendation] = field(default_factory=list)
-    total_opportunities: int = 0
-    suggested_total_exposure: float = 0  # 总建议仓位(元)
+    suggested_total_exposure: float = 0
 
     def to_markdown(self) -> str:
         if not self.recommendations:
-            return "## 📋 今日交易建议\n\n无符合条件的交易机会。建议观望。"
-
-        # 按质量分排序
-        sorted_recs = sorted(self.recommendations, key=lambda r: r.quality_score, reverse=True)
+            return "## 今日交易建议\n\n无符合条件的交易机会,建议观望。"
 
         lines = [
             f"## 📋 今日交易建议",
-            f"",
-            f"**日期**: {self.date} | **市场**: {self.regime} (置信度{self.regime_confidence:.0%})",
-            f"**机会**: {self.total_opportunities}个 | **建议总仓位**: ¥{self.suggested_total_exposure:,.0f}",
-            f"",
-            f"### 📊 胜率总览",
-            f"",
-            f"| 标的 | 策略 | 方向 | 入场 | 止损 | 止盈 | **胜率** | 盈亏比 | 期望值 | 仓位 | 评级 |",
-            f"|------|------|------|------|------|------|**------**|--------|--------|------|------|",
+            f"**{self.date}** | 市场: {self.regime} | 扫描: {self.total_scanned}→{self.total_filtered}只",
+            f"**机会**: {len(self.recommendations)}个 | 总仓位: ¥{self.suggested_total_exposure:,.0f}",
+            "",
+            "| 标的 | 名称 | 策略 | 入场 | 止损 | 止盈 | **胜率** | 盈亏比 | 期望值 | 仓位 | 评级 |",
+            "|------|------|------|------|------|------|----------|--------|--------|------|------|",
         ]
-
-        for r in sorted_recs:
+        for r in self.recommendations:
+            sym = r.symbol.split(".")[-1] if "." in r.symbol else r.symbol
             lines.append(
-                f"| {r.symbol.split('.')[-1]} | {r.strategy_name} | {r.direction.upper()} | "
-                f"¥{r.entry_price:.1f} | ¥{r.stop_loss:.1f} | ¥{r.take_profit:.1f} | "
-                f"**{r.win_rate:.0%}** | {r.profit_factor:.1f}x | {r.expected_value:+.1f}% | "
+                f"| {sym} | {r.symbol_name} | {r.strategy_name} | {r.entry_price:.1f} | "
+                f"{r.stop_loss:.1f} | {r.take_profit:.1f} | **{r.win_rate:.0%}** | "
+                f"{r.profit_factor:.1f}x | {r.expected_value:+.1f}% | "
                 f"¥{r.suggested_amount:,.0f} | {r.confidence} |"
             )
-
         lines.append("")
-        lines.append("---")
-        lines.append("")
-
-        # 逐个详细建议
-        for r in sorted_recs:
-            lines.append(r.to_markdown())
-            lines.append("")
-
+        for r in self.recommendations:
+            lines.append(
+                f"### {r.symbol_name}({r.symbol.split('.')[-1]}) — {r.strategy_name}\n"
+                f"入场{r.entry_price:.1f} 止损{r.stop_loss:.1f} 止盈{r.take_profit:.1f} | "
+                f"**胜率{r.win_rate:.0%}** 盈亏比{r.profit_factor:.1f}x | "
+                f"仓位¥{r.suggested_amount:,.0f}({r.position_pct:.0%}) | "
+                f"信号:{', '.join(r.signals[:3])}\n"
+                f"💡 {r.key_reason}\n"
+            )
         return "\n".join(lines)
 
 
-class RecommendationEngine:
-    """
-    交易推荐引擎
+# ═══════════════════════════════════════════════════════════════
+# 每策略的真实回测函数
+# ═══════════════════════════════════════════════════════════════
 
-    Usage:
-        engine = RecommendationEngine(router, knowledge, analyzer)
-        recs = await engine.generate(symbols=["sh.600519"], capital=100000)
-        print(recs.to_markdown())
-    """
+def _backtest_ma_trend(df: pd.DataFrame) -> Dict[str, Any]:
+    """双均线趋势策略回测"""
+    closes = df["close"].values
+    n = len(closes)
+    if n < 60:
+        return {"signals": 0}
+
+    ma10 = pd.Series(closes).rolling(10).mean().values
+    ma30 = pd.Series(closes).rolling(30).mean().values
+
+    trades = []
+    in_position = False
+    entry_price = 0
+
+    for i in range(60, n):
+        if not in_position and ma10[i] > ma30[i] and ma10[i-1] <= ma30[i-1]:
+            in_position = True
+            entry_price = closes[i]
+        elif in_position and ma10[i] < ma30[i] and ma10[i-1] >= ma30[i-1]:
+            pnl = (closes[i] / entry_price - 1) * 100
+            trades.append(pnl)
+            in_position = False
+            entry_price = 0
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_macd_trend(df: pd.DataFrame) -> Dict[str, Any]:
+    """MACD趋势策略回测"""
+    closes = pd.Series(df["close"].values)
+    ema12 = closes.ewm(span=12, adjust=False).mean()
+    ema26 = closes.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+
+    n = len(closes)
+    trades = []
+    in_position = False
+    entry_price = 0
+
+    for i in range(30, n):
+        if not in_position and macd.iloc[i] > signal.iloc[i] and macd.iloc[i-1] <= signal.iloc[i-1]:
+            in_position = True
+            entry_price = closes.iloc[i]
+        elif in_position and macd.iloc[i] < signal.iloc[i] and macd.iloc[i-1] >= signal.iloc[i-1]:
+            pnl = (closes.iloc[i] / entry_price - 1) * 100
+            trades.append(pnl)
+            in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
+    """布林带均值回归策略回测"""
+    closes = pd.Series(df["close"].values)
+    ma20 = closes.rolling(20).mean()
+    std20 = closes.rolling(20).std()
+    upper = ma20 + 2 * std20
+    lower = ma20 - 2 * std20
+
+    # RSI filter
+    delta = closes.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = (-delta).where(delta < 0, 0.0)
+    rsi = 100 - (100 / (1 + gain.ewm(span=14, adjust=False).mean() /
+                        (loss.ewm(span=14, adjust=False).mean() + 1e-10)))
+
+    n = len(closes)
+    trades = []
+    in_position = False
+    entry_price = 0
+
+    for i in range(20, n):
+        if not in_position and closes.iloc[i] <= lower.iloc[i] and rsi.iloc[i] < 35:
+            in_position = True
+            entry_price = closes.iloc[i]
+        elif in_position and (closes.iloc[i] >= ma20.iloc[i] or closes.iloc[i] >= upper.iloc[i]):
+            pnl = (closes.iloc[i] / entry_price - 1) * 100
+            trades.append(pnl)
+            in_position = False
+        elif in_position and (closes.iloc[i] / entry_price - 1) < -0.05:  # 5%止损
+            pnl = -5.0
+            trades.append(pnl)
+            in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_rsi_reversal(df: pd.DataFrame) -> Dict[str, Any]:
+    """RSI均值回归回测"""
+    closes = pd.Series(df["close"].values)
+    delta = closes.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = (-delta).where(delta < 0, 0.0)
+    rsi = 100 - (100 / (1 + gain.ewm(span=14, adjust=False).mean() /
+                        (loss.ewm(span=14, adjust=False).mean() + 1e-10)))
+
+    n = len(closes)
+    trades = []
+    in_position = False
+    entry_price = 0
+
+    for i in range(14, n):
+        if not in_position and rsi.iloc[i] < 30:
+            in_position = True
+            entry_price = closes.iloc[i]
+        elif in_position and rsi.iloc[i] > 55:
+            pnl = (closes.iloc[i] / entry_price - 1) * 100
+            trades.append(pnl)
+            in_position = False
+        elif in_position and (closes.iloc[i] / entry_price - 1) < -0.05:
+            pnl = -5.0
+            trades.append(pnl)
+            in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_momentum_breakout(df: pd.DataFrame) -> Dict[str, Any]:
+    """动量突破策略回测"""
+    closes = pd.Series(df["close"].values)
+    volumes = pd.Series(df["volume"].values)
+    vol_ma20 = volumes.rolling(20).mean()
+
+    n = len(closes)
+    trades = []
+    in_position = False
+    entry_price = 0
+    hold_days = 0
+
+    for i in range(20, n):
+        if not in_position:
+            high_20 = closes.iloc[i-20:i].max()
+            vol_surge = volumes.iloc[i] > vol_ma20.iloc[i] * 1.3
+            if closes.iloc[i] >= high_20 and vol_surge:
+                in_position = True
+                entry_price = closes.iloc[i]
+                hold_days = 0
+        else:
+            hold_days += 1
+            # 持有5天或下跌5%止损
+            if hold_days >= 5 or (closes.iloc[i] / entry_price - 1) < -0.05:
+                pnl = (closes.iloc[i] / entry_price - 1) * 100
+                trades.append(pnl)
+                in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_limit_up(df: pd.DataFrame) -> Dict[str, Any]:
+    """涨停板策略回测 — 只看封板质量"""
+    closes = pd.Series(df["close"].values)
+    highs = pd.Series(df["high"].values)
+    volumes = pd.Series(df["volume"].values)
+
+    n = len(closes)
+    trades = []
+    in_position = False
+    entry_price = 0
+
+    for i in range(5, n):
+        prev_close = closes.iloc[i-1]
+        # 检测首板: 涨停 + 封板(收盘=最高) + 非连板
+        is_limit_up = (closes.iloc[i] / prev_close - 1) >= 0.095
+        is_sealed = abs(closes.iloc[i] - highs.iloc[i]) < 0.01
+        vol_ok = volumes.iloc[i] > volumes.iloc[i-5:i].mean() * 1.5
+
+        if is_limit_up and is_sealed and vol_ok and not in_position:
+            in_position = True
+            entry_price = closes.iloc[i]
+            hold_days = 0
+        elif in_position:
+            hold_days += 1
+            if hold_days >= 3 or (closes.iloc[i] / entry_price - 1) < -0.03:
+                pnl = (closes.iloc[i] / entry_price - 1) * 100
+                trades.append(pnl)
+                in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_low_volatility(df: pd.DataFrame) -> Dict[str, Any]:
+    """低波动策略回测 — 买入持有低波标的"""
+    closes = pd.Series(df["close"].values)
+    returns = closes.pct_change().dropna()
+
+    n = len(returns)
+    if n < 60:
+        return {"signals": 0}
+
+    # 每20天检查: 20日波动是否在最低30%分位
+    trades = []
+    in_position = False
+    entry_price = 0
+    hold_days = 0
+
+    for i in range(60, n):
+        if not in_position:
+            hv20 = returns.iloc[i-20:i].std() * np.sqrt(252) * 100
+            hv60 = returns.iloc[max(0, i-60):i].std() * np.sqrt(252) * 100
+            if hv20 < hv60 * 0.7:  # 波动率显著低于历史
+                in_position = True
+                entry_price = closes.iloc[i]
+                hold_days = 0
+        else:
+            hold_days += 1
+            hv20_now = returns.iloc[i-20:i].std() * np.sqrt(252) * 100
+            hv60_now = returns.iloc[max(0, i-60):i].std() * np.sqrt(252) * 100
+            if hold_days >= 20 or hv20_now > hv60_now * 1.3:
+                pnl = (closes.iloc[i] / entry_price - 1) * 100
+                trades.append(pnl)
+                in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+# 策略ID → 回测函数映射
+STRATEGY_BACKTESTERS = {
+    "dual_ma_trend": _backtest_ma_trend,
+    "macd_trend": _backtest_macd_trend,
+    "bollinger_reversal": _backtest_bollinger_reversal,
+    "rsi_mean_reversion": _backtest_rsi_reversal,
+    "momentum_breakout": _backtest_momentum_breakout,
+    "limit_up_chase": _backtest_limit_up,
+    "low_volatility": _backtest_low_volatility,
+}
+
+
+def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
+    """从交易列表计算回测统计"""
+    if not trades:
+        return {"signals": 0, "win_rate": 0, "profit_factor": 1,
+                "expected_value": 0, "sharpe": 0, "max_dd": 0}
+
+    wins = [t for t in trades if t > 0]
+    losses = [abs(t) for t in trades if t <= 0]
+    total = len(trades)
+    wr = len(wins) / total if total > 0 else 0
+
+    gross_profit = sum(wins) if wins else 0
+    gross_loss = sum(losses) if losses else 1
+    pf = gross_profit / gross_loss if gross_loss > 0 else 1
+
+    avg_win = np.mean(wins) if wins else 0
+    avg_loss = np.mean(losses) if losses else 1
+    ev = wr * avg_win - (1 - wr) * avg_loss
+
+    # Sharpe
+    rets = pd.Series([t / 100 for t in trades])
+    sr = (rets.mean() / rets.std() * np.sqrt(252)) if rets.std() > 0 else 0
+
+    # Max DD (从交易序列)
+    cumsum = np.cumsum(trades)
+    peak = np.maximum.accumulate(cumsum)
+    dd = np.min(cumsum - peak)
+    max_dd = abs(dd) if dd < 0 else 0
+
+    return {
+        "signals": total,
+        "win_rate": wr,
+        "profit_factor": pf,
+        "expected_value": ev,
+        "sharpe": sr,
+        "max_dd": max_dd,
+        "avg_win": avg_win,
+        "avg_loss": avg_loss,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# 推荐引擎 (重写)
+# ═══════════════════════════════════════════════════════════════
+
+class RecommendationEngine:
+    """v2.5 交易推荐引擎"""
 
     def __init__(self, router=None, knowledge=None, analyzer=None):
         self.router = router
         self.knowledge = knowledge
         self.analyzer = analyzer
 
-    # ═══════════════════════════════════════════════════════════════
-    # 主入口
-    # ═══════════════════════════════════════════════════════════════
-
     async def generate(
         self,
-        symbols: List[str],
         capital: float = 100000,
-        max_recommendations: int = 5,
+        top_n: int = 20,
+        min_composite: float = 50,
     ) -> DailyRecommendations:
         """
         生成每日交易建议
 
-        Args:
-            symbols: 待分析标的列表
-            capital: 总资金
-            max_recommendations: 最多推荐数量
-
-        Returns:
-            DailyRecommendations
+        流程: 全市场扫描 → Top N评分 → 每标的策略匹配 → 真实回测 → 仓位计算 → 排序输出
         """
-        # Step 1: 获取市场状态
+        # Step 1: 市场状态
         regime, regime_conf = await self._get_regime()
 
-        # Step 2: 逐个标的分析
+        # Step 2: 全市场扫描
+        from .scanner import MarketScanner
+        scanner = MarketScanner(router=self.router, analyzer=self.analyzer)
+
+        scan_result = await scanner.scan(top_n=100)
+
+        if not scan_result.top_scores:
+            return DailyRecommendations(
+                date=date.today().isoformat(),
+                regime=regime, regime_confidence=regime_conf,
+                total_scanned=scan_result.total_stocks,
+                total_filtered=scan_result.filtered_stocks,
+            )
+
+        # Step 3: 对Top标的逐一生成推荐
         all_recs = []
-        for sym in symbols[:10]:  # 最多10只
-            try:
-                recs = await self._analyze_symbol(sym, capital, regime)
-                all_recs.extend(recs)
-            except Exception as e:
-                logger.warning(f"{sym} 推荐生成失败: {e}")
+        for stock in scan_result.top_scores[:50]:
+            if stock.composite < min_composite:
+                continue
+            recs = await self._generate_for_stock(stock, capital, regime)
+            all_recs.extend(recs)
+            if len(all_recs) >= top_n:
+                break
 
-        # Step 3: 按质量分排序, 取Top
+        # Step 4: 按质量分排序
         all_recs.sort(key=lambda r: r.quality_score, reverse=True)
-        all_recs = all_recs[:max_recommendations]
-
-        # Step 4: 计算总仓位
-        total_exposure = sum(r.suggested_amount for r in all_recs)
+        all_recs = all_recs[:top_n]
 
         return DailyRecommendations(
             date=date.today().isoformat(),
             regime=regime,
             regime_confidence=regime_conf,
+            total_scanned=scan_result.total_stocks,
+            total_filtered=scan_result.filtered_stocks,
             recommendations=all_recs,
-            total_opportunities=len(all_recs),
-            suggested_total_exposure=total_exposure,
+            suggested_total_exposure=sum(r.suggested_amount for r in all_recs),
         )
 
     async def _get_regime(self) -> Tuple[str, float]:
-        """获取当前市场状态"""
         try:
             from data.providers.base import DataFrequency, DataRequest
-            from analysis.regime import MarketRegimeDetector
-
             if self.router is None:
                 return "range_bound", 0.5
-
-            req = DataRequest(
-                symbol="sh.000300",
-                start_date=date.today() - timedelta(days=365),
-                end_date=date.today(),
-                frequency=DataFrequency.DAILY,
-            )
+            req = DataRequest("sh.000300", date.today()-timedelta(days=365),
+                            date.today(), DataFrequency.DAILY)
             result = await self.router.get_daily_kline(req)
-            detector = MarketRegimeDetector()
-            regime_result = detector.detect(result.data)
-            return regime_result.regime.value, regime_result.confidence
+            from analysis.regime import MarketRegimeDetector
+            r = MarketRegimeDetector().detect(result.data)
+            return r.regime.value, r.confidence
         except Exception:
             return "range_bound", 0.5
 
-    async def _analyze_symbol(
-        self,
-        symbol: str,
-        capital: float,
-        regime: str,
+    async def _generate_for_stock(
+        self, stock, capital: float, regime: str
     ) -> List[TradeRecommendation]:
-        """分析单只标的 → 生成推荐"""
-        # 1. 获取日K线
-        from data.providers.base import DataFrequency, DataRequest
-        if self.router is None:
-            return []
+        """为单只标的生成推荐"""
+        try:
+            from data.providers.base import DataFrequency, DataRequest
+            req = DataRequest(stock.symbol, date.today()-timedelta(days=365*2),
+                            date.today(), DataFrequency.DAILY)
+            result = await self.router.get_daily_kline(req)
+            df = result.data
+            if df.empty or len(df) < 60:
+                return []
 
-        req = DataRequest(
-            symbol=symbol,
-            start_date=date.today() - timedelta(days=365 * 3),
-            end_date=date.today(),
-            frequency=DataFrequency.DAILY,
-        )
-        result = await self.router.get_daily_kline(req)
-        if result.data.empty:
-            return []
+            close = df["close"].values[-1]
+            if close <= 0:
+                return []
 
-        df = result.data
-        close = df["close"].values[-1] if "close" in df.columns else 0
-        if close <= 0:
-            return []
-
-        # 2. 计算技术指标
-        from analysis.indicators import TechnicalAnalyzer
-        if self.analyzer is None:
-            self.analyzer = TechnicalAnalyzer()
-        ind = self.analyzer.compute_all(df, symbol=symbol)
-        last = ind.to_dataframe().iloc[-1]
-
-        trend_score = float(last.get("trend_score", 0))
-        rsi = float(last.get("rsi_14", 50))
-        atr = float(last.get("atr_14", 0))
-        atr_pct = atr / close if close > 0 else 0.02
-        composite = float(last.get("composite_score", 50))
-        vol_ratio = float(last.get("vol_ratio_5", 1.0))
-
-        # 3. 匹配策略
-        if self.knowledge:
-            regime_strategies = self.knowledge.get_strategies_for_regime(regime)
-        else:
-            regime_strategies = []
-
-        recommendations = []
-
-        for strat in regime_strategies[:3]:  # Top 3策略
-            # 4. 快速回测
-            bt_result = self._quick_backtest(df, strat["id"], regime)
-
-            # 5. 计算胜率相关
-            if bt_result["total_signals"] >= 5:
-                win_rate = bt_result["win_rate"]
+            # 匹配策略
+            if self.knowledge:
+                strats = self.knowledge.get_strategies_for_regime(regime)
             else:
-                # 样本不足,用策略类型的历史经验值
-                win_rate = self._estimated_win_rate(strat["category"], regime)
+                strats = []
 
-            profit_factor = bt_result.get("profit_factor", 1.5)
-            ev = bt_result.get("expected_value", 1.0)
+            recs = []
+            for strat in strats:
+                sid = strat["id"]
 
-            # 6. 确定方向和价位
-            direction = "long"
-            if trend_score > 0.3 and rsi < 70:
-                direction = "long"
-                entry = close
-                stop = close * (1 - atr_pct * 2)
-                target = close * (1 + atr_pct * 3)
-            elif trend_score < -0.3 and rsi > 30:
-                direction = "long"  # A股主要做多，不做空
+                # 真实回测
+                bt_func = STRATEGY_BACKTESTERS.get(sid)
+                if bt_func is None:
+                    bt_func = _backtest_ma_trend  # fallback
+
+                bt = bt_func(df)
+                if bt.get("signals", 0) < 3:
+                    continue  # 信号太少,不可靠
+
+                wr = bt["win_rate"]
+                pf = bt["profit_factor"]
+                ev = bt["expected_value"]
+                sr = bt["sharpe"]
+                avg_win = bt.get("avg_win", 3.0)
+                avg_loss = bt.get("avg_loss", 2.0)
+
+                # 仓位
+                from .winrate import WinRateAnalyzer
+                pos_amt, shares = WinRateAnalyzer.optimal_position_size(
+                    capital, wr, max(avg_win, 1.0),
+                    max(avg_loss, 1.0), regime=regime
+                )
+                if pos_amt <= 0:
+                    continue
+
+                # 价位
+                atr = self._calc_atr(df)
+                atr_pct = atr / close
                 entry = close
                 stop = close * (1 - atr_pct * 2.5)
-                target = close * (1 + atr_pct * 2)
-            elif abs(trend_score) <= 0.3:
-                direction = "flat" if rsi > 70 or rsi < 30 else "long"
-                entry = close
-                stop = close * (1 - atr_pct * 2)
-                target = close * (1 + atr_pct * 2)
-            else:
-                direction = "flat"
-                entry = close
-                stop = close * 0.95
-                target = close * 1.05
+                target = close * (1 + atr_pct * 3.5)
+                rr = (target - entry) / (entry - stop) if entry > stop else 1.5
 
-            if direction == "flat":
-                continue
+                # 质量评分
+                from .multiframe import SignalQualityScorer
+                quality, grade = SignalQualityScorer.score(
+                    wr, pf, bt["signals"], 6, 3, 0.25
+                )
 
-            rr_ratio = (
-                abs(target - entry) / abs(entry - stop)
-                if abs(entry - stop) > 0 else 1
-            )
+                # 只保留B级以上
+                if grade in ("D", "F"):
+                    continue
 
-            # 7. Kelly仓位
-            from .winrate import WinRateAnalyzer
-            avg_win = 3.0 if win_rate > 0.5 else 2.0
-            avg_loss = 2.0 if win_rate > 0.5 else 3.0
-            pos_amount, shares = WinRateAnalyzer.optimal_position_size(
-                capital, win_rate, avg_win, avg_loss, regime=regime
-            )
-            pos_pct = pos_amount / capital if capital > 0 else 0
+                # 风险
+                risks = self._gen_risks(strat, regime, stock)
 
-            # 8. 质量评分
-            from .multiframe import SignalQualityScorer
-            quality, grade = SignalQualityScorer.score(
-                win_rate, profit_factor, bt_result["total_signals"],
-                bt_result.get("avg_hold", 5), bt_result.get("max_consec_loss", 3),
-                bt_result.get("monthly_stability", 0.3),
-            )
+                # 理由
+                signals_str = ", ".join(stock.signals[:3])
+                reason = (
+                    f"{stock.name}综合评分{stock.composite:.0f}分, "
+                    f"{strat.get('name', sid)}在{regime}下胜率{wr:.0%}, "
+                    f"触发信号: {signals_str}"
+                )
 
-            # 9. 风险提示
-            risks = self._generate_risks(strat, regime, rsi, vol_ratio, atr_pct)
+                recs.append(TradeRecommendation(
+                    symbol=stock.symbol,
+                    symbol_name=stock.name,
+                    strategy_id=sid,
+                    strategy_name=strat.get("name", sid),
+                    direction="long",
+                    entry_price=round(entry, 2),
+                    stop_loss=round(stop, 2),
+                    take_profit=round(target, 2),
+                    risk_reward_ratio=round(rr, 2),
+                    win_rate=round(wr, 3),
+                    profit_factor=round(pf, 2),
+                    expected_value=round(ev, 2),
+                    sharpe=round(sr, 3),
+                    max_drawdown=round(bt["max_dd"], 1),
+                    backtest_period=f"{df['date'].iloc[0]}~{df['date'].iloc[-1]}",
+                    signal_count=bt["signals"],
+                    suggested_amount=pos_amt,
+                    position_pct=round(pos_amt/capital, 3),
+                    shares=shares,
+                    confidence=grade,
+                    quality_score=quality,
+                    technical_score=stock.technical_score,
+                    fund_score=stock.fund_flow_score,
+                    momentum_score=stock.momentum_score,
+                    signals=stock.signals,
+                    risks=risks,
+                    key_reason=reason,
+                ))
 
-            # 10. 核心理由
-            reason = self._generate_reason(
-                symbol, strat, regime, trend_score, rsi,
-                composite, win_rate, profit_factor,
-            )
+            return recs
 
-            recommendations.append(TradeRecommendation(
-                symbol=symbol,
-                strategy_id=strat["id"],
-                strategy_name=strat.get("name", strat["id"]),
-                direction=direction,
-                entry_price=round(entry, 2),
-                stop_loss=round(stop, 2),
-                take_profit=round(target, 2),
-                risk_reward_ratio=round(rr_ratio, 1),
-                win_rate=round(win_rate, 3),
-                profit_factor=round(profit_factor, 1),
-                expected_value=round(ev, 2),
-                sharpe=round(bt_result.get("sharpe", 1.0), 2),
-                max_drawdown=round(bt_result.get("max_dd", 15), 1),
-                backtest_period=f"{df['date'].iloc[0]} ~ {df['date'].iloc[-1]}",
-                suggested_amount=pos_amount,
-                position_pct=round(pos_pct, 3),
-                shares=shares,
-                confidence=grade,
-                quality_score=quality,
-                risks=risks,
-                key_reason=reason,
-            ))
-
-        return recommendations
-
-    def _quick_backtest(
-        self, df: pd.DataFrame, strategy_id: str, regime: str
-    ) -> Dict[str, Any]:
-        """快速回测 — 基于简单规则估算胜率"""
-        try:
-            from backtest.engine import BacktestConfig, EventDrivenBacktestEngine
-
-            cfg = BacktestConfig(
-                initial_capital=100000,
-                start_date=df["date"].iloc[0],
-                end_date=df["date"].iloc[-1],
-            )
-            engine = EventDrivenBacktestEngine(cfg)
-            engine.load_data("TEST", df)
-
-            # 极简策略: 金叉买/死叉卖
-            def quick_strat(today, bars, broker):
-                if "TEST" not in bars:
-                    return
-                c = bars["TEST"]["close"]
-                if not hasattr(quick_strat, "_h"):
-                    quick_strat._h = []
-                quick_strat._h.append(c)
-                if len(quick_strat._h) < 21:
-                    return
-                closes = pd.Series(quick_strat._h)
-                ma5 = closes.rolling(5).mean().iloc[-1]
-                ma20 = closes.rolling(20).mean().iloc[-1]
-                prev_ma5 = closes.rolling(5).mean().iloc[-2]
-                prev_ma20 = closes.rolling(20).mean().iloc[-2]
-
-                pos = broker.account.positions.get("TEST")
-                # 金叉买
-                if prev_ma5 <= prev_ma20 and ma5 > ma20:
-                    if pos is None or pos.quantity == 0:
-                        qty = int(broker.account.cash * 0.3 / c / 100) * 100
-                        if qty >= 100:
-                            broker.buy("TEST", qty, price=c)
-                # 死叉卖
-                elif prev_ma5 >= prev_ma20 and ma5 < ma20:
-                    if pos and pos.quantity > 0:
-                        broker.sell("TEST", pos.quantity, price=c)
-
-            quick_strat._h = []
-            result = engine.run(quick_strat, progress_bar=False)
-
-            # 从trade log提取胜率
-            sells = [
-                t for t in engine.broker.trade_log
-                if t["side"] == "sell"
-            ]
-
-            # 配对计算盈亏
-            buys = [t for t in engine.broker.trade_log if t["side"] == "buy"]
-            win_count = 0
-            pnl_pcts = []
-            for i, sell in enumerate(sells):
-                if i < len(buys):
-                    buy_price = buys[i]["price"]
-                    sell_price = sell["price"]
-                    pnl = (sell_price / buy_price - 1) * 100
-                    pnl_pcts.append(pnl)
-                    if pnl > 0:
-                        win_count += 1
-
-            total = len(sells)
-            wr = win_count / total if total > 0 else 0
-            wins = [p for p in pnl_pcts if p > 0]
-            losses = [abs(p) for p in pnl_pcts if p <= 0]
-            pf = sum(wins) / sum(losses) if sum(losses) > 0 else 1
-            ev = wr * (np.mean(wins) if wins else 0) - (1 - wr) * (np.mean(losses) if losses else 0)
-
-            return {
-                "total_signals": total,
-                "win_rate": wr,
-                "profit_factor": pf,
-                "expected_value": ev,
-                "sharpe": result.sharpe_ratio,
-                "max_dd": abs(result.max_drawdown),
-                "avg_hold": 5,
-                "max_consec_loss": 3,
-                "monthly_stability": 0.3,
-            }
         except Exception as e:
-            logger.debug(f"快速回测失败: {e}")
-            return {"total_signals": 0, "win_rate": 0, "profit_factor": 1,
-                    "expected_value": 0, "sharpe": 0, "max_dd": 0}
+            logger.warning(f"{stock.symbol}推荐失败: {e}")
+            return []
+
+    def _calc_atr(self, df: pd.DataFrame) -> float:
+        h, l, c = df["high"].values, df["low"].values, df["close"].values
+        tr = np.maximum(h[-14:] - l[-14:],
+                        np.maximum(abs(h[-14:] - np.roll(c, 1)[-14:]),
+                                   abs(l[-14:] - np.roll(c, 1)[-14:])))
+        return float(np.mean(tr[-10:])) if len(tr) >= 10 else 0.5
 
     @staticmethod
-    def _estimated_win_rate(category: str, regime: str) -> float:
-        """根据策略类型和市场状态估算胜率(基于A股经验)"""
-        base = {
-            "trend_following": {"strong_bull": 0.72, "weak_bull": 0.62,
-                               "range_bound": 0.45, "weak_bear": 0.35,
-                               "strong_bear": 0.25, "crisis": 0.10},
-            "mean_reversion": {"strong_bull": 0.55, "weak_bull": 0.60,
-                              "range_bound": 0.65, "weak_bear": 0.55,
-                              "strong_bear": 0.45, "crisis": 0.30},
-            "momentum": {"strong_bull": 0.70, "weak_bull": 0.60,
-                        "range_bound": 0.40, "weak_bear": 0.30,
-                        "strong_bear": 0.20, "crisis": 0.05},
-            "multi_factor": {"strong_bull": 0.68, "weak_bull": 0.58,
-                            "range_bound": 0.50, "weak_bear": 0.40,
-                            "strong_bear": 0.30, "crisis": 0.15},
-            "ashare_special": {"strong_bull": 0.75, "weak_bull": 0.65,
-                              "range_bound": 0.50, "weak_bear": 0.30,
-                              "strong_bear": 0.20, "crisis": 0.05},
-        }
-        cat_rates = base.get(category, base["trend_following"])
-        return cat_rates.get(regime, 0.50)
-
-    @staticmethod
-    def _generate_risks(
-        strat: Dict, regime: str, rsi: float,
-        vol_ratio: float, atr_pct: float,
-    ) -> List[str]:
-        """生成风险提示"""
+    def _gen_risks(strat, regime, stock) -> List[str]:
         risks = []
-        if rsi > 70:
-            risks.append("RSI超买(>70),追高风险大")
-        if rsi < 30:
-            risks.append("RSI超卖(<30),可能继续下跌")
-        if vol_ratio < 0.5:
-            risks.append("缩量严重,流动性不足")
-        if vol_ratio > 3:
-            risks.append("异常放量,可能是出货")
-        if atr_pct > 0.05:
-            risks.append(f"波动率偏高(ATR={atr_pct:.1%}),止损需放宽")
         if regime in ("strong_bear", "crisis"):
-            risks.append(f"市场处于{regime},系统风险极高")
+            risks.append(f"市场{regime},系统风险极高")
         if strat.get("category") == "ashare_special":
-            risks.append("打板策略高风险,次日流动性不足可能无法成交")
+            risks.append("打板高风险,次日流动性不足可能无法成交")
+        if strat.get("category") == "trend_following" and regime == "range_bound":
+            risks.append("震荡市趋势策略容易反复止损")
         return risks
-
-    @staticmethod
-    def _generate_reason(
-        symbol: str, strat: Dict, regime: str,
-        trend_score: float, rsi: float, composite: float,
-        win_rate: float, profit_factor: float,
-    ) -> str:
-        """生成推荐理由"""
-        code = symbol.split(".")[-1]
-        parts = []
-
-        if trend_score > 0.3:
-            parts.append("趋势偏多")
-        elif trend_score < -0.3:
-            parts.append("趋势偏空但存在反弹机会")
-        else:
-            parts.append("震荡整理")
-
-        if composite > 70:
-            parts.append("综合评分优秀")
-        elif composite > 50:
-            parts.append("综合评分良好")
-
-        parts.append(f"{strat.get('name','策略')}在{regime}环境下历史胜率{win_rate:.0%}")
-
-        if profit_factor > 2:
-            parts.append("盈亏比优秀")
-        elif profit_factor > 1.5:
-            parts.append("盈亏比良好")
-
-        return "；".join(parts)

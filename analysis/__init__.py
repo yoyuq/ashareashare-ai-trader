@@ -34,6 +34,7 @@ from .multiframe import (
     SignalQualityScorer,
     TimeframeSignal,
 )
+from .scanner import MarketScanner, ScanResult, StockScore
 from .recommender import (
     DailyRecommendations,
     RecommendationEngine,
@@ -64,4 +65,8 @@ __all__ = [
     "RecommendationEngine",
     "TradeRecommendation",
     "DailyRecommendations",
+    # v2.5
+    "MarketScanner",
+    "ScanResult",
+    "StockScore",
 ]
