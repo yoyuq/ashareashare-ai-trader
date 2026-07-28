@@ -401,7 +401,7 @@ class MarketRegimeDetector:
 
         # 置信度 = |composite| 的绝对值 × (1 - 各维度分歧度)
         divergence = np.std(list(scores.values()))
-        confidence = min(abs(composite) * (1 - divergence / 2), 1.0)
+        confidence = max(0.0, min(abs(composite) * (1 - divergence / 2), 1.0))  # v2.14: clamp to [0,1]
 
         return regime, confidence
 

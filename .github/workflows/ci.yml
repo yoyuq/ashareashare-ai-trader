@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,backtest]"
+
+      - name: Lint with ruff
+        run: |
+          ruff check . --target-version=py311 --select=E,F,W --ignore=E501
+
+      - name: Type check with mypy
+        if: false  # enable when type annotations are complete
+        run: |
+          mypy agent/ analysis/ data/ models/ --ignore-missing-imports
+
+      - name: Run unit tests
+        timeout-minutes: 10
+        run: |
+          python -m pytest tests/unit/ -v --tb=short -p no:warnings
+
+      - name: Run smoke tests
+        timeout-minutes: 10
+        run: |
+          python -m pytest tests/test_smoke.py -v --tb=short -p no:warnings
+
+      - name: Test report
+        if: always()
+        run: |
+          echo "✅ Tests complete"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - name: Ruff check
+        run: ruff check . --target-version=py311 --select=E,F,W,N,UP --ignore=E501,F401,N999
+        continue-on-error: true

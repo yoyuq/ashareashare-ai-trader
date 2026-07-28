@@ -1,0 +1,1228 @@
+{
+  "date": "2026-07-24",
+  "market_regime": {
+    "regime": "range_bound",
+    "confidence": 0.06,
+    "scores": {
+      "price_structure": -0.12,
+      "momentum": 0.254,
+      "volatility": -0.2,
+      "volume": 0.5,
+      "market_breadth": 0
+    },
+    "recommendation": "均值回归策略为主，仓位30-50%"
+  },
+  "debate": {
+    "direction": "bullish",
+    "confidence": 0.3,
+    "divergence": 0.5,
+    "summary": "规则引擎: 38BUY/8HOLD/1SELL"
+  },
+  "stock_recommendations": {
+    "sz.300750": {
+      "action": "BUY",
+      "conviction": 0.59,
+      "score": 3.0,
+      "key_reasons": [
+        "趋势偏多(0.25)",
+        "RSI均值回归胜率80%夏普12.8"
+      ],
+      "risks": [
+        "综合仅30分(后30%)"
+      ],
+      "bull_quality": 3.8,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(59%) net=+15"
+    },
+    "sh.600030": {
+      "action": "HOLD",
+      "conviction": 0.37,
+      "score": 2.9,
+      "key_reasons": [
+        "MACD趋势策略胜率57%夏普5.9"
+      ],
+      "risks": [
+        "综合仅29分(后30%)",
+        "趋势偏空(-0.38)"
+      ],
+      "bull_quality": 3.2,
+      "bear_quality": 3.4,
+      "verdict_summary": "规则: HOLD(37%) net=-4"
+    },
+    "sh.601668": {
+      "action": "BUY",
+      "conviction": 0.6,
+      "score": 9.7,
+      "key_reasons": [
+        "综合97分(前20%)",
+        "趋势强劲(0.58)",
+        "布林带均值回归胜率73%(中等)"
+      ],
+      "risks": [
+        "RSI=85极度超买"
+      ],
+      "bull_quality": 4.2,
+      "bear_quality": 3.4,
+      "verdict_summary": "规则: BUY(60%) net=+17"
+    },
+    "sh.601088": {
+      "action": "BUY",
+      "conviction": 0.87,
+      "score": 10.0,
+      "key_reasons": [
+        "综合100分(前20%)",
+        "趋势强劲(0.62)",
+        "RSI均值回归胜率80%夏普6.4"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.5,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(87%) net=+38"
+    },
+    "sz.300502": {
+      "action": "HOLD",
+      "conviction": 0.31,
+      "score": 0.3,
+      "key_reasons": [
+        "RSI均值回归胜率78%夏普12.2"
+      ],
+      "risks": [
+        "综合仅4分(后30%)",
+        "趋势偏空(-0.38)"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 3.4,
+      "verdict_summary": "规则: HOLD(31%) net=+2"
+    },
+    "sh.600309": {
+      "action": "BUY",
+      "conviction": 0.78,
+      "score": 6.7,
+      "key_reasons": [
+        "综合67分(偏强)",
+        "趋势强劲(0.51)",
+        "RSI均值回归胜率56%夏普2.3"
+      ],
+      "risks": [
+        "RSI=72超买区间"
+      ],
+      "bull_quality": 4.3,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(78%) net=+26"
+    },
+    "sh.603877": {
+      "action": "HOLD",
+      "conviction": 0.43,
+      "score": 4.1,
+      "key_reasons": [
+        "RSI均值回归胜率58%夏普4.0"
+      ],
+      "risks": [
+        "趋势偏空(-0.38)"
+      ],
+      "bull_quality": 3.2,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: HOLD(43%) net=+6"
+    },
+    "sz.002415": {
+      "action": "BUY",
+      "conviction": 0.8,
+      "score": 6.7,
+      "key_reasons": [
+        "综合67分(偏强)",
+        "趋势强劲(0.76)",
+        "MACD趋势策略胜率44%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.0,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(80%) net=+28"
+    },
+    "sz.002179": {
+      "action": "HOLD",
+      "conviction": 0.43,
+      "score": 0.1,
+      "key_reasons": [
+        "RSI=35超卖区间",
+        "RSI均值回归胜率71%夏普5.0"
+      ],
+      "risks": [
+        "综合仅1分(后30%)",
+        "趋势偏空(-0.29)"
+      ],
+      "bull_quality": 3.7,
+      "bear_quality": 3.4,
+      "verdict_summary": "规则: HOLD(43%) net=+6"
+    },
+    "sz.000651": {
+      "action": "BUY",
+      "conviction": 0.8,
+      "score": 9.3,
+      "key_reasons": [
+        "综合93分(前20%)",
+        "趋势强劲(0.85)",
+        "MACD趋势策略胜率50%(中等)"
+      ],
+      "risks": [
+        "RSI=74超买区间"
+      ],
+      "bull_quality": 4.4,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(80%) net=+28"
+    },
+    "sz.300070": {
+      "action": "BUY",
+      "conviction": 0.8,
+      "score": 8.8,
+      "key_reasons": [
+        "综合88分(前20%)",
+        "趋势偏多(0.27)",
+        "布林带均值回归胜率54%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.9,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(80%) net=+28"
+    },
+    "sh.601012": {
+      "action": "BUY",
+      "conviction": 0.58,
+      "score": 6.3,
+      "key_reasons": [
+        "趋势偏多(0.22)",
+        "MACD趋势策略胜率44%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.3,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(58%) net=+13"
+    },
+    "sh.600048": {
+      "action": "BUY",
+      "conviction": 0.61,
+      "score": 9.2,
+      "key_reasons": [
+        "综合92分(前20%)",
+        "趋势强劲(0.56)"
+      ],
+      "risks": [
+        "MACD趋势策略胜率仅23%"
+      ],
+      "bull_quality": 3.9,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(61%) net=+19"
+    },
+    "sh.600009": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 9.3,
+      "key_reasons": [
+        "综合93分(前20%)",
+        "趋势强劲(0.54)",
+        "RSI均值回归胜率67%夏普1.0"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.4,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(84%) net=+35"
+    },
+    "sh.601225": {
+      "action": "BUY",
+      "conviction": 0.89,
+      "score": 10.0,
+      "key_reasons": [
+        "综合100分(前20%)",
+        "趋势强劲(0.56)",
+        "布林带均值回归胜率88%夏普11.2"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(89%) net=+41"
+    },
+    "sh.600050": {
+      "action": "BUY",
+      "conviction": 0.75,
+      "score": 9.1,
+      "key_reasons": [
+        "综合91分(前20%)",
+        "趋势强劲(0.60)",
+        "RSI均值回归胜率58%(中等)"
+      ],
+      "risks": [
+        "RSI=80超买区间"
+      ],
+      "bull_quality": 4.1,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(75%) net=+22"
+    },
+    "sh.601899": {
+      "action": "BUY",
+      "conviction": 0.78,
+      "score": 9.9,
+      "key_reasons": [
+        "综合99分(前20%)",
+        "趋势强劲(0.55)",
+        "RSI均值回归胜率80%夏普11.9"
+      ],
+      "risks": [
+        "RSI=80极度超买"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 3.4,
+      "verdict_summary": "规则: BUY(78%) net=+26"
+    },
+    "sh.603501": {
+      "action": "BUY",
+      "conviction": 0.6,
+      "score": 7.2,
+      "key_reasons": [
+        "综合72分(偏强)",
+        "MACD趋势策略胜率38%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(60%) net=+16"
+    },
+    "sh.600895": {
+      "action": "HOLD",
+      "conviction": 0.37,
+      "score": 0.4,
+      "key_reasons": [
+        "RSI=28超卖区间",
+        "涨停追击策略胜率75%夏普12.7"
+      ],
+      "risks": [
+        "综合仅4分(后30%)",
+        "趋势走弱(-0.60)"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 3.8,
+      "verdict_summary": "规则: HOLD(37%) net=-4"
+    },
+    "sz.002594": {
+      "action": "BUY",
+      "conviction": 0.87,
+      "score": 8.9,
+      "key_reasons": [
+        "综合89分(前20%)",
+        "趋势强劲(0.57)",
+        "RSI均值回归胜率53%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.4,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(87%) net=+38"
+    },
+    "sh.601933": {
+      "action": "BUY",
+      "conviction": 0.8,
+      "score": 7.3,
+      "key_reasons": [
+        "综合73分(偏强)",
+        "趋势偏多(0.21)",
+        "涨停追击策略胜率57%夏普14.8"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.0,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(80%) net=+29"
+    },
+    "sh.600276": {
+      "action": "BUY",
+      "conviction": 0.75,
+      "score": 7.6,
+      "key_reasons": [
+        "综合76分(偏强)",
+        "布林带均值回归胜率70%夏普6.2"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.7,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(75%) net=+21"
+    },
+    "sz.300124": {
+      "action": "HOLD",
+      "conviction": 0.37,
+      "score": 2.7,
+      "key_reasons": [
+        "布林带均值回归胜率71%夏普9.6"
+      ],
+      "risks": [
+        "综合仅27分(后30%)"
+      ],
+      "bull_quality": 3.4,
+      "bear_quality": 3.1,
+      "verdict_summary": "规则: HOLD(37%) net=+4"
+    },
+    "sh.600519": {
+      "action": "BUY",
+      "conviction": 0.89,
+      "score": 9.4,
+      "key_reasons": [
+        "综合94分(前20%)",
+        "趋势强劲(0.57)",
+        "布林带均值回归胜率71%夏普6.5"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(89%) net=+41"
+    },
+    "sh.601111": {
+      "action": "BUY",
+      "conviction": 0.57,
+      "score": 2.7,
+      "key_reasons": [
+        "趋势偏多(0.23)",
+        "布林带均值回归胜率78%夏普9.1"
+      ],
+      "risks": [
+        "综合仅27分(后30%)"
+      ],
+      "bull_quality": 3.6,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(57%) net=+12"
+    },
+    "sh.600028": {
+      "action": "BUY",
+      "conviction": 0.82,
+      "score": 9.9,
+      "key_reasons": [
+        "综合99分(前20%)",
+        "趋势强劲(0.59)",
+        "布林带均值回归胜率57%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.2,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(82%) net=+32"
+    },
+    "sz.002027": {
+      "action": "BUY",
+      "conviction": 0.89,
+      "score": 9.3,
+      "key_reasons": [
+        "综合93分(前20%)",
+        "趋势强劲(0.56)",
+        "RSI均值回归胜率67%夏普2.9"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(89%) net=+41"
+    },
+    "sz.002460": {
+      "action": "SELL",
+      "conviction": 0.48,
+      "score": 0.2,
+      "key_reasons": [
+        "布林带均值回归胜率60%夏普6.2"
+      ],
+      "risks": [
+        "综合仅2分(后30%)",
+        "趋势走弱(-0.52)"
+      ],
+      "bull_quality": 3.2,
+      "bear_quality": 3.8,
+      "verdict_summary": "规则: SELL(48%) net=-11"
+    },
+    "sz.002230": {
+      "action": "BUY",
+      "conviction": 0.76,
+      "score": 3.9,
+      "key_reasons": [
+        "趋势偏多(0.21)",
+        "布林带均值回归胜率67%夏普3.8"
+      ],
+      "risks": [
+        "综合偏低(39分)"
+      ],
+      "bull_quality": 3.9,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(76%) net=+23"
+    },
+    "sh.601127": {
+      "action": "HOLD",
+      "conviction": 0.4,
+      "score": 2.0,
+      "key_reasons": [
+        "布林带均值回归胜率47%(中等)"
+      ],
+      "risks": [
+        "综合仅20分(后30%)"
+      ],
+      "bull_quality": 2.9,
+      "bear_quality": 3.1,
+      "verdict_summary": "规则: HOLD(40%) net=-5"
+    },
+    "sh.600754": {
+      "action": "BUY",
+      "conviction": 0.78,
+      "score": 5.0,
+      "key_reasons": [
+        "趋势偏多(0.24)",
+        "布林带均值回归胜率67%夏普7.2"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.8,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(78%) net=+25"
+    },
+    "sh.600760": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 8.3,
+      "key_reasons": [
+        "综合83分(前20%)",
+        "趋势强劲(0.53)",
+        "布林带均值回归胜率83%夏普12.5"
+      ],
+      "risks": [
+        "RSI=76超买区间"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(84%) net=+34"
+    },
+    "sz.300760": {
+      "action": "BUY",
+      "conviction": 0.77,
+      "score": 9.3,
+      "key_reasons": [
+        "综合93分(前20%)",
+        "趋势强劲(0.58)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.9,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(77%) net=+24"
+    },
+    "sz.000858": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 8.6,
+      "key_reasons": [
+        "综合86分(前20%)",
+        "趋势强劲(0.57)",
+        "涨停追击策略胜率50%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.2,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(84%) net=+35"
+    },
+    "sh.600031": {
+      "action": "BUY",
+      "conviction": 0.82,
+      "score": 9.4,
+      "key_reasons": [
+        "综合94分(前20%)",
+        "趋势强劲(0.51)",
+        "布林带均值回归胜率57%夏普5.8"
+      ],
+      "risks": [
+        "RSI=73超买区间"
+      ],
+      "bull_quality": 4.5,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(82%) net=+31"
+    },
+    "sh.600900": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 10.0,
+      "key_reasons": [
+        "综合100分(前20%)",
+        "趋势强劲(0.89)",
+        "RSI均值回归胜率82%夏普5.2"
+      ],
+      "risks": [
+        "RSI=73超买区间"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(84%) net=+34"
+    },
+    "sh.601318": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 9.0,
+      "key_reasons": [
+        "综合90分(前20%)",
+        "趋势强劲(0.55)",
+        "布林带均值回归胜率86%夏普8.5"
+      ],
+      "risks": [
+        "RSI=79超买区间"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(84%) net=+34"
+    },
+    "sh.600585": {
+      "action": "BUY",
+      "conviction": 0.81,
+      "score": 8.7,
+      "key_reasons": [
+        "综合87分(前20%)",
+        "趋势强劲(0.52)",
+        "MACD趋势策略胜率36%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.2,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(81%) net=+30"
+    },
+    "sz.300413": {
+      "action": "BUY",
+      "conviction": 0.6,
+      "score": 7.3,
+      "key_reasons": [
+        "综合73分(偏强)",
+        "趋势强劲(0.54)"
+      ],
+      "risks": [
+        "MACD趋势策略胜率仅29%"
+      ],
+      "bull_quality": 3.6,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(60%) net=+17"
+    },
+    "sh.600019": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 9.0,
+      "key_reasons": [
+        "综合90分(前20%)",
+        "趋势强劲(0.54)",
+        "布林带均值回归胜率73%夏普4.1"
+      ],
+      "risks": [
+        "RSI=73超买区间"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(84%) net=+34"
+    },
+    "sh.688111": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 8.2,
+      "key_reasons": [
+        "综合82分(前20%)",
+        "趋势强劲(0.53)",
+        "RSI均值回归胜率50%(中等)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.2,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(84%) net=+35"
+    },
+    "sh.601985": {
+      "action": "BUY",
+      "conviction": 0.85,
+      "score": 7.9,
+      "key_reasons": [
+        "综合79分(偏强)",
+        "趋势强劲(0.53)",
+        "RSI均值回归胜率71%夏普3.9"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.5,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(85%) net=+36"
+    },
+    "sz.002572": {
+      "action": "BUY",
+      "conviction": 0.87,
+      "score": 8.5,
+      "key_reasons": [
+        "综合85分(前20%)",
+        "趋势强劲(0.51)",
+        "布林带均值回归胜率60%夏普4.8"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.4,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(87%) net=+38"
+    },
+    "sh.603605": {
+      "action": "HOLD",
+      "conviction": 0.37,
+      "score": 7.8,
+      "key_reasons": [
+        "综合78分(偏强)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 2.9,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: HOLD(37%) net=+4"
+    },
+    "sz.002714": {
+      "action": "BUY",
+      "conviction": 0.87,
+      "score": 9.9,
+      "key_reasons": [
+        "综合99分(前20%)",
+        "趋势强劲(0.54)",
+        "布林带均值回归胜率60%夏普2.7"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.4,
+      "bear_quality": 2.5,
+      "verdict_summary": "规则: BUY(87%) net=+38"
+    },
+    "sh.600036": {
+      "action": "BUY",
+      "conviction": 0.87,
+      "score": 9.5,
+      "key_reasons": [
+        "综合95分(前20%)",
+        "趋势强劲(0.59)",
+        "布林带均值回归胜率60%夏普7.3"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 4.5,
+      "bear_quality": 2.6,
+      "verdict_summary": "规则: BUY(87%) net=+38"
+    },
+    "sz.000333": {
+      "action": "BUY",
+      "conviction": 0.84,
+      "score": 9.8,
+      "key_reasons": [
+        "综合98分(前20%)",
+        "趋势强劲(0.84)",
+        "布林带均值回归胜率100%夏普28.1"
+      ],
+      "risks": [
+        "RSI=79超买区间"
+      ],
+      "bull_quality": 4.7,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: BUY(84%) net=+34"
+    }
+  },
+  "analysis_prices": {
+    "sz.300750": {
+      "close": 385.99,
+      "rsi_14": 58.6,
+      "trend_score": 0.25,
+      "composite_score": 29.5,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.333,
+      "best_strategy_sharpe": 1.529
+    },
+    "sh.600030": {
+      "close": 28.62,
+      "rsi_14": 56.8,
+      "trend_score": -0.38,
+      "composite_score": 29.1,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.571,
+      "best_strategy_sharpe": 5.878
+    },
+    "sh.601668": {
+      "close": 4.7,
+      "rsi_14": 84.9,
+      "trend_score": 0.58,
+      "composite_score": 96.7,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.143,
+      "best_strategy_sharpe": -2.731
+    },
+    "sh.601088": {
+      "close": 45.32,
+      "rsi_14": 69.6,
+      "trend_score": 0.62,
+      "composite_score": 99.6,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.421,
+      "best_strategy_sharpe": 1.024
+    },
+    "sz.300502": {
+      "close": 497.3,
+      "rsi_14": 42.5,
+      "trend_score": -0.38,
+      "composite_score": 3.5,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.476,
+      "best_strategy_sharpe": 4.368
+    },
+    "sh.600309": {
+      "close": 75.49,
+      "rsi_14": 72.4,
+      "trend_score": 0.51,
+      "composite_score": 67.1,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.286,
+      "best_strategy_sharpe": -0.264
+    },
+    "sh.603877": {
+      "close": 12.38,
+      "rsi_14": 37.8,
+      "trend_score": -0.38,
+      "composite_score": 40.9,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.2,
+      "best_strategy_sharpe": -0.143
+    },
+    "sz.002415": {
+      "close": 35.77,
+      "rsi_14": 67.3,
+      "trend_score": 0.76,
+      "composite_score": 66.7,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.438,
+      "best_strategy_sharpe": 7.528
+    },
+    "sz.002179": {
+      "close": 34.1,
+      "rsi_14": 34.7,
+      "trend_score": -0.29,
+      "composite_score": 0.6,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.421,
+      "best_strategy_sharpe": 1.899
+    },
+    "sz.000651": {
+      "close": 40.57,
+      "rsi_14": 73.7,
+      "trend_score": 0.85,
+      "composite_score": 93.4,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.5,
+      "best_strategy_sharpe": 6.057
+    },
+    "sz.300070": {
+      "close": 3.46,
+      "rsi_14": 56.3,
+      "trend_score": 0.27,
+      "composite_score": 88.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.118,
+      "best_strategy_sharpe": 0.953
+    },
+    "sh.601012": {
+      "close": 12.8,
+      "rsi_14": 66.5,
+      "trend_score": 0.22,
+      "composite_score": 63.4,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.438,
+      "best_strategy_sharpe": 2.141
+    },
+    "sh.600048": {
+      "close": 5.14,
+      "rsi_14": 65.1,
+      "trend_score": 0.56,
+      "composite_score": 92.4,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.231,
+      "best_strategy_sharpe": 1.534
+    },
+    "sh.600009": {
+      "close": 24.2,
+      "rsi_14": 65.7,
+      "trend_score": 0.54,
+      "composite_score": 92.8,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.222,
+      "best_strategy_sharpe": -8.205
+    },
+    "sh.601225": {
+      "close": 25.25,
+      "rsi_14": 65.5,
+      "trend_score": 0.56,
+      "composite_score": 99.8,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.222,
+      "best_strategy_sharpe": -1.294
+    },
+    "sh.600050": {
+      "close": 4.42,
+      "rsi_14": 79.8,
+      "trend_score": 0.6,
+      "composite_score": 90.7,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.235,
+      "best_strategy_sharpe": 0.537
+    },
+    "sh.601899": {
+      "close": 33.06,
+      "rsi_14": 80.5,
+      "trend_score": 0.55,
+      "composite_score": 99.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.421,
+      "best_strategy_sharpe": 2.556
+    },
+    "sh.603501": {
+      "close": 96.66,
+      "rsi_14": 37.5,
+      "trend_score": -0.1,
+      "composite_score": 71.5,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.375,
+      "best_strategy_sharpe": 5.305
+    },
+    "sh.600895": {
+      "close": 27.89,
+      "rsi_14": 28.2,
+      "trend_score": -0.6,
+      "composite_score": 4.3,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.429,
+      "best_strategy_sharpe": 5.081
+    },
+    "sz.002594": {
+      "close": 92.65,
+      "rsi_14": 58.6,
+      "trend_score": 0.57,
+      "composite_score": 89.0,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.214,
+      "best_strategy_sharpe": 0.997
+    },
+    "sh.601933": {
+      "close": 3.13,
+      "rsi_14": 52.2,
+      "trend_score": 0.21,
+      "composite_score": 73.3,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.316,
+      "best_strategy_sharpe": 3.063
+    },
+    "sh.600276": {
+      "close": 54.91,
+      "rsi_14": 51.2,
+      "trend_score": -0.1,
+      "composite_score": 76.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.286,
+      "best_strategy_sharpe": -2.6
+    },
+    "sz.300124": {
+      "close": 62.36,
+      "rsi_14": 48.9,
+      "trend_score": -0.01,
+      "composite_score": 27.3,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.333,
+      "best_strategy_sharpe": 3.073
+    },
+    "sh.600519": {
+      "close": 1292.01,
+      "rsi_14": 64.4,
+      "trend_score": 0.57,
+      "composite_score": 94.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.294,
+      "best_strategy_sharpe": -3.083
+    },
+    "sh.601111": {
+      "close": 6.07,
+      "rsi_14": 57.5,
+      "trend_score": 0.23,
+      "composite_score": 27.3,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.35,
+      "best_strategy_sharpe": -6.782
+    },
+    "sh.600028": {
+      "close": 5.19,
+      "rsi_14": 69.6,
+      "trend_score": 0.59,
+      "composite_score": 99.4,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.235,
+      "best_strategy_sharpe": -6.061
+    },
+    "sz.002027": {
+      "close": 5.15,
+      "rsi_14": 67.4,
+      "trend_score": 0.56,
+      "composite_score": 93.0,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.25,
+      "best_strategy_sharpe": -0.398
+    },
+    "sz.002460": {
+      "close": 51.19,
+      "rsi_14": 43.9,
+      "trend_score": -0.52,
+      "composite_score": 2.5,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.4,
+      "best_strategy_sharpe": 2.872
+    },
+    "sz.002230": {
+      "close": 40.49,
+      "rsi_14": 41.0,
+      "trend_score": 0.21,
+      "composite_score": 39.3,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.267,
+      "best_strategy_sharpe": 0.54
+    },
+    "sh.601127": {
+      "close": 56.38,
+      "rsi_14": 44.7,
+      "trend_score": -0.02,
+      "composite_score": 20.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.333,
+      "best_strategy_sharpe": 0.334
+    },
+    "sh.600754": {
+      "close": 18.45,
+      "rsi_14": 53.8,
+      "trend_score": 0.24,
+      "composite_score": 49.6,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.286,
+      "best_strategy_sharpe": -3.959
+    },
+    "sh.600760": {
+      "close": 43.34,
+      "rsi_14": 75.6,
+      "trend_score": 0.53,
+      "composite_score": 82.6,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.316,
+      "best_strategy_sharpe": -2.286
+    },
+    "sz.300760": {
+      "close": 150.8,
+      "rsi_14": 63.1,
+      "trend_score": 0.58,
+      "composite_score": 93.0,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.308,
+      "best_strategy_sharpe": -2.372
+    },
+    "sz.000858": {
+      "close": 74.84,
+      "rsi_14": 60.4,
+      "trend_score": 0.57,
+      "composite_score": 86.4,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.235,
+      "best_strategy_sharpe": -3.004
+    },
+    "sh.600031": {
+      "close": 19.97,
+      "rsi_14": 72.7,
+      "trend_score": 0.51,
+      "composite_score": 94.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.312,
+      "best_strategy_sharpe": 2.57
+    },
+    "sh.600900": {
+      "close": 28.94,
+      "rsi_14": 73.1,
+      "trend_score": 0.89,
+      "composite_score": 100.0,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.385,
+      "best_strategy_sharpe": 3.05
+    },
+    "sh.601318": {
+      "close": 54.3,
+      "rsi_14": 78.8,
+      "trend_score": 0.55,
+      "composite_score": 89.7,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.438,
+      "best_strategy_sharpe": 3.411
+    },
+    "sh.600585": {
+      "close": 18.15,
+      "rsi_14": 70.3,
+      "trend_score": 0.52,
+      "composite_score": 86.6,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.357,
+      "best_strategy_sharpe": 2.732
+    },
+    "sz.300413": {
+      "close": 15.22,
+      "rsi_14": 51.1,
+      "trend_score": 0.54,
+      "composite_score": 72.9,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.286,
+      "best_strategy_sharpe": 0.168
+    },
+    "sh.600019": {
+      "close": 5.97,
+      "rsi_14": 72.6,
+      "trend_score": 0.54,
+      "composite_score": 90.3,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.278,
+      "best_strategy_sharpe": 0.13
+    },
+    "sh.688111": {
+      "close": 238.39,
+      "rsi_14": 56.6,
+      "trend_score": 0.53,
+      "composite_score": 82.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.333,
+      "best_strategy_sharpe": 1.474
+    },
+    "sh.601985": {
+      "close": 9.09,
+      "rsi_14": 68.1,
+      "trend_score": 0.53,
+      "composite_score": 79.1,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.5,
+      "best_strategy_sharpe": -1.958
+    },
+    "sz.002572": {
+      "close": 8.05,
+      "rsi_14": 54.4,
+      "trend_score": 0.51,
+      "composite_score": 84.9,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.312,
+      "best_strategy_sharpe": 0.754
+    },
+    "sh.603605": {
+      "close": 58.28,
+      "rsi_14": 55.6,
+      "trend_score": -0.04,
+      "composite_score": 78.1,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.308,
+      "best_strategy_sharpe": -3.658
+    },
+    "sz.002714": {
+      "close": 39.7,
+      "rsi_14": 58.7,
+      "trend_score": 0.54,
+      "composite_score": 98.8,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.227,
+      "best_strategy_sharpe": -4.278
+    },
+    "sh.600036": {
+      "close": 38.91,
+      "rsi_14": 69.1,
+      "trend_score": 0.59,
+      "composite_score": 95.2,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.368,
+      "best_strategy_sharpe": 2.86
+    },
+    "sz.000333": {
+      "close": 84.77,
+      "rsi_14": 78.6,
+      "trend_score": 0.84,
+      "composite_score": 97.7,
+      "best_strategy_id": "macd_trend",
+      "best_strategy_name": "MACD趋势策略",
+      "best_strategy_win_rate": 0.467,
+      "best_strategy_sharpe": 5.453
+    }
+  },
+  "elapsed_seconds": null,
+  "cost_total": 0.0
+}

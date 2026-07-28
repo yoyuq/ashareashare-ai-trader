@@ -376,9 +376,9 @@ class MarketScanner:
 
                 return StockScore(
                     symbol=sym,
-                    name=name,
+                    name=stock.name,
                     close=round(current_close, 2),
-                    market_cap=round(mv, 1),
+                    market_cap=stock.market_cap,
                     technical_score=round(technical_score, 1),
                     fund_flow_score=round(fund_flow_score, 1),
                     momentum_score=round(momentum_score, 1),
@@ -388,7 +388,7 @@ class MarketScanner:
                 )
 
             except Exception as e:
-                logger.debug(f"评分异常 {row.get('代码','?')}: {e}")
+                logger.debug(f"评分异常 {stock.symbol}: {e}")
                 return None
 
     # ═══════════════════════════════════════════════════════════════

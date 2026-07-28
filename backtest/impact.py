@@ -113,14 +113,16 @@ class ImpactCostEngine:
                 capacity_remaining=100,
             )
 
-        # 日波动率估算
-        if "amplitude" in daily_bar.index:
-            # 有振幅字段直接用
+        # 日波动率估算 — v2.14: 优先用日收益率标准差 (Almgren-Chriss 要求)
+        # 衰减: Parkinson range-based → return-based std
+        if "pct_change" in daily_bar.index:
+            volatility_pct = abs(daily_bar["pct_change"]) / 100  # 单日绝对收益近似
+        elif "amplitude" in daily_bar.index:
             volatility_pct = daily_bar["amplitude"] / 100
         else:
-            # (high-low)/close 近似
+            # fallback: Parkinson estimator ≈ range / (2 * sqrt(log(2)))  but using simpler range/close
             volatility_pct = (
-                (daily_bar.get("high", close) - daily_bar.get("low", close)) / close
+                (daily_bar.get("high", close) - daily_bar.get("low", close)) / close * 0.6
             )
 
         # 板块调整 η

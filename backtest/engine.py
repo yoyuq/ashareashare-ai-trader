@@ -282,21 +282,23 @@ class EventDrivenBacktestEngine:
         excess = ret - rf_daily
         sharpe = (excess.mean() / max(daily_vol, 1e-10)) * np.sqrt(252)
 
-        # Sortino
-        downside_ret = ret[ret < 0]
-        downside_std = downside_ret.std() * np.sqrt(252) if len(downside_ret) > 0 else 0.01
-        sortino = (ret.mean() * 252 - 0.02) / max(downside_std, 1e-10)
+        # Sortino (v2.14: 修正 — 使用 downside deviation, 非 std of negative returns)
+        downside_sq = np.clip(ret, None, 0) ** 2  # 只取负收益的平方
+        downside_dev = np.sqrt(downside_sq.mean()) * np.sqrt(252) if len(downside_sq) > 0 else 0.01
+        sortino = (ret.mean() * 252 - 0.02) / max(downside_dev, 1e-10)
 
         # 最大回撤
         cummax = equity.expanding().max()
         drawdown = (equity - cummax) / cummax * 100
         max_dd = drawdown.min()
-        # 回撤持续时间
-        dd_periods = (drawdown < 0).astype(int)
-        max_dd_duration = (
-            dd_periods.groupby((dd_periods != dd_periods.shift()).cumsum())
-            .sum().max()
-        )
+        # 回撤持续时间 (v2.14: 修复 — 无回撤时返回0, 非总天数)
+        max_dd_duration = 0
+        if drawdown.min() < 0:
+            dd_periods = (drawdown < 0).astype(int)
+            max_dd_duration = int(
+                dd_periods.groupby((dd_periods != dd_periods.shift()).cumsum())
+                .sum().max()
+            ) if dd_periods.sum() > 0 else 0
 
         # Calmar
         calmar = annual_return / abs(max_dd) if max_dd != 0 else 0

@@ -180,8 +180,8 @@ class WinRateAnalyzer:
           chase_short: 入场前5日趋势向下(做空场景)
           escape_top:  入场前5日趋势向上 + 入场时RSI>70(高位止盈)
         """
-        scenarios = {s.value: {"total": 0, "wins": 0, "profit_factor": 0,
-                                "total_pnl": 0.0, "win_rate": 0}
+        scenarios = {s.value: {"total": 0, "wins": 0, "wins_pnl": 0.0, "losses_pnl": 0.0,
+                                "total_pnl": 0.0, "win_rate": 0, "profit_factor": 0}
                      for s in SignalScenario}
 
         if price_data.empty or "close" not in price_data.columns:
@@ -230,9 +230,12 @@ class WinRateAnalyzer:
                 key = scenario.value
                 scenarios[key]["total"] += 1
                 pnl = trade.get("pnl", 0)
+                scenarios[key]["total_pnl"] += float(pnl)
                 if pnl > 0:
                     scenarios[key]["wins"] += 1
-                scenarios[key]["total_pnl"] += float(pnl)
+                    scenarios[key]["wins_pnl"] += float(pnl)
+                else:
+                    scenarios[key]["losses_pnl"] += abs(float(pnl))
 
             except (KeyError, IndexError):
                 continue
@@ -242,7 +245,7 @@ class WinRateAnalyzer:
             if stats["total"] > 0:
                 stats["win_rate"] = round(stats["wins"] / stats["total"], 3)
                 stats["profit_factor"] = round(
-                    stats["total_pnl"] / max(abs(stats["total_pnl"]), 1), 1
+                    stats["wins_pnl"] / max(stats["losses_pnl"], 0.01), 1
                 )
 
         return scenarios

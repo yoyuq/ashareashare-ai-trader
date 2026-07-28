@@ -1,7 +1,8 @@
 """
-A股智能分析Agent Dashboard v2.2 — 优化版
+A股智能分析Agent Dashboard v2.9 — 优化版
 """
 import asyncio
+import concurrent.futures
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -12,6 +13,27 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv; load_dotenv()
+
+
+# ═══════════════════════ 工具函数 ═══════════════════════
+
+def _run_async(coro):
+    """
+    Safe async runner for Streamlit (fixes asyncio.run() nested loop issue)
+
+    When Streamlit's internal event loop is already running,
+    asyncio.run() throws RuntimeError. This helper:
+      - Uses asyncio.run() if no loop is running (normal case)
+      - Falls back to a thread-pool execution if already inside a loop
+    """
+    try:
+        asyncio.get_running_loop()
+        # Already in an event loop — run in a separate thread
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+    except RuntimeError:
+        return asyncio.run(coro)
 
 # ═══════════════════════ 页面配置 ═══════════════════════
 st.set_page_config(page_title="A股AI Agent", page_icon="🏦", layout="wide",
@@ -76,7 +98,7 @@ with t3:
     ds_key = os.getenv("DEEPSEEK_API_KEY", "")
     st.caption(f"{'🟢' if 'sk-' in ds_key else '⚪'} DeepSeek")
 
-mode = st.radio("分析模式", ["💬 AI问答", "📊 市场总览", "🔍 个股分析", "📋 交易建议", "🧪 策略回测"],
+mode = st.radio("分析模式", ["💬 AI问答", "📊 市场总览", "🔍 个股分析", "📋 交易建议", "🧪 策略回测", "💰 模拟持仓"],
                 horizontal=True, label_visibility="collapsed")
 
 # ═══════════════════════ 标的选择(紧凑) ═══════════════════════
@@ -93,7 +115,7 @@ with sel_col2:
                               default=filtered[:3] if not search else filtered[:3],
                               label_visibility="collapsed", max_selections=10)
 with sel_col3:
-    if st.button("🔄 加载全市场", help="从AKShare加载Top100(较慢,约30秒)", use_container_width=True):
+    if st.button("🔄 加载全市场", help="从AKShare加载Top100(较慢,约30秒)", width="stretch"):
         @st.cache_data(ttl=86400, show_spinner="加载全市场数据...")
         def load_full_market():
             try:
@@ -155,7 +177,7 @@ if mode == "💬 AI问答":
                     async def chat():
                         return await agent.chat(prompt, session_id="dashboard")
 
-                    reply = asyncio.run(chat())
+                    reply = _run_async(chat())
                     st.markdown(reply)
                     st.session_state.chat_history.append(
                         {"role": "assistant", "content": reply}
@@ -185,7 +207,7 @@ if mode == "📊 市场总览":
                         req = DataRequest("sh.000300", today - timedelta(days=365), today, DataFrequency.DAILY)
                         r = await router.get_daily_kline(req)
                         return detector.detect(r.data)
-                    return asyncio.run(f())
+                    return _run_async(f())
 
                 regime = get_regime_cached()
 
@@ -226,8 +248,8 @@ if mode == "📊 市场总览":
                                     "成交额(亿)":f"{d.get('amount',0)/1e8:.1f}"}
                     except: return None
 
-                snaps = [asyncio.run(snap(s)) for s in symbols[:8] if asyncio.run(snap(s))]
-                if snaps: st.dataframe(pd.DataFrame(snaps), use_container_width=True, hide_index=True)
+                snaps = [_run_async(snap(s)) for s in symbols[:8] if _run_async(snap(s))]
+                if snaps: st.dataframe(pd.DataFrame(snaps), width="stretch", hide_index=True)
 
             except Exception as e:
                 st.error(f"数据获取失败: {e}")
@@ -246,7 +268,7 @@ elif mode == "🔍 个股分析":
                         req = DataRequest(s, today-timedelta(days=365), today, DataFrequency.DAILY)
                         return await router.get_daily_kline(req)
 
-                    result = asyncio.run(fetch(sym))
+                    result = _run_async(fetch(sym))
                     if result.data.empty:
                         st.warning("无数据"); continue
 
@@ -315,7 +337,7 @@ elif mode == "🧪 策略回测":
                     strat._e=None
                     return eng.run(strat, progress_bar=False)
 
-                r = asyncio.run(bt())
+                r = _run_async(bt())
                 st.success("完成!")
 
                 pc=st.columns(4)
@@ -353,7 +375,7 @@ elif mode == "📋 交易建议":
                         return await engine.generate(capital=capital, top_n=15)
 
                     with st.spinner("分析中(并行获取市场状态+北向+板块+扫描)..."):
-                        recs = asyncio.run(gen())
+                        recs = _run_async(gen())
 
                     if not recs.recommendations:
                         st.warning(
@@ -384,7 +406,7 @@ elif mode == "📋 交易建议":
                                 "建议仓位": f"{r.suggested_amount:,.0f}",
                                 "评级": f"{r.confidence}",
                             })
-                        st.dataframe(pd.DataFrame(overview_data), use_container_width=True, hide_index=True)
+                        st.dataframe(pd.DataFrame(overview_data), width="stretch", hide_index=True)
 
                         # 仓位汇总
                         st.metric("建议总仓位", f"¥{recs.suggested_total_exposure:,.0f}",
@@ -433,6 +455,221 @@ elif mode == "📋 交易建议":
                 except Exception as e:
                     st.error(f"推荐生成失败: {e}")
 
+# ──── 模拟持仓 (v2.9) ────
+elif mode == "💰 模拟持仓":
+    st.caption("📊 模拟交易看板 | 初始资金¥10,000 | 实时追踪持仓盈亏")
+
+    try:
+        from simulation.portfolio import PortfolioManager
+        from simulation.paper_trader import PaperTradingEngine
+
+        manager = PortfolioManager()
+        state = manager.state
+
+        # ── 刷新按钮 ──
+        rc1, rc2, rc3 = st.columns([1, 1, 4])
+        with rc1:
+            if st.button("🔄 刷新数据", width="stretch"):
+                st.rerun()
+        with rc2:
+            if st.button("⚠️ 重置账户", width="stretch", type="secondary",
+                        help="清除所有持仓和交易记录，恢复初始资金¥10,000"):
+                manager.reset()
+                st.rerun()
+
+        # ── KPI 指标卡片 ──
+        k1, k2, k3, k4, k5 = st.columns(5)
+        return_emoji = "🟢" if state.total_return >= 0 else "🔴"
+        k1.metric("💰 总资产", f"¥{state.total_value:,.2f}",
+                 f"初始¥{state.initial_capital:,.0f}")
+        k2.metric(f"{return_emoji} 累计收益", f"¥{state.total_return:+,.2f}",
+                 f"{state.total_return_pct:+.2f}%")
+        k3.metric("💵 可用现金", f"¥{state.cash:,.2f}",
+                 f"{state.cash/max(state.total_value,1)*100:.1f}%")
+        k4.metric("📦 持仓市值", f"¥{state.position_value:,.2f}",
+                 f"{len(state.positions)}只")
+        k5.metric("🏆 已实现盈亏", f"¥{state.total_realized_pnl:+,.2f}",
+                 f"{state.win_count}W/{state.loss_count}L")
+
+        # ── 资产走势图 ──
+        st.subheader("📈 资产走势")
+        snapshots = state.daily_snapshots
+        if snapshots:
+            import pandas as pd
+            chart_data = pd.DataFrame([
+                {
+                    "日期": s.date,
+                    "总资产": s.total_value,
+                    "现金": s.cash,
+                    "持仓市值": s.position_value,
+                    "累计收益率(%)": s.cumulative_return_pct,
+                }
+                for s in snapshots
+            ])
+
+            tab_c1, tab_c2 = st.columns(2)
+            with tab_c1:
+                st.caption("资产曲线")
+                st.line_chart(chart_data.set_index("日期")[["总资产", "现金", "持仓市值"]],
+                             width="stretch")
+            with tab_c2:
+                st.caption("累计收益率(%)")
+                st.line_chart(chart_data.set_index("日期")[["累计收益率(%)"]],
+                             width="stretch")
+
+        # ── 持仓明细 + 资产配置 ──
+        st.subheader("📊 持仓明细 & 资产配置")
+        pos_col, pie_col = st.columns([3, 2])
+
+        with pos_col:
+            if state.positions:
+                pos_data = []
+                for sym, p in state.positions.items():
+                    pnl = p.unrealized_pnl
+                    pnl_pct = p.unrealized_pnl_pct
+                    pos_data.append({
+                        "代码": sym.replace("sh.", "").replace("sz.", ""),
+                        "名称": p.name,
+                        "持仓(股)": p.quantity,
+                        "成本价": f"¥{p.avg_cost:.2f}",
+                        "现价": f"¥{p.current_price:.2f}",
+                        "市值": f"¥{p.market_value:,.0f}",
+                        "盈亏": f"¥{pnl:+,.0f}",
+                        "盈亏%": f"{pnl_pct:+.1f}%",
+                        "止损": f"¥{p.stop_loss:.2f}",
+                        "止盈": f"¥{p.take_profit:.2f}",
+                        "策略": p.rec_strategy_name,
+                    })
+
+                st.dataframe(pd.DataFrame(pos_data), width="stretch", hide_index=True)
+
+                # 止损止盈进度条
+                st.caption("止损/止盈距离 (当前位置)")
+                for sym, p in state.positions.items():
+                    if p.current_price > 0 and p.stop_loss > 0 and p.take_profit > 0:
+                        price_range = p.take_profit - p.stop_loss
+                        if price_range > 0:
+                            progress = (p.current_price - p.stop_loss) / price_range
+                            progress = max(0, min(1, progress))
+                            name = p.name or sym.split(".")[-1]
+                            sl_dist = (p.current_price/p.stop_loss - 1)*100
+                            tp_dist = (p.take_profit/p.current_price - 1)*100
+                            st.progress(progress, text=f"{name}: 止损+{sl_dist:.1f}% | 止盈+{tp_dist:.1f}% | 当前¥{p.current_price:.2f}")
+            else:
+                st.info("暂无持仓。运行晚间分析生成推荐 → 早盘买入自动建仓。")
+
+        with pie_col:
+            if state.positions:
+                import plotly.express as px
+                import plotly.graph_objects as go
+
+                pie_labels = []
+                pie_values = []
+                for sym, p in state.positions.items():
+                    name = p.name or sym.split(".")[-1]
+                    pie_labels.append(name)
+                    pie_values.append(p.market_value)
+
+                if state.cash > 0:
+                    pie_labels.append("现金")
+                    pie_values.append(state.cash)
+
+                fig = px.pie(
+                    names=pie_labels, values=pie_values,
+                    title="资产配置",
+                    color_discrete_sequence=px.colors.qualitative.Set2,
+                )
+                fig.update_traces(textinfo="percent+label")
+                fig.update_layout(height=350, margin=dict(l=10, r=10, t=30, b=10))
+                st.plotly_chart(fig, width="stretch")
+            else:
+                st.metric("现金占比", "100%", "¥100,000")
+
+        # ── 交易记录 ──
+        st.subheader("📋 交易记录")
+
+        # ── AI分析解析 (每只持仓的买入逻辑) ──
+        if state.positions:
+            st.subheader("🔬 AI 买入决策解析")
+            st.caption("点击展开每只持仓的AI分析理由、风险提示和策略详情")
+
+            ai_cols = st.columns(min(3, len(state.positions)))
+            for idx, (sym, p) in enumerate(state.positions.items()):
+                col = ai_cols[idx % 3]
+                with col:
+                    name = p.name or sym.split(".")[-1]
+                    code = sym.replace("sh.", "").replace("sz.", "")
+                    score = p.rec_entry_score
+                    # Color based on score
+                    if score >= 65:
+                        badge = "🟢"
+                    elif score >= 55:
+                        badge = "🟡"
+                    else:
+                        badge = "🟠"
+
+                    with st.expander(f"{badge} {name} ({code}) — {p.rec_strategy_name or '综合策略'}", expanded=False):
+                        # 评分和置信度
+                        st.caption(f"**入场评分**: {score:.0f}/100 | **策略胜率**: {p.rec_win_rate:.0%} | **置信度**: {p.rec_confidence}")
+
+                        # AI判断
+                        if p.rec_verdict:
+                            st.markdown(f"💡 **AI判断**: {p.rec_verdict}")
+
+                        # 关键理由
+                        if p.rec_reasons:
+                            st.markdown("**📌 买入理由:**")
+                            for i, reason in enumerate(p.rec_reasons[:4]):
+                                st.markdown(f"  {i+1}. {reason}")
+
+                        # 风险提示
+                        if p.rec_risks:
+                            st.markdown("**⚠️ 风险提示:**")
+                            for risk in p.rec_risks[:3]:
+                                st.markdown(f"  - {risk}")
+
+                        # 止盈止损
+                        st.caption(f"止损: ¥{p.stop_loss:.2f} | 止盈: ¥{p.take_profit:.2f}" +
+                                  f" | 仓位占比: {p.market_value/max(state.total_value,1)*100:.1f}%")
+        trade_history = state.trade_history
+        if trade_history:
+            trade_data = []
+            for t in reversed(trade_history[-30:]):
+                trade_data.append({
+                    "日期": t.date,
+                    "股票": t.name or t.symbol.split(".")[-1],
+                    "代码": t.symbol.replace("sh.", "").replace("sz.", ""),
+                    "方向": "🔴卖出" if t.side == "sell" else "🟢买入",
+                    "数量": t.quantity,
+                    "价格": f"¥{t.price:.2f}" if t.price else "-",
+                    "金额": f"¥{t.amount:,.0f}" if t.amount else "-",
+                    "手续费": f"¥{t.commission + t.stamp_duty + t.transfer_fee:.2f}",
+                    "盈亏": f"¥{t.pnl:+,.0f}" if t.pnl is not None else "-",
+                    "原因": t.reason or t.exit_reason or "-",
+                })
+            st.dataframe(pd.DataFrame(trade_data), width="stretch", hide_index=True)
+
+            # 交易统计
+            if state.trade_count > 0:
+                st.caption(
+                    f"共{state.trade_count}笔交易 | "
+                    f"胜率{state.win_rate*100:.0f}% | "
+                    f"累计手续费¥{state.total_commission+state.total_stamp_duty+state.total_transfer_fee:.2f}"
+                )
+        else:
+            st.info("暂无交易记录")
+
+        # ── 快速操作提示 ──
+        st.caption("---")
+        st.caption("💡 **操作提示**: "
+                  "`python scripts/evening_summary.py --analyze` 盘后分析 → "
+                  "`python scripts/morning_buy.py` 早盘买入 → "
+                  "`python scripts/evening_summary.py --summarize` 收盘总结")
+
+    except Exception as e:
+        st.error(f"模拟持仓加载失败: {e}")
+        st.info("请先初始化: `python -c \"from simulation.portfolio import PortfolioManager; PortfolioManager()\"`")
+
 # ──── 多空辩论 ────
 elif mode == "⚔️ 多空辩论":
     st.caption("Bull vs Bear vs Judge 三方对抗辩论")
@@ -442,4 +679,4 @@ elif mode == "⚔️ 多空辩论":
 
 # ═══════════════════════ 底部 ═══════════════════════
 st.divider()
-st.caption("A股AI Agent v2.2 | DeepSeek V4驱动 | ⚠️ 仅供研究")
+st.caption("A股AI Agent v2.9 | DeepSeek V4驱动 | ⚠️ 仅供研究")

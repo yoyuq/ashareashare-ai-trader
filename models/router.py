@@ -198,15 +198,43 @@ class ModelRouter:
         Returns:
             RouteResult
         """
-        # 1. 确定目标层级
+        tier = self._resolve_tier(task_type, force_tier)
+        return await self._execute_with_fallback(tier, messages, max_retries)
+
+    async def route_with_tools(
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict] = None,
+        task_type: str = "simple_qa",
+        force_tier: Optional[ModelTier] = None,
+        max_retries: int = 2,
+    ) -> RouteResult:
+        """
+        🆕 v2.9 带工具调用的路由 — ChatAgent 专用
+
+        与 route() 的区别:
+          - 传递 tools 定义给 LLM (function calling)
+          - RouteResult.metadata 中包含 tool_calls 原始数据
+          - 自动跳过 LOCAL tier (Ollama 小模型 tool calling 不稳定)
+
+        Returns:
+            RouteResult (response 可能是 tool_call JSON)
+        """
+        tier = self._resolve_tier(task_type, force_tier)
+        # 工具调用至少需要 FLASH tier (本地模型 function calling 不稳定)
+        if tier == ModelTier.LOCAL:
+            tier = ModelTier.FLASH
+        return await self._execute_with_fallback(tier, messages, max_retries, tools=tools)
+
+    def _resolve_tier(self, task_type: str, force_tier: Optional[ModelTier] = None) -> ModelTier:
+        """解析目标层级 (route 和 route_with_tools 共用)"""
         if force_tier:
             tier = force_tier
         else:
             tier = self._determine_tier(task_type)
 
-        # 2. 高峰降级
+        # 高峰降级
         if self._is_peak_hour() and tier != ModelTier.LOCAL:
-            # 高峰时降一级
             if tier == ModelTier.PRO:
                 tier = ModelTier.FLASH
                 logger.debug("高峰降级: PRO→FLASH")
@@ -214,16 +242,15 @@ class ModelRouter:
                 tier = ModelTier.LOCAL
                 logger.debug("高峰降级: FLASH→LOCAL")
 
-        # 3. 预算检查
+        # 预算检查
         if tier != ModelTier.LOCAL and self._daily_cost >= self.daily_budget * 0.9:
             logger.warning(
-                f"日预算已用{self._daily_cost:.2f}/{self._daily_budget:.2f}元,"
+                f"日预算已用{self._daily_cost:.2f}/{self.daily_budget:.2f}元,"
                 "强制使用本地模型"
             )
             tier = ModelTier.LOCAL
 
-        # 4. 执行(带降级重试)
-        return await self._execute_with_fallback(tier, messages, max_retries)
+        return tier
 
     # ═══════════════════════════════════════════════════════════════
     # 执行与降级
@@ -234,6 +261,7 @@ class ModelRouter:
         tier: ModelTier,
         messages: List[Dict[str, str]],
         max_retries: int,
+        tools: List[Dict] = None,
     ) -> RouteResult:
         """执行请求,失败时沿降级链回退"""
         errors = []
@@ -255,12 +283,18 @@ class ModelRouter:
             if not chain:
                 chain = [ModelTier.FLASH]  # 至少有一个
 
+        # 工具调用时跳过LOCAL
+        if tools:
+            chain = [t for t in chain if t != ModelTier.LOCAL]
+            if not chain:
+                chain = [ModelTier.FLASH]
+
         for attempt_tier in chain:
             last_error = None
             for retry in range(max_retries + 1):
                 try:
                     start = datetime.now()
-                    response, usage = await self._call_model(attempt_tier, messages)
+                    response, usage = await self._call_model(attempt_tier, messages, tools=tools)
                     latency = (datetime.now() - start).total_seconds() * 1000
 
                     cost = self._calculate_cost(attempt_tier, usage)
@@ -297,12 +331,13 @@ class ModelRouter:
         self,
         tier: ModelTier,
         messages: List[Dict[str, str]],
+        tools: List[Dict] = None,
     ) -> tuple[str, dict]:
         """调用具体模型"""
         if tier == ModelTier.LOCAL:
             return await self._call_ollama(messages)
         else:
-            return await self._call_deepseek(tier, messages)
+            return await self._call_deepseek(tier, messages, tools=tools)
 
     async def _call_ollama(self, messages: List[Dict[str, str]]) -> tuple[str, dict]:
         """调用Ollama本地模型"""
@@ -329,8 +364,9 @@ class ModelRouter:
         self,
         tier: ModelTier,
         messages: List[Dict[str, str]],
+        tools: List[Dict] = None,
     ) -> tuple[str, dict]:
-        """调用DeepSeek API"""
+        """调用DeepSeek API (v2.9: 支持 tool calling)"""
         if self._deepseek_client is None:
             raise RuntimeError("DeepSeek客户端未初始化")
 
@@ -340,14 +376,42 @@ class ModelRouter:
         }
         model = model_map.get(tier, "deepseek-chat")
 
-        response = await self._deepseek_client.chat.completions.create(
-            model=model,
-            messages=messages,  # type: ignore
-            temperature=0.3 if tier == ModelTier.FLASH else 0.6,
-            max_tokens=16384 if tier == ModelTier.FLASH else 32768,
-        )
+        kwargs = {
+            "model": model,
+            "messages": messages,  # type: ignore
+            "temperature": 0.3 if tier == ModelTier.FLASH else 0.6,
+            "max_tokens": 16384 if tier == ModelTier.FLASH else 32768,
+        }
 
-        content = response.choices[0].message.content or ""
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
+        response = await self._deepseek_client.chat.completions.create(**kwargs)
+
+        choice = response.choices[0]
+        content = choice.message.content or ""
+
+        # 工具调用: 将 tool_calls 序列化到 content 中传递
+        if choice.message.tool_calls:
+            import json
+            tool_calls_data = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in choice.message.tool_calls
+            ]
+            # 把 tool_calls 作为特殊标记的 JSON 嵌入 content
+            content = json.dumps({
+                "_tool_calls": tool_calls_data,
+                "content": content,
+            }, ensure_ascii=False)
+
         usage = {
             "input_tokens": response.usage.prompt_tokens if response.usage else 0,
             "output_tokens": response.usage.completion_tokens if response.usage else 0,
@@ -364,6 +428,9 @@ class ModelRouter:
 
     def _is_peak_hour(self) -> bool:
         """检查是否在北京时间高峰时段"""
+        # 临时跳过高峰降级 — 让所有请求直走DeepSeek
+        if os.getenv("SKIP_PEAK_HOUR", "").lower() in ("1", "true", "yes"):
+            return False
         now = datetime.now()
         current_time = now.time()
 

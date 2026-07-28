@@ -1,8 +1,48 @@
-# A股智能分析Agent — 基础服务编排
-# Phase 0 环境搭建
+# A股智能分析Agent — 完整服务编排 (v2.14)
 version: "3.8"
 
 services:
+  # ═══════════════════════════════════════════════════════════════
+  # FastAPI 应用
+  # ═══════════════════════════════════════════════════════════════
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ashare-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+      - API_KEY=${API_KEY:-dev-key-change-me}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-ashare_trader}
+      - POSTGRES_USER=${POSTGRES_USER:-ashare}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ashare}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../reports:/app/reports
+      - ../simulation_data:/app/simulation_data
+      - ../data/sessions:/app/data/sessions
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - ashare-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
   # ═══════════════════════════════════════════════════════════════
   # PostgreSQL + TimescaleDB (时序数据存储)
   # ═══════════════════════════════════════════════════════════════

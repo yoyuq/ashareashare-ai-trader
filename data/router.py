@@ -17,6 +17,8 @@ from loguru import logger
 
 from .providers.akshare_provider import AKShareProvider
 from .providers.baostock_provider import BaostockProvider
+from .providers.eastmoney_provider import EastMoneyProvider
+from .providers.tencent_provider import TencentFinanceProvider
 from .providers.base import DataFrequency, DataProvider, DataRequest, DataResult, DataSource
 
 
@@ -38,6 +40,10 @@ class DataRouter:
         self._downgraded_until: Dict[DataSource, datetime] = {}
         self._max_failures = 3
         self._downgrade_duration = timedelta(minutes=5)
+        self.last_used_source: str = ""  # v2.10: 追踪实际使用的数据源
+        # v2.10: 简易内存缓存 (无需Redis)
+        self._cache: Dict[str, tuple] = {}  # key → (timestamp, DataResult)
+        self._cache_ttl = timedelta(minutes=5)  # K线缓存5分钟
 
     def register(self, provider: DataProvider, priority: int = 0):
         """注册数据源"""
@@ -95,7 +101,15 @@ class DataRouter:
     # ═══════════════════════════════════════════════════════════════
 
     async def _route_with_fallback(self, method: str, request: DataRequest) -> DataResult:
-        """带自动降级的路由"""
+        """带自动降级的路由 (v2.10: 缓存 + 数据校验 + 超时)"""
+
+        # 🆕 v2.10: 内存缓存检查
+        cache_key = f"{method}:{request.symbol}:{request.start_date}:{request.end_date}"
+        if cache_key in self._cache:
+            ts, cached_result = self._cache[cache_key]
+            if datetime.now() - ts < self._cache_ttl:
+                return cached_result
+
         errors = []
         for source in self._active_sources():
             provider = self._providers.get(source)
@@ -103,12 +117,26 @@ class DataRouter:
                 continue
             try:
                 func = getattr(provider, method)
-                result = await func(request)
+                import asyncio
+                result = await asyncio.wait_for(func(request), timeout=30)
                 if result is not None and not result.data.empty:
+                    # v2.10: 数据质量校验
+                    if hasattr(provider, '_validate_response'):
+                        is_valid = provider._validate_response(result.data, request)
+                        if not is_valid:
+                            errors.append(f"{source.value}: 数据校验失败")
+                            self._on_failure(source)
+                            continue
                     self._on_success(source)
+                    self.last_used_source = source.value
+                    self._cache[cache_key] = (datetime.now(), result)  # 缓存
                     return result
                 else:
                     errors.append(f"{source.value}: 返回空数据")
+            except asyncio.TimeoutError:
+                logger.warning(f"{source.value}.{method}({request.symbol}) 超时(30s)")
+                errors.append(f"{source.value}: 超时")
+                self._on_failure(source)
             except Exception as e:
                 logger.warning(f"{source.value}.{method}({request.symbol}) 失败: {e}")
                 errors.append(f"{source.value}: {e}")
@@ -269,11 +297,23 @@ _router_instance: Optional[DataRouter] = None
 
 
 def get_data_router(cross_validation: bool = True) -> DataRouter:
-    """获取DataRouter单例(自动注册默认数据源)"""
+    """
+    获取DataRouter单例(自动注册默认数据源)
+
+    v2.9 优先级 (与 config/settings.yaml 对齐):
+      1. Baostock   — 历史数据当前网络可用, K线首选
+      2. Tencent    — 实时行情免费无限制，作为实时报价首选
+      3. EastMoney  — 国内最稳定的免费源,实时行情+历史K线
+      4. AKShare    — 数据最全,补充EastMoney缺失的数据类型
+    """
     global _router_instance
     if _router_instance is None:
         _router_instance = DataRouter(cross_validation=cross_validation)
-        _router_instance.register(AKShareProvider(), priority=1)
-        _router_instance.register(BaostockProvider(), priority=2)
-        logger.info("DataRouter初始化完成: AKShare(主) → Baostock(备)")
+        _router_instance.register(BaostockProvider(), priority=1)
+        _router_instance.register(TencentFinanceProvider(), priority=2)
+        _router_instance.register(EastMoneyProvider(), priority=3)
+        _router_instance.register(AKShareProvider(), priority=4)
+        import os
+        provider_list = os.getenv("DATA_PROVIDER_ORDER", "Baostock→Tencent→EastMoney→AKShare")
+        logger.info(f"DataRouter初始化完成: {provider_list}")
     return _router_instance

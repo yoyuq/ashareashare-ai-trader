@@ -28,6 +28,8 @@ from loguru import logger
 
 # pandas-ta (纯Python,跨平台)
 try:
+    import logging
+    logging.getLogger('pandas_ta').setLevel(logging.ERROR)  # 抑制 TA-Lib 警告洪水
     import pandas_ta as ta
     PANDASTA_AVAILABLE = True
 except ImportError:
@@ -74,6 +76,7 @@ class TechnicalAnalyzer:
         self,
         df: pd.DataFrame,
         symbol: str = "",
+        skip_patterns: bool = False,
     ) -> IndicatorResult:
         """
         计算所有支持的技术指标
@@ -81,6 +84,7 @@ class TechnicalAnalyzer:
         Args:
             df: OHLCV DataFrame, 需包含 open/high/low/close/volume 列
             symbol: 股票代码 (用于缓存key)
+            skip_patterns: 跳过CDL形态识别 (规则模式无需形态,可提速~30%)
 
         Returns:
             IndicatorResult
@@ -112,10 +116,11 @@ class TechnicalAnalyzer:
         result.indicators.update(self._compute_ashare_indicators(df))
 
         # ===== K线形态识别 =====
-        if PANDASTA_AVAILABLE:
-            result.patterns = self._detect_candlestick_patterns(df)
-        else:
-            result.patterns = self._detect_candlestick_patterns_numpy(df)
+        if not skip_patterns:
+            if PANDASTA_AVAILABLE:
+                result.patterns = self._detect_candlestick_patterns(df)
+            else:
+                result.patterns = self._detect_candlestick_patterns_numpy(df)
 
         # ===== 衍生因子 =====
         result.indicators.update(self._compute_factors(df, result.indicators))

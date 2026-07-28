@@ -29,6 +29,7 @@ class KnowledgeManager:
         self._rules_cache: Dict[str, Dict] = {}
         self._prompt_cache: Dict[str, str] = {}
         self._strategy_cache: Dict[str, Dict] = {}
+        self._chroma_client = None   # v2.2: 延迟初始化
 
         # 验证目录结构
         self._validate_structure()
@@ -301,8 +302,143 @@ class KnowledgeManager:
         return risks
 
     # ═══════════════════════════════════════════════════════════════
-    # 4. 向量检索 (ChromaDB — 初始化时延迟加载)
+    # 4. 向量检索 (ChromaDB — 延迟加载 + 可初始化)
     # ═══════════════════════════════════════════════════════════════
+
+    @property
+    def chroma_available(self) -> bool:
+        """ChromaDB是否可用(含数据)"""
+        try:
+            if self._chroma_client is None:
+                import chromadb
+                store_path = self.root / "vector_store" / "chroma"
+                store_path.mkdir(parents=True, exist_ok=True)
+                self._chroma_client = chromadb.PersistentClient(
+                    path=str(store_path)
+                )
+            # 检查是否有collection
+            collections = self._chroma_client.list_collections()
+            return len(collections) > 0
+        except Exception:
+            return False
+
+    def initialize_vectordb(
+        self,
+        collection_name: str = "kline_patterns",
+        embedding_fn=None,
+    ) -> bool:
+        """
+        v2.9 初始化向量数据库 (含示例数据播种)
+
+        Args:
+            collection_name: collection名称
+            embedding_fn: 嵌入函数(默认使用ChromaDB内置)
+
+        Returns:
+            是否初始化成功
+        """
+        try:
+            import chromadb
+            store_path = self.root / "vector_store" / "chroma"
+            store_path.mkdir(parents=True, exist_ok=True)
+
+            self._chroma_client = chromadb.PersistentClient(
+                path=str(store_path)
+            )
+
+            # 检查collection是否已存在
+            existing = [c.name for c in self._chroma_client.list_collections()]
+            if collection_name in existing:
+                logger.info(f"ChromaDB collection '{collection_name}' 已存在 ({self._chroma_client.get_collection(collection_name).count()} 条)")
+                return True
+
+            # 创建新collection
+            collection = self._chroma_client.create_collection(
+                name=collection_name,
+                metadata={"description": "K线形态向量索引 (v2.9)"},
+            )
+
+            # 🆕 v2.9: 播种示例形态数据 (真实形态的归一化向量)
+            self._seed_pattern_data(collection)
+
+            logger.info(f"ChromaDB初始化成功: {store_path} / {collection_name}")
+            return True
+        except Exception as e:
+            logger.warning(f"ChromaDB初始化失败: {e}")
+            return False
+
+    def _seed_pattern_data(self, collection) -> None:
+        """
+        🆕 v2.9 播种基础K线形态数据
+
+        使用归一化的K线特征向量, 覆盖8种核心形态:
+          - doji (十字星)
+          - hammer (锤子线)
+          - shooting_star (射击之星)
+          - bullish_engulfing (看涨吞没)
+          - bearish_engulfing (看跌吞没)
+          - morning_star (晨星)
+          - evening_star (暮星)
+          - three_soldiers (红三兵)
+        """
+        import numpy as np
+
+        seed_patterns = {
+            "doji": "十字星 — 开盘≈收盘,上下影线长度接近。趋势反转信号,高位为黄昏十字星,低位为早晨十字星。",
+            "hammer": "锤子线 — 长下影线(≥2倍实体),小实体在顶部。出现在下跌趋势末端为反转看涨信号。",
+            "shooting_star": "射击之星 — 长上影线(≥2倍实体),小实体在底部。出现在上涨趋势末端为反转看跌信号。",
+            "bullish_engulfing": "看涨吞没 — 阳线实体完全包住前一阴线实体。出现在下跌趋势中为强烈反转看涨信号。",
+            "bearish_engulfing": "看跌吞没 — 阴线实体完全包住前一阳线实体。出现在上涨趋势中为强烈反转看跌信号。",
+            "morning_star": "晨星 — 三日形态: 阴线→十字星→阳线,且第三日收盘超过首日。底部反转看涨信号。",
+            "evening_star": "暮星 — 三日形态: 阳线→十字星→阴线,且第三日收盘低于首日。顶部反转看跌信号。",
+            "three_soldiers": "红三兵 — 连续三根阳线,每根收盘高于前根。出现在盘整后为看涨持续信号。",
+        }
+
+        # 每个形态的特征向量 [body_ratio, upper_shadow_ratio, lower_shadow_ratio, body_direction, day2_body, day3_body]
+        # day2/day3 仅用于三日形态, 单日形态设为0
+        seed_vectors = {
+            "doji": [0.0, 0.45, 0.45, 0.0, 0.0, 0.0],
+            "hammer": [0.15, 0.1, 0.75, 1.0, 0.0, 0.0],
+            "shooting_star": [0.15, 0.75, 0.1, -1.0, 0.0, 0.0],
+            "bullish_engulfing": [0.8, 0.1, 0.1, 1.0, -0.3, 0.0],
+            "bearish_engulfing": [0.8, 0.1, 0.1, -1.0, 0.3, 0.0],
+            "morning_star": [0.0, 0.1, 0.1, 1.0, -0.5, 0.6],
+            "evening_star": [0.0, 0.1, 0.1, -1.0, 0.5, -0.6],
+            "three_soldiers": [0.6, 0.1, 0.1, 1.0, 0.3, 0.3],
+        }
+
+        # 归一化向量
+        ids = []
+        embeddings = []
+        documents = []
+        metadatas = []
+
+        for i, (name, desc) in enumerate(seed_patterns.items()):
+            vec = seed_patterns.get(name, [0.0] * 6)
+            vec_arr = np.array(vec, dtype=np.float32)
+            norm = np.linalg.norm(vec_arr)
+            if norm > 0:
+                vec_arr = vec_arr / norm
+
+            ids.append(f"seed_{i}_{name}")
+            embeddings.append(vec_arr.tolist())
+            documents.append(desc)
+            metadatas.append({
+                "pattern": name,
+                "category": "candlestick",
+                "source": "seed_data_v2.9",
+            })
+
+        try:
+            collection.add(
+                ids=ids,
+                embeddings=embeddings,
+                documents=documents,
+                metadatas=metadatas,
+            )
+            logger.info(f"[ChromaDB] 播种 {len(ids)} 条K线形态数据")
+        except Exception as e:
+            logger.debug(f"[ChromaDB] 播种跳过: {e}")
 
     def search_similar_klines(
         self,
@@ -312,26 +448,38 @@ class KnowledgeManager:
         """
         向量检索历史相似K线形态
 
-        注意: 需要ChromaDB已初始化并有数据
+        Args:
+            vector: 查询向量
+            top_k: 返回数量
+
+        Returns:
+            相似K线列表, 含metadata
         """
+        if not self.chroma_available:
+            logger.debug("ChromaDB不可用或无数据, 跳过向量检索")
+            return []
+
         try:
-            import chromadb
-            client = chromadb.PersistentClient(
-                path=str(self.root / "vector_store" / "chroma")
+            collection = self._chroma_client.get_or_create_collection(
+                "kline_patterns"
             )
-            collection = client.get_or_create_collection("kline_patterns")
             results = collection.query(
                 query_embeddings=[vector],
                 n_results=top_k,
+                include=["metadatas", "distances"],
             )
             return results
         except Exception as e:
-            logger.debug(f"向量检索不可用: {e}")
+            logger.debug(f"向量检索失败: {e}")
             return []
 
     def rag_query(self, query: str, top_k: int = 5) -> str:
         """
-        从参考文档中RAG检索相关知识片段
+        从参考文档中检索相关知识片段 (v2.2 改进: 优先向量检索)
+
+        检索策略:
+        1. 优先: ChromaDB向量检索(如果可用且有数据)
+        2. 降级: 关键词匹配(零依赖fallback)
 
         Args:
             query: 查询文本
@@ -340,7 +488,29 @@ class KnowledgeManager:
         Returns:
             拼接后的相关文本
         """
-        # 简化版: 基于关键词匹配
+        # 尝试向量检索
+        if self.chroma_available:
+            try:
+                collection = self._chroma_client.get_collection(
+                    "knowledge_base"
+                )
+                results = collection.query(
+                    query_texts=[query],
+                    n_results=top_k,
+                    include=["documents", "metadatas"],
+                )
+                if results and results.get("documents") and results["documents"][0]:
+                    docs = results["documents"][0]
+                    metas = results.get("metadatas", [[]])[0]
+                    parts = ["相关知识库参考 (向量检索):\n"]
+                    for i, (doc, meta) in enumerate(zip(docs, metas)):
+                        source = meta.get("source", "unknown") if meta else "unknown"
+                        parts.append(f"### {source}\n{doc[:800]}\n")
+                    return "\n".join(parts)
+            except Exception as e:
+                logger.debug(f"向量检索降级到关键词匹配: {e}")
+
+        # Fallback: 关键词匹配
         reference_dir = self.root / "reference"
         if not reference_dir.exists():
             return ""
@@ -348,17 +518,33 @@ class KnowledgeManager:
         snippets = []
         for md_file in reference_dir.glob("*.md"):
             content = md_file.read_text(encoding="utf-8")
-            # 简单关键词匹配
             query_words = set(query.lower().split())
             content_lower = content.lower()
             score = sum(1 for w in query_words if w in content_lower)
 
             if score > 0:
-                # 提取相关段落(简化: 前500字符)
+                # 提取相关段落: 找到第一个匹配词的位置, 取周围文本
+                best_pos = 0
+                best_word = ""
+                for w in query_words:
+                    pos = content_lower.find(w)
+                    if pos != -1 and (best_pos == 0 or score > 0):
+                        best_pos = pos
+                        best_word = w
+
+                # 取匹配位置前后各500字符
+                start = max(0, best_pos - 300)
+                end = min(len(content), best_pos + 700)
+                excerpt = content[start:end]
+                if start > 0:
+                    excerpt = "..." + excerpt[excerpt.find("\n"):] if "\n" in excerpt[3:] else "..." + excerpt[3:]
+                if end < len(content):
+                    excerpt = excerpt[:excerpt.rfind("\n")] + "..."
+
                 snippets.append({
                     "source": md_file.stem,
                     "relevance": score,
-                    "content": content[:500],
+                    "content": excerpt[:800],
                 })
 
         snippets.sort(key=lambda x: x["relevance"], reverse=True)
@@ -367,7 +553,7 @@ class KnowledgeManager:
         if not top:
             return ""
 
-        result = "相关知识库参考:\n\n"
+        result = "相关知识库参考 (关键词匹配):\n\n"
         for i, s in enumerate(top):
             result += f"### {s['source']} (相关度: {s['relevance']})\n{s['content']}\n\n"
 

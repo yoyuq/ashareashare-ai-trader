@@ -166,12 +166,13 @@ def _backtest_macd_trend(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
-    """布林带均值回归策略回测"""
+    """布林带均值回归策略回测 (v2.10: 放宽入场条件)"""
     closes = pd.Series(df["close"].values)
     ma20 = closes.rolling(20).mean()
     std20 = closes.rolling(20).std()
     upper = ma20 + 2 * std20
     lower = ma20 - 2 * std20
+    mid_lower = ma20 - 1 * std20  # v2.10: -1σ 辅助入场
 
     # RSI filter
     delta = closes.diff()
@@ -186,7 +187,11 @@ def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
     entry_price = 0
 
     for i in range(20, n):
-        if not in_position and closes.iloc[i] <= lower.iloc[i] and rsi.iloc[i] < 35:
+        # v2.10: 三级入场 — 深度超跌(下轨+RSI<35) / 中度超跌(-1σ+RSI<40) / 浅度回调(中轨+RSI<35)
+        deep_oversold = closes.iloc[i] <= lower.iloc[i] and rsi.iloc[i] < 35
+        moderate_oversold = closes.iloc[i] <= mid_lower.iloc[i] and rsi.iloc[i] < 40
+        shallow_pullback = closes.iloc[i] <= ma20.iloc[i] and rsi.iloc[i] < 35
+        if not in_position and (deep_oversold or moderate_oversold or shallow_pullback):
             in_position = True
             entry_price = closes.iloc[i]
         elif in_position and (closes.iloc[i] >= ma20.iloc[i] or closes.iloc[i] >= upper.iloc[i]):
@@ -202,7 +207,7 @@ def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def _backtest_rsi_reversal(df: pd.DataFrame) -> Dict[str, Any]:
-    """RSI均值回归回测"""
+    """RSI均值回归回测 (v2.10: 放宽入场RSI<35)"""
     closes = pd.Series(df["close"].values)
     delta = closes.diff()
     gain = delta.where(delta > 0, 0.0)
@@ -216,7 +221,7 @@ def _backtest_rsi_reversal(df: pd.DataFrame) -> Dict[str, Any]:
     entry_price = 0
 
     for i in range(14, n):
-        if not in_position and rsi.iloc[i] < 30:
+        if not in_position and rsi.iloc[i] < 35:  # v2.10: 30→35, 增加信号量
             in_position = True
             entry_price = closes.iloc[i]
         elif in_position and rsi.iloc[i] > 55:
@@ -329,6 +334,119 @@ def _backtest_low_volatility(df: pd.DataFrame) -> Dict[str, Any]:
     return _calc_bt_stats(trades)
 
 
+def _backtest_turtle_trend(df: pd.DataFrame) -> Dict[str, Any]:
+    """🆕 v2.10 海龟趋势突破策略回测
+
+    入场: 价格突破20日最高价 (Donchian Channel上轨)
+    出场: 价格跌破10日最低价 或 ATR止损
+    """
+    closes = pd.Series(df["close"].values)
+    highs = pd.Series(df["high"].values)
+    lows = pd.Series(df["low"].values)
+
+    n = len(closes)
+    if n < 60:
+        return {"signals": 0}
+
+    # ATR(20)
+    tr = pd.concat([
+        (highs - lows).abs(),
+        (highs - closes.shift()).abs(),
+        (lows - closes.shift()).abs(),
+    ], axis=1).max(axis=1)
+    atr = tr.rolling(20).mean()
+
+    trades = []
+    in_position = False
+    entry_price = 0
+    stop_price = 0
+
+    for i in range(60, n):
+        if not in_position:
+            # 入场: 突破20日高点
+            high_20 = highs.iloc[i-20:i].max()
+            if closes.iloc[i] >= high_20 and atr.iloc[i] > 0:
+                in_position = True
+                entry_price = closes.iloc[i]
+                stop_price = entry_price - 2 * atr.iloc[i]  # 2x ATR止损
+        else:
+            # 出场: 跌破10日低点 或 触发ATR止损
+            low_10 = lows.iloc[i-10:i].min()
+            hit_stop = closes.iloc[i] <= stop_price
+            hit_exit = closes.iloc[i] <= low_10
+            if hit_stop or hit_exit:
+                pnl = (closes.iloc[i] / entry_price - 1) * 100
+                trades.append(pnl)
+                in_position = False
+
+    return _calc_bt_stats(trades)
+
+
+def _backtest_multi_factor(df: pd.DataFrame) -> Dict[str, Any]:
+    """🆕 v2.10 多因子选股策略回测
+
+    基于5因子综合评分 (动量+波动率+趋势+成交量+质量代理),
+    每月调仓: 评分>60买入, 评分<40卖出, 或持满20天。
+    """
+    closes = pd.Series(df["close"].values)
+    volumes = pd.Series(df["volume"].values)
+    highs = pd.Series(df["high"].values)
+    lows = pd.Series(df["low"].values)
+    n = len(closes)
+    if n < 120:
+        return {"signals": 0}
+
+    # 每月(约20个交易日)计算一次因子评分
+    trades = []
+    in_position = False
+    entry_price = 0
+    hold_days = 0
+
+    for i in range(120, n):
+        if i % 20 != 0:  # 每月调仓
+            if in_position:
+                hold_days += 1
+            continue
+
+        # 计算当前截面的因子评分
+        window = closes.iloc[max(0, i-60):i]
+
+        # 动量因子: 20日收益率
+        mom = (closes.iloc[i] / closes.iloc[max(0, i-20)] - 1) * 100
+        mom_score = 0.25 * min(max(mom, -10), 20)  # clip到[-10,20]
+
+        # 波动率因子: 低波偏好
+        rets = window.pct_change().dropna()
+        hv = rets.std() * np.sqrt(252) * 100
+        vol_score = 0.15 * (20 - min(hv, 40)) / 20  # 低波加分
+
+        # 趋势因子
+        sma20 = closes.iloc[i-20:i].mean()
+        trend_score_raw = 0.30 * ((closes.iloc[i] / sma20 - 1) * 100)
+
+        # 成交量因子
+        vol_ratio = volumes.iloc[i] / volumes.iloc[i-20:i].mean()
+        vol_score = 0.15 * min(max((vol_ratio - 1) * 5, -2), 3)
+
+        # 质量代理: 60日最大回撤
+        peak = highs.iloc[max(0, i-60):i].max()
+        dd = (closes.iloc[i] - peak) / peak * 100
+        qual_score = 0.15 * min(max(-dd / 5, -3), 3)
+
+        composite = mom_score + vol_score + trend_score_raw + vol_score + qual_score
+
+        if not in_position and composite > 0.5:  # 综合评分>0.5入场
+            in_position = True
+            entry_price = closes.iloc[i]
+            hold_days = 0
+        elif in_position and (composite < -0.3 or hold_days >= 20):
+            pnl = (closes.iloc[i] / entry_price - 1) * 100
+            trades.append(pnl)
+            in_position = False
+
+    return _calc_bt_stats(trades)
+
+
 # 策略ID → 回测函数映射
 STRATEGY_BACKTESTERS = {
     "dual_ma_trend": _backtest_ma_trend,
@@ -338,18 +456,36 @@ STRATEGY_BACKTESTERS = {
     "momentum_breakout": _backtest_momentum_breakout,
     "limit_up_chase": _backtest_limit_up,
     "low_volatility": _backtest_low_volatility,
+    "turtle_trend": _backtest_turtle_trend,      # 🆕 v2.10
+    "multi_factor": _backtest_multi_factor,       # 🆕 v2.10
 }
 
 
 def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
-    """从交易列表计算回测统计"""
+    """
+    从交易列表计算回测统计 (v2.9: 计入交易成本)
+
+    A股交易成本:
+      - 佣金: 0.03% (双向,最低5元 → 对回测简化使用比例)
+      - 印花税: 0.05% (仅卖出)
+      - 滑点: 0.1% (双向)
+      - 单边总成本 ≈ 0.03% + 0.1% = 0.13% (买入)
+      - 单边总成本 ≈ 0.03% + 0.05% + 0.1% = 0.18% (卖出)
+      - 往返总成本 ≈ 0.31% per round-trip
+    """
+    COST_PER_RT = 0.0031  # 往返交易成本 0.31%
+
     if not trades:
         return {"signals": 0, "win_rate": 0, "profit_factor": 1,
-                "expected_value": 0, "sharpe": 0, "max_dd": 0}
+                "expected_value": 0, "sharpe": 0, "max_dd": 0,
+                "avg_win": 0, "avg_loss": 0, "cost_adjusted": True}
 
-    wins = [t for t in trades if t > 0]
-    losses = [abs(t) for t in trades if t <= 0]
-    total = len(trades)
+    # 扣除交易成本
+    trades_net = [t - COST_PER_RT * 100 for t in trades]  # trades 是百分比,成本也转百分比
+
+    wins = [t for t in trades_net if t > 0]
+    losses = [abs(t) for t in trades_net if t <= 0]
+    total = len(trades_net)
     wr = len(wins) / total if total > 0 else 0
 
     gross_profit = sum(wins) if wins else 0
@@ -361,11 +497,11 @@ def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
     ev = wr * avg_win - (1 - wr) * avg_loss
 
     # Sharpe
-    rets = pd.Series([t / 100 for t in trades])
+    rets = pd.Series([t / 100 for t in trades_net])
     sr = (rets.mean() / rets.std() * np.sqrt(252)) if rets.std() > 0 else 0
 
     # Max DD (从交易序列)
-    cumsum = np.cumsum(trades)
+    cumsum = np.cumsum(trades_net)
     peak = np.maximum.accumulate(cumsum)
     dd = np.min(cumsum - peak)
     max_dd = abs(dd) if dd < 0 else 0
@@ -379,6 +515,7 @@ def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
         "max_dd": max_dd,
         "avg_win": avg_win,
         "avg_loss": avg_loss,
+        "cost_adjusted": True,
     }
 
 
@@ -455,7 +592,10 @@ class RecommendationEngine:
         for stock in scan_result.top_scores[:50]:
             if stock.composite < min_composite:
                 continue
-            recs = await self._generate_for_stock(stock, capital, regime)
+            recs = await self._generate_for_stock(
+                stock, capital, regime,
+                nb_tracker, sector_heatmap, sector_analyzer, nb_signal,
+            )
             all_recs.extend(recs)
             if len(all_recs) >= top_n:
                 break
@@ -479,8 +619,7 @@ class RecommendationEngine:
             from data.providers.base import DataFrequency, DataRequest
             if self.router is None:
                 return "range_bound", 0.5
-            req = DataRequest("sh.000300", date.today()-timedelta(days=365),
-                            date.today(), DataFrequency.DAILY)
+            req = DataRequest.recent("sh.000300", days=365)
             result = await self.router.get_daily_kline(req)
             from analysis.regime import MarketRegimeDetector
             r = MarketRegimeDetector().detect(result.data)
@@ -489,13 +628,13 @@ class RecommendationEngine:
             return "range_bound", 0.5
 
     async def _generate_for_stock(
-        self, stock, capital: float, regime: str
+        self, stock, capital: float, regime: str,
+        nb_tracker=None, sector_heatmap=None, sector_analyzer=None, nb_signal: str = "neutral",
     ) -> List[TradeRecommendation]:
-        """为单只标的生成推荐"""
+        """为单只标的生成推荐 (v2.8 修复: 显式传参避免作用域bug)"""
         try:
             from data.providers.base import DataFrequency, DataRequest
-            req = DataRequest(stock.symbol, date.today()-timedelta(days=365*2),
-                            date.today(), DataFrequency.DAILY)
+            req = DataRequest.recent(stock.symbol, days=365 * 2)
             result = await self.router.get_daily_kline(req)
             df = result.data
             if df.empty or len(df) < 60:
@@ -521,8 +660,8 @@ class RecommendationEngine:
                     bt_func = _backtest_ma_trend  # fallback
 
                 bt = bt_func(df)
-                if bt.get("signals", 0) < 3:
-                    continue  # 信号太少,不可靠
+                if bt.get("signals", 0) < 5:
+                    continue  # 信号太少,不可靠 (v2.10: 3→5)
 
                 wr = bt["win_rate"]
                 pf = bt["profit_factor"]

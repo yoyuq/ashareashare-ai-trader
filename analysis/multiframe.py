@@ -69,6 +69,11 @@ class MultiFrameAnalyzer:
     多时间框架分析器
 
     原则: 大周期定方向, 小周期找买点
+
+    v2.14 新增:
+      - 自动降采样: 日线→周线/月线 (无需外部提供)
+      - 三级共振评分: 日/周/月全共振=最强信号
+      - 虚假突破检测: 日线突破但周线未确认→警告
     """
 
     def __init__(self):
@@ -80,14 +85,34 @@ class MultiFrameAnalyzer:
         daily_df: pd.DataFrame,
         weekly_df: Optional[pd.DataFrame] = None,
         monthly_df: Optional[pd.DataFrame] = None,
+        auto_resample: bool = True,
     ) -> MultiFrameResult:
-        """多时间框架综合分析"""
+        """
+        多时间框架综合分析
+
+        Args:
+            symbol: 标的代码
+            daily_df: 日K线数据 (必需)
+            weekly_df: 周K线数据 (可选, auto_resample=True时自动生成)
+            monthly_df: 月K线数据 (可选, auto_resample=True时自动生成)
+            auto_resample: 是否自动从日线降采样生成周/月线
+
+        Returns:
+            MultiFrameResult
+        """
         from .indicators import TechnicalAnalyzer
         analyzer = TechnicalAnalyzer()
 
         # 日线
         daily_ind = analyzer.compute_all(daily_df, symbol=symbol)
         daily_signal = self._extract_signal("daily", daily_ind)
+
+        # 自动降采样 (v2.14)
+        if auto_resample:
+            if weekly_df is None and len(daily_df) >= 100:
+                weekly_df = self._resample_to_weekly(daily_df)
+            if monthly_df is None and len(daily_df) >= 250:
+                monthly_df = self._resample_to_monthly(daily_df)
 
         # 周线
         weekly_signal = None
@@ -119,6 +144,144 @@ class MultiFrameAnalyzer:
             divergence_warning=divergence,
             pivot_points=pivots,
         )
+
+    # ═══════════════════════════════════════════════════════════════
+    # v2.14: 自动降采样
+    # ═══════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _resample_to_weekly(daily_df: pd.DataFrame) -> pd.DataFrame:
+        """日线 → 周线降采样"""
+        df = daily_df.copy()
+        if "date" not in df.columns:
+            df["date"] = df.index
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+
+        weekly = df.resample("W").agg({
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }).dropna()
+
+        weekly = weekly.reset_index()
+        weekly["date"] = weekly["date"].dt.date
+        return weekly
+
+    @staticmethod
+    def _resample_to_monthly(daily_df: pd.DataFrame) -> pd.DataFrame:
+        """日线 → 月线降采样"""
+        df = daily_df.copy()
+        if "date" not in df.columns:
+            df["date"] = df.index
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+
+        monthly = df.resample("ME").agg({
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+        }).dropna()
+
+        monthly = monthly.reset_index()
+        monthly["date"] = monthly["date"].dt.date
+        return monthly
+
+    # ═══════════════════════════════════════════════════════════════
+    # v2.14: 虚假突破检测
+    # ═══════════════════════════════════════════════════════════════
+
+    def detect_false_breakout(
+        self,
+        symbol: str,
+        daily_df: pd.DataFrame,
+    ) -> Tuple[bool, str]:
+        """
+        检测虚假突破 (日线突破但周线未确认)
+
+        逻辑:
+          1. 日线突破20日高点 (看涨突破)
+          2. 周线收盘未站上关键阻力 → 可能为假突破
+
+        Returns:
+            (is_false_breakout: bool, detail: str)
+        """
+        if len(daily_df) < 100:
+            return False, "数据不足"
+
+        weekly_df = self._resample_to_weekly(daily_df)
+
+        # 日线突破检测
+        d_close = daily_df["close"].values
+        d_high20 = pd.Series(d_close).rolling(20).max().values
+
+        last_idx = len(d_close) - 1
+        daily_breakout = d_close[last_idx] >= d_high20[last_idx]
+
+        if not daily_breakout:
+            return False, "日线未突破"
+
+        # 周线确认
+        if len(weekly_df) < 10:
+            return False, "周线数据不足"
+
+        w_close = weekly_df["close"].values
+        w_ma10 = pd.Series(w_close).rolling(10).mean().values
+
+        weekly_confirmed = w_close[-1] > w_ma10[-1] if len(w_ma10) > 0 else False
+
+        if not weekly_confirmed:
+            return True, (
+                f"⚠️ 虚假突破风险: {symbol} 日线突破但周线未站上MA10"
+                f"(周收盘{w_close[-1]:.2f} vs MA10{w_ma10[-1]:.2f})"
+            )
+
+        return False, "日线突破+周线确认,有效突破"
+
+    def cross_timeframe_score(
+        self,
+        result: MultiFrameResult,
+    ) -> float:
+        """
+        计算跨时间框架综合评分 (0-10)
+
+        评分依据:
+          - 三级共振: 10分
+          - 日+周共振: 8分
+          - 日+月共振: 7分
+          - 仅日线信号: 5分
+          - 分歧: 2-3分
+          - 无信号: 0分
+        """
+        score = 0.0
+
+        if result.resonance == "bullish_resonance":
+            if result.monthly and result.monthly.trend == "bullish":
+                score = 10.0  # 三级共振看多
+            elif result.weekly:
+                score = 8.0   # 日+周共振
+            else:
+                score = 5.0
+        elif result.resonance == "bearish_resonance":
+            if result.monthly and result.monthly.trend == "bearish":
+                score = 1.0   # 三级共振看空
+            elif result.weekly:
+                score = 2.0
+            else:
+                score = 3.0
+        elif result.resonance == "divergence":
+            score = 3.0  # 分歧,中性偏低
+        else:
+            score = 5.0  # 无明确信号
+
+        # 共振强度调整
+        score = score * 0.7 + score * result.resonance_strength * 0.3
+
+        return round(score, 1)
 
     def _extract_signal(self, tf: str, ind) -> TimeframeSignal:
         """从指标结果提取时间框架信号"""

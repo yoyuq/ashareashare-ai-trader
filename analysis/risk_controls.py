@@ -243,6 +243,96 @@ class PortfolioRiskManager:
 
         return recommendations
 
+    # ═══════════════════════════════════════════════════════════════
+    # 🆕 v2.14: 增强风控层 (基于2026行业最佳实践)
+    # ═══════════════════════════════════════════════════════════════
+
+    # L5: 防踩踏检测 — 多只持仓同日大跌
+    MAX_CONCURRENT_LOSERS_PCT = 0.50  # 超过50%持仓跌>3% → 触发
+
+    def check_stampede_risk(self, positions: dict, daily_changes: dict) -> Tuple[bool, str]:
+        """L5 防踩踏: ≥50%持仓跌>3% 触发警报"""
+        if not positions:
+            return False, ""
+        losers = sum(
+            1 for sym, pos in positions.items()
+            if daily_changes.get(sym, 0) < -0.03
+        )
+        ratio = losers / len(positions)
+        if ratio >= self.MAX_CONCURRENT_LOSERS_PCT:
+            return True, (
+                f"🚨 防踩踏: {losers}/{len(positions)} ({ratio:.0%}) 持仓跌超3%, "
+                f"建议暂停新开仓并检查系统性风险"
+            )
+        return False, ""
+
+    # L6: 持仓天数管理
+    MAX_HOLDING_DAYS = 20  # 超过20天未达标→建议平仓
+
+    def check_holding_days(self, positions: dict, today: str) -> List[dict]:
+        """L6 持仓天数: 超过MAX_HOLDING_DAYS天未达标的持仓"""
+        from datetime import date as dt, timedelta
+        stale = []
+        today_date = dt.today()
+        for sym, pos in positions.items():
+            buy_date_str = getattr(pos, 'buy_date', '')
+            if buy_date_str:
+                try:
+                    buy_date = dt.fromisoformat(buy_date_str)
+                    days = (today_date - buy_date).days
+                    if days >= self.MAX_HOLDING_DAYS:
+                        pnl_pct = getattr(pos, 'unrealized_pnl_pct', 0)
+                        stale.append({
+                            "symbol": sym,
+                            "days": days,
+                            "pnl_pct": round(pnl_pct, 1),
+                            "warning": f"持仓{days}天未达标 (盈亏{pnl_pct:+.1f}%), 建议评估是否平仓",
+                        })
+                except (ValueError, TypeError):
+                    pass
+        return stale
+
+    # L7: 跌停封板检测
+    def check_limit_down(self, symbol: str, pct_change: float,
+                        volume_ratio: float = 1.0) -> Tuple[bool, str]:
+        """L7 跌停封板: 一字跌停 → 次日优先处理"""
+        # 一字跌停: 跌幅≈10%(主板)/20%(科创创业) + 成交量极低
+        limit_pct = 10.0
+        if symbol.replace("sh.", "").replace("sz.", "").startswith(("30", "68")):
+            limit_pct = 20.0
+        if pct_change <= -limit_pct * 0.98 and volume_ratio < 0.1:
+            return True, f"🚨 {symbol} 一字跌停 (跌幅{pct_change:.1f}%, 量比{volume_ratio:.2f}), 次日开盘优先处理"
+        return False, ""
+
+    # L8: 持仓相关性监控
+    CORRELATION_THRESHOLD = 0.70
+
+    @staticmethod
+    def check_correlation(returns_matrix: dict) -> List[dict]:
+        """L8 相关性: 检测任意两仓相关系数≥0.7的持仓对"""
+        import pandas as pd
+        if len(returns_matrix) < 2:
+            return []
+        try:
+            df = pd.DataFrame(returns_matrix)
+            corr = df.corr()
+            warnings = []
+            symbols = list(returns_matrix.keys())
+            for i in range(len(symbols)):
+                for j in range(i + 1, len(symbols)):
+                    if abs(corr.iloc[i, j]) >= 0.70:
+                        warnings.append({
+                            "pair": (symbols[i], symbols[j]),
+                            "correlation": round(float(corr.iloc[i, j]), 3),
+                            "warning": (
+                                f"⚠️ {symbols[i]}↔{symbols[j]} 相关性"
+                                f"{corr.iloc[i, j]:.2f}, 建议分散化"
+                            ),
+                        })
+            return warnings
+        except Exception:
+            return []
+
 
 # ═══════════════════════════════════════════════════════════════
 # 信号分级器

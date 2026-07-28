@@ -111,7 +111,8 @@ class Account:
 
     @property
     def total_return(self) -> float:
-        return (self.cash / self.initial_capital - 1) * 100
+        """v2.14: 修复 — total_return 应包含持仓市值, 非仅现金"""
+        return self.total_return_pct
 
 
 class AShareBroker:
@@ -278,6 +279,13 @@ class AShareBroker:
             self.orders.append(order)
             return order
 
+        # 🆕 v2.14: T+1 卖出限制 (当日买入次日才能卖出)
+        if self._cur_date and pos.can_sell_date and self._cur_date < pos.can_sell_date:
+            order.status = OrderStatus.REJECTED
+            logger.debug(f"卖出拒绝: {symbol} T+1限制 (可卖日期={pos.can_sell_date})")
+            self.orders.append(order)
+            return order
+
         # 持仓不足
         if qty > pos.quantity:
             qty = pos.quantity  # 降级为清仓
@@ -319,10 +327,13 @@ class AShareBroker:
         self.account.total_transfer_fee += transfer_fee
         self.account.trade_count += 1
 
-        if pnl > 0:
+        if pnl >= 0:
             self.account.win_count += 1
         else:
             self.account.loss_count += 1
+        # v2.14: 存储 PnL 到 order 以便 _log_trade 记录
+        order._pnl = pnl
+        order._pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0.0
 
         # 更新持仓
         pos.quantity -= qty
@@ -354,7 +365,9 @@ class AShareBroker:
         # 市价单: 用收盘价
         bar = self._cur_prices.get(symbol, {})
         close = bar.get("close", 0) if isinstance(bar, dict) else (
-            bar if isinstance(bar, (int, float)) else 0
+            bar.get("close", 0) if isinstance(bar, pd.Series) else (
+                bar if isinstance(bar, (int, float)) else 0
+            )
         )
         if close > 0:
             return close
@@ -376,17 +389,24 @@ class AShareBroker:
             close = bar.get("close", 0)
             pct_change = bar.get("pct_change", 0)
         elif isinstance(bar, pd.Series):
-            close = bar.get("close", 0)
-            pct_change = bar.get("pct_change", 0)
+            close = bar.get("close", 0) if "close" in bar.index else 0
+            pct_change = bar.get("pct_change", 0) if "pct_change" in bar.index else 0
         else:
             return False
 
+        # v2.14: 按板块区分涨跌停幅度
+        limit_pct = 10.0  # 主板默认
+        sym_stripped = symbol.replace("sh.", "").replace("sz.", "")
+        if sym_stripped.startswith("30") or sym_stripped.startswith("68"):
+            limit_pct = 20.0  # 创业板/科创板
+        elif sym_stripped.startswith("8"):
+            limit_pct = 30.0  # 北交所
+        threshold = limit_pct - 0.2  # 小容差
+
         if side == OrderSide.BUY:
-            # 涨停(≈10%)无法买入
-            return pct_change >= 9.8
+            return pct_change >= threshold
         else:
-            # 跌停(≈-10%)无法卖出
-            return pct_change <= -9.8
+            return pct_change <= -threshold
 
     def _is_shanghai(self, symbol: str) -> bool:
         """判断是否上交所(收过户费)"""
@@ -395,14 +415,15 @@ class AShareBroker:
         )
 
     def _next_trade_date(self) -> date:
-        """下一个交易日(T+1)"""
+        """下一个交易日(T+1) — v2.14: 实际+1天(周末跳过由调用方处理)"""
+        from datetime import timedelta
         if self._cur_date is None:
-            return date.today()
-        return self._cur_date  # 简化: 实际应跳过周末
+            return date.today() + timedelta(days=1)
+        return self._cur_date + timedelta(days=1)
 
     def _log_trade(self, order: Order):
-        """记录交易日志"""
-        self.trade_log.append({
+        """记录交易日志 — v2.14: 增加 PnL 字段"""
+        entry = {
             "date": str(self._cur_date),
             "symbol": order.symbol,
             "side": order.side.value,
@@ -412,7 +433,11 @@ class AShareBroker:
             "commission": order.commission,
             "stamp_duty": order.stamp_duty,
             "status": order.status.value,
-        })
+        }
+        if hasattr(order, '_pnl'):
+            entry["pnl"] = order._pnl
+            entry["pnl_pct"] = order._pnl_pct
+        self.trade_log.append(entry)
 
     # ═══════════════════════════════════════════════════════════════
     # 绩效统计

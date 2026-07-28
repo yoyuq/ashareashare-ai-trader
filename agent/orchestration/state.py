@@ -40,6 +40,9 @@ class MarketAnalysisState(TypedDict, total=False):
     bear_arguments: List[Dict]            # 空头论据
     debate_score: float                   # 辩论综合评分(bull优势=正,bear优势=负)
 
+    # === 🆕 v2.8 逐股推荐 ===
+    stock_recommendations: Dict[str, Dict]  # {symbol: {action, conviction, reasons, risks}}
+
     # === 代码即推理层产出 (v2.1) ===
     computed_numbers: Dict[str, float]    # {变量名: 值} — 所有数值由代码计算
     computed_metrics: Dict[str, Any]      # 计算指标汇总

@@ -1,6 +1,6 @@
 [project]
 name = "ashare-ai-trader"
-version = "2.1.0"
+version = "2.14.0"
 description = "AI驱动的A股量化分析助手"
 requires-python = ">=3.11"
 readme = "README.md"

@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
@@ -166,8 +167,7 @@ class ToolExecutor:
                 return json.dumps({"regime": "unknown", "note": "数据路由未初始化"}, ensure_ascii=False)
 
             # 只用最近60天数据(更快)
-            req = DataRequest("sh.000300", date.today()-timedelta(days=120),
-                            date.today(), DataFrequency.DAILY)
+            req = DataRequest.recent("sh.000300", days=120)
             result = await self.router.get_daily_kline(req)
             detector = MarketRegimeDetector()
             regime = detector.detect(result.data)
@@ -202,8 +202,7 @@ class ToolExecutor:
             if self.router is None:
                 return json.dumps({"error": "数据路由未初始化"}, ensure_ascii=False)
 
-            req = DataRequest(sym, date.today()-timedelta(days=365),
-                            date.today(), DataFrequency.DAILY)
+            req = DataRequest.recent(sym, days=365)
             result = await self.router.get_daily_kline(req)
             df = result.data
 
@@ -266,8 +265,7 @@ class ToolExecutor:
             if self.router is None:
                 return json.dumps({"error": "数据路由未初始化"}, ensure_ascii=False)
 
-            req = DataRequest(sym, date.today()-timedelta(days=365*years),
-                            date.today(), DataFrequency.DAILY)
+            req = DataRequest.recent(sym, days=365 * years)
             result = await self.router.get_daily_kline(req)
             df = result.data
 
@@ -316,11 +314,94 @@ class ToolExecutor:
         }, ensure_ascii=False)
 
     async def _scan(self, top_n: int) -> str:
-        """Return watchlist stocks — no API call, instant response"""
+        """
+        市场扫描 (v2.2 改进)
+
+        优先尝试轻量快速扫描(数据层可用时),
+        数据层不可用时返回预配置精选池作为fallback。
+        """
         try:
+            # 尝试轻量扫描: 对精选池中的标的做快速打分
+            if self.router is not None:
+                try:
+                    from datetime import timedelta
+                    from data.providers.base import DataFrequency, DataRequest
+                    from analysis.indicators import TechnicalAnalyzer
+
+                    analyzer = self.analyzer or TechnicalAnalyzer()
+
+                    # 获取精选池
+                    import yaml
+                    from pathlib import Path
+                    cfg_path = Path(__file__).parent.parent / "config" / "symbols.yaml"
+                    watchlist = []
+                    try:
+                        cfg = yaml.safe_load(open(cfg_path, encoding="utf-8"))
+                        watchlist = cfg.get("watchlist", {}).get("default", [])
+                    except Exception:
+                        watchlist = [
+                            "sh.600519", "sh.600036", "sz.000858", "sz.300750",
+                            "sh.601318", "sz.002415", "sh.600276", "sz.000333",
+                        ]
+
+                    # 从共享模块加载完整名称映射 (60+只)
+                    try:
+                        from scripts.shared import NAME_MAP
+                        name_map = NAME_MAP
+                    except ImportError:
+                        name_map = {
+                            "sh.600519": "贵州茅台", "sh.600036": "招商银行",
+                            "sz.000858": "五粮液", "sz.300750": "宁德时代",
+                            "sh.601318": "中国平安", "sz.002415": "海康威视",
+                            "sh.600276": "恒瑞医药", "sz.000333": "美的集团",
+                        }
+
+                    stocks = []
+                    for sym in watchlist[:max(top_n * 2, 12)]:
+                        try:
+                            req = DataRequest(
+                                sym, date.today() - timedelta(days=90),
+                                date.today(), DataFrequency.DAILY,
+                            )
+                            result = await self.router.get_daily_kline(req)
+                            df = result.data
+                            if df.empty or len(df) < 20:
+                                continue
+
+                            ind = analyzer.compute_all(df, symbol=sym)
+                            last = ind.to_dataframe().iloc[-1]
+                            score = round(float(last.get("composite_score", 50)), 1)
+
+                            code = sym.replace("sh.", "").replace("sz.", "")
+                            stocks.append({
+                                "symbol": code,
+                                "name": name_map.get(sym, code),
+                                "composite_score": score,
+                                "rsi_14": round(float(last.get("rsi_14", 50)), 1),
+                                "trend": "强势" if float(last.get("trend_score", 0)) > 0.3
+                                         else "弱势" if float(last.get("trend_score", 0)) < -0.3
+                                         else "震荡",
+                                "note": f"综合评分{score}分",
+                            })
+                        except Exception:
+                            continue
+
+                    # 按综合评分排序
+                    stocks.sort(key=lambda s: s["composite_score"], reverse=True)
+                    top_stocks = stocks[:top_n]
+
+                    if top_stocks:
+                        return json.dumps({
+                            "top_stocks": top_stocks,
+                            "note": f"快速扫描完成, 基于{len(stocks)}只精选池标的的实时技术评分",
+                        }, ensure_ascii=False)
+
+                except Exception as e:
+                    logger.debug(f"快速扫描失败, fallback到精选池: {e}")
+
+            # Fallback: 预配置精选池
             import yaml
             from pathlib import Path
-
             cfg_path = Path(__file__).parent.parent / "config" / "symbols.yaml"
             watchlist = []
             try:
@@ -332,13 +413,10 @@ class ToolExecutor:
             if not watchlist:
                 return json.dumps({"error": "股票池为空"}, ensure_ascii=False)
 
-            name_map = {
-                "sh.600519": "贵州茅台", "sh.600036": "招商银行",
-                "sz.000858": "五粮液", "sz.300750": "宁德时代",
-                "sh.601318": "中国平安", "sz.002415": "海康威视",
-                "sh.600276": "恒瑞医药", "sz.000333": "美的集团",
-                "sh.600030": "中信证券", "sz.002594": "比亚迪",
-            }
+            try:
+                from scripts.shared import NAME_MAP as name_map
+            except ImportError:
+                name_map = {}
 
             stocks = []
             for sym in watchlist[:top_n]:
@@ -346,12 +424,13 @@ class ToolExecutor:
                 stocks.append({
                     "symbol": code,
                     "name": name_map.get(sym, code),
-                    "note": "预配置精选池",
+                    "composite_score": None,
+                    "note": "精选池(离线模式,无实时数据)",
                 })
 
             return json.dumps({
                 "top_stocks": stocks,
-                "note": "预配置精选池(8只核心标的)。全市场深度扫描请使用Dashboard的[交易建议]面板。",
+                "note": "离线模式精选池。连接数据源后可获取实时评分。",
             }, ensure_ascii=False)
 
         except Exception as e:
@@ -403,10 +482,12 @@ class ToolExecutor:
 
 class ChatAgent:
     """
-    对话式AI Agent
+    对话式AI Agent (v2.9: 使用 ModelRouter 统一 LLM 调用)
 
-    使用DeepSeek V4作为推理引擎,通过function calling调用分析工具,
-    用自然语言回答用户的A股相关问题。
+    通过 ModelRouter 三层漏斗调用 DeepSeek:
+      - 支持 function calling (工具调用)
+      - 享受预算控制、高峰降级、成本追踪
+      - 自动 fallback: Pro → Flash → 本地 (工具调用时跳过本地)
     """
 
     SYSTEM_PROMPT = """你是A股智能分析助手,一个专业的量化分析AI。
@@ -428,9 +509,67 @@ class ChatAgent:
 
 当用户问预测性问题时,明确说明: 量化分析提供的是概率参考而非确定性预测,任何单一信号都不构成投资建议。"""
 
-    def __init__(self, router=None, knowledge=None, analyzer=None):
+    def __init__(self, router=None, knowledge=None, analyzer=None, model_router=None,
+                 sessions_dir: str = "data/sessions"):
         self.executor = ToolExecutor(router, knowledge, analyzer)
         self.conversations: Dict[str, List[Dict]] = {}
+        self._model_router = model_router
+        self._sessions_dir = Path(sessions_dir)
+        self._sessions_dir.mkdir(parents=True, exist_ok=True)
+        self._loaded_sessions: set = set()
+
+    def _session_path(self, session_id: str) -> Path:
+        safe = session_id.replace("/", "_").replace("\\", "_").replace("..", "_")
+        return self._sessions_dir / f"{safe}.json"
+
+    def _load_session(self, session_id: str) -> List[Dict]:
+        """从磁盘加载会话历史"""
+        if session_id in self._loaded_sessions:
+            return self.conversations.get(session_id, [])
+        self._loaded_sessions.add(session_id)
+
+        path = self._session_path(session_id)
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, list) and len(data) > 0:
+                    self.conversations[session_id] = data
+                    logger.info(f"加载会话 {session_id}: {len(data)} 条消息")
+                    return data
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"会话文件损坏 {session_id}: {e}")
+        return []
+
+    def _save_session(self, session_id: str):
+        """持久化会话到磁盘"""
+        conv = self.conversations.get(session_id)
+        if not conv:
+            return
+        try:
+            path = self._session_path(session_id)
+            serializable = []
+            for msg in conv:
+                m = {"role": msg["role"]}
+                if msg.get("content"):
+                    m["content"] = str(msg["content"])[:4000]
+                if msg.get("tool_calls"):
+                    m["tool_calls"] = msg["tool_calls"]
+                if msg.get("tool_call_id"):
+                    m["tool_call_id"] = msg["tool_call_id"]
+                serializable.append(m)
+            path.write_text(json.dumps(serializable, ensure_ascii=False), encoding="utf-8")
+        except OSError as e:
+            logger.warning(f"保存会话失败 {session_id}: {e}")
+
+    def _get_model_router(self):
+        """懒加载 ModelRouter"""
+        if self._model_router is None:
+            try:
+                from models.router import ModelRouter
+                self._model_router = ModelRouter()
+            except Exception:
+                self._model_router = None
+        return self._model_router
 
     async def chat(
         self,
@@ -446,11 +585,15 @@ class ChatAgent:
             session_id: 会话ID
             conversation_history: 历史对话
         """
-        # 初始化会话
+        # 初始化会话 — 优先从磁盘加载
         if session_id not in self.conversations:
-            self.conversations[session_id] = [
-                {"role": "system", "content": self.SYSTEM_PROMPT}
-            ]
+            saved = self._load_session(session_id)
+            if saved:
+                self.conversations[session_id] = saved
+            else:
+                self.conversations[session_id] = [
+                    {"role": "system", "content": self.SYSTEM_PROMPT}
+                ]
 
         history = conversation_history or self.conversations[session_id]
 
@@ -458,8 +601,8 @@ class ChatAgent:
         messages = history + [{"role": "user", "content": user_message}]
 
         try:
-            # 调用DeepSeek (支持function calling)
-            response = await self._call_llm(messages)
+            # 第一轮: 带 tools 的 LLM 调用
+            response = await self._call_llm(messages, with_tools=True)
 
             # 检查是否需要调用工具
             if response.get("tool_calls"):
@@ -478,7 +621,7 @@ class ChatAgent:
                         "content": tr["result"],
                     })
 
-                final_response = await self._call_llm(messages)
+                final_response = await self._call_llm(messages, with_tools=False)
                 reply = final_response.get("content", "抱歉,处理出错了。")
             else:
                 reply = response.get("content", "抱歉,我无法回答这个问题。")
@@ -498,14 +641,48 @@ class ChatAgent:
                     self.conversations[session_id][-18:]    # last 9 exchanges
                 )
 
+            # 持久化到磁盘
+            self._save_session(session_id)
+
             return reply
 
         except Exception as e:
             logger.error(f"Agent对话失败: {e}")
             return f"抱歉,处理您的请求时出错了: {e}\n请稍后重试或尝试其他问题。"
 
-    async def _call_llm(self, messages: List[Dict]) -> Dict:
-        """调用DeepSeek API (同步客户端+线程池, 兼容代理)"""
+    async def _call_llm(self, messages: List[Dict], with_tools: bool = False) -> Dict:
+        """
+        通过 ModelRouter 调用 LLM (v2.9 重构)
+
+        - 有 ModelRouter: 3-tier 漏斗 + 预算 + 降级
+        - 无 ModelRouter: 直接调 DeepSeek API (保留兼容)
+        """
+        mr = self._get_model_router()
+
+        if mr is not None:
+            try:
+                if with_tools:
+                    result = await mr.route_with_tools(
+                        messages=messages,
+                        tools=TOOLS,
+                        task_type="simple_qa",
+                        max_retries=1,
+                    )
+                else:
+                    result = await mr.route(
+                        messages=messages,
+                        task_type="simple_qa",
+                        max_retries=1,
+                    )
+                return self._parse_route_result(result)
+            except Exception as e:
+                logger.warning(f"ModelRouter 调用失败, 降级到直连: {e}")
+
+        # Fallback: 直接调 DeepSeek
+        return await self._call_llm_direct(messages, with_tools)
+
+    async def _call_llm_direct(self, messages: List[Dict], with_tools: bool = False) -> Dict:
+        """直连 DeepSeek API (无 ModelRouter 时的 fallback)"""
         import asyncio
 
         def _sync_call():
@@ -523,9 +700,7 @@ class ChatAgent:
                 "max_tokens": 2000,
             }
 
-            # 只在还没调过工具时传tools
-            has_tool_results = any(m.get("role") == "tool" for m in messages)
-            if not has_tool_results:
+            if with_tools:
                 kwargs["tools"] = TOOLS
                 kwargs["tool_choice"] = "auto"
 
@@ -554,6 +729,25 @@ class ChatAgent:
         except Exception as e:
             logger.warning(f"LLM call failed: {e}")
             return {"content": self._fallback_reply(messages[-1].get("content", ""))}
+
+    @staticmethod
+    def _parse_route_result(result) -> Dict:
+        """从 RouteResult 解析出 ChatAgent 需要的 dict"""
+        content = result.response
+        # 检查是否包含 tool_calls
+        if content.startswith('{"_tool_calls"'):
+            import json
+            try:
+                data = json.loads(content)
+                out = {}
+                if data.get("content"):
+                    out["content"] = data["content"]
+                if data.get("_tool_calls"):
+                    out["tool_calls"] = data["_tool_calls"]
+                return out
+            except json.JSONDecodeError:
+                pass
+        return {"content": content}
 
     def _fallback_reply(self, user_msg: str) -> str:
         """No-API fallback"""

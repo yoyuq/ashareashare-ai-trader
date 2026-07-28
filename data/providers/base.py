@@ -21,6 +21,7 @@ class DataSource(Enum):
     TUSHARE = "tushare"
     EFINANCE = "efinance"
     EASTMONEY = "eastmoney"
+    TENCENT = "tencent"
     ALTERNATIVE = "alternative"
 
 
@@ -47,6 +48,21 @@ class DataRequest:
     fields: Optional[List[str]] = None   # None = 全部字段
     adjust: str = "qfq"                  # 复权方式: qfq/hfq/None
     extra_params: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def recent(cls, symbol: str, days: int = 365,
+               frequency: DataFrequency = DataFrequency.DAILY,
+               adjust: str = "qfq") -> "DataRequest":
+        """工厂方法: 获取最近N天的数据请求 (消除全项目重复的date.today()-timedelta模式)"""
+        from datetime import date, timedelta
+        today = date.today()
+        return cls(
+            symbol=symbol,
+            start_date=today - timedelta(days=days),
+            end_date=today,
+            frequency=frequency,
+            adjust=adjust,
+        )
 
 
 @dataclass

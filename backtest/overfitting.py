@@ -83,10 +83,13 @@ class OverfittingGuard:
         """
         n = len(returns)
 
-        # L2: PBO
-        pbo = self._compute_pbo(returns.get("sharpe", pd.Series(dtype=float))
-                                if isinstance(returns, pd.DataFrame)
-                                else returns) if param_results is not None else 0.0
+        # L2: PBO (需要日收益率序列, 不是 DataFrame)
+        if param_results is not None and isinstance(returns, pd.Series):
+            pbo = self._compute_pbo(returns)
+        elif param_results is not None and isinstance(returns, pd.DataFrame) and "return" in returns.columns:
+            pbo = self._compute_pbo(returns["return"])
+        else:
+            pbo = 0.0
 
         # L3: Deflated Sharpe Ratio
         dsr, dsr_pval = self._deflated_sharpe_ratio(

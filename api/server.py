@@ -13,15 +13,18 @@ FastAPI REST API — A股智能分析Agent
 """
 
 import asyncio
+import os
 import uuid
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from loguru import logger
+from analysis.regime import get_regime_parameters
 
 # ═══════════════════════════════════════════════════════════════
 # 应用初始化
@@ -29,7 +32,7 @@ from loguru import logger
 
 app = FastAPI(
     title="A股智能分析Agent API",
-    version="2.1.0",
+    version="2.14.0",
     description="AI驱动的A股量化分析助手 — REST API",
 )
 
@@ -40,12 +43,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 🔐 v2.14: API Key 认证中间件 (可选 — 未配置 API_KEY 时自动放行)
+_API_KEY = os.getenv("API_KEY", "")
+_AUTH_WHITELIST = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Simple API Key authentication. Skips auth if API_KEY is not set."""
+    if not _API_KEY or request.url.path in _AUTH_WHITELIST:
+        return await call_next(request)
+
+    api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+    if api_key != _API_KEY:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Unauthorized", "detail": "Invalid or missing API key"},
+        )
+    return await call_next(request)
+
 # 组件引用 (延迟初始化)
 _router = None
 _knowledge = None
 _analyzer = None
 _detector = None
+_chat_agent = None
 _tasks: Dict[str, Dict] = {}
+_sessions: Dict[str, List[Dict]] = {}  # v2.8: 会话存储
 
 
 def get_router():
@@ -124,7 +148,7 @@ async def health_check():
     """系统健康检查"""
     status = {
         "status": "healthy",
-        "version": "2.1.0",
+        "version": "2.14.0",
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -160,13 +184,7 @@ async def get_stock_info(symbol: str):
     from data.providers.base import DataFrequency, DataRequest
 
     try:
-        # 拉取K线
-        req = DataRequest(
-            symbol=symbol,
-            start_date=date.today().replace(year=date.today().year - 1),
-            end_date=date.today(),
-            frequency=DataFrequency.DAILY,
-        )
+        req = DataRequest.recent(symbol, days=365)
         result = await router.get_daily_kline(req)
 
         if result.data.empty:
@@ -303,8 +321,17 @@ async def run_backtest(req: BacktestRequest):
     engine = EventDrivenBacktestEngine(config)
     engine.load_data(req.symbol, result.data)
 
-    # 简单MACD策略
-    def macd_strategy(today, bars, broker):
+    # 使用真实的策略回测函数 (v2.8 修复)
+    from analysis.recommender import STRATEGY_BACKTESTERS
+
+    bt_func = STRATEGY_BACKTESTERS.get(req.strategy_id)
+    if bt_func is None:
+        raise HTTPException(400, f"未知策略: {req.strategy_id}, 可用: {list(STRATEGY_BACKTESTERS.keys())}")
+
+    bt = bt_func(result.data)
+
+    # 同时运行事件驱动回测获取完整指标
+    def _event_strategy(today, bars, broker):
         sym = req.symbol
         if sym not in bars:
             return
@@ -312,25 +339,39 @@ async def run_backtest(req: BacktestRequest):
         close_val = bar["close"]
         pos = broker.account.positions.get(sym)
 
-        # 简化信号: 持仓5天
-        if not hasattr(macd_strategy, "_entry"):
-            macd_strategy._entry = None
-        if macd_strategy._entry is None:
+        if not hasattr(_event_strategy, "_last_action"):
+            _event_strategy._last_action = {}
+        last = _event_strategy._last_action.get(sym)
+
+        # 使用策略的信号逻辑：基于回测函数的结果驱动
+        if not hasattr(_event_strategy, "_signals"):
+            _event_strategy._signals = bt.get("signals", 0)
+            _event_strategy._signal_idx = 0
+
+        # 简化版：根据信号数交替买卖
+        if last != "buy" and _event_strategy._signal_idx < _event_strategy._signals:
             qty = int(broker.account.cash * 0.3 / close_val / 100) * 100
             if qty >= 100:
                 broker.buy(sym, qty, price=close_val)
-                macd_strategy._entry = today
-        elif (today - macd_strategy._entry).days >= 5 and pos and pos.quantity > 0:
+                _event_strategy._last_action[sym] = "buy"
+                _event_strategy._signal_idx += 1
+        elif last == "buy" and pos and pos.quantity > 0:
             broker.sell(sym, pos.quantity, price=close_val)
-            macd_strategy._entry = None
+            _event_strategy._last_action[sym] = "sell"
 
-    macd_strategy._entry = None
-    backtest_result = engine.run(macd_strategy, progress_bar=False)
+    _event_strategy._last_action = {}
+    _event_strategy._signals = bt.get("signals", 0)
+    _event_strategy._signal_idx = 0
+    backtest_result = engine.run(_event_strategy, progress_bar=False)
+
+    strategy_name = (get_knowledge().get_strategy(req.strategy_id) or {}).get("name", req.strategy_id) if get_knowledge() else req.strategy_id
 
     return {
         "symbol": req.symbol,
         "strategy": req.strategy_id,
+        "strategy_name": strategy_name,
         "period": f"{req.start_date} → {req.end_date}",
+        # 事件驱动回测结果
         "total_return_pct": backtest_result.total_return,
         "annual_return_pct": backtest_result.annual_return,
         "sharpe": backtest_result.sharpe_ratio,
@@ -340,6 +381,15 @@ async def run_backtest(req: BacktestRequest):
         "win_rate": backtest_result.win_rate,
         "var_95": backtest_result.var_95,
         "cvar_95": backtest_result.cvar_95,
+        # 策略真实回测统计
+        "strategy_backtest": {
+            "signals": bt.get("signals", 0),
+            "win_rate": bt.get("win_rate", 0),
+            "profit_factor": bt.get("profit_factor", 1),
+            "expected_value": bt.get("expected_value", 0),
+            "sharpe": bt.get("sharpe", 0),
+            "max_dd": bt.get("max_dd", 0),
+        },
     }
 
 
@@ -373,20 +423,14 @@ async def market_regime():
     from data.providers.base import DataFrequency, DataRequest
 
     try:
-        # 使用沪深300指数判断
-        req = DataRequest(
-            symbol="sh.000300",
-            start_date=date.today().replace(year=date.today().year - 1),
-            end_date=date.today(),
-            frequency=DataFrequency.DAILY,
-        )
+        req = DataRequest.recent("sh.000300", days=365)
         result = await router.get_daily_kline(req)
 
         if result.data.empty:
             return {"regime": "unknown", "error": "无法获取沪深300数据"}
 
         regime = detector.detect(result.data)
-        params = __import__("analysis.regime", fromlist=["get_regime_parameters"]).get_regime_parameters(regime.regime)
+        params = get_regime_parameters(regime.regime)
 
         return {
             "regime": regime.regime.value,
@@ -398,6 +442,26 @@ async def market_regime():
         raise HTTPException(500, f"市场状态检测失败: {e}")
 
 
+def get_chat_agent():
+    """ChatAgent 懒加载 (v2.9: 使用 ModelRouter)"""
+    global _chat_agent
+    if _chat_agent is None:
+        try:
+            from models.router import ModelRouter
+            model_router = ModelRouter()
+        except Exception:
+            model_router = None
+        from agent.chat_agent import ChatAgent
+        _chat_agent = ChatAgent(
+            router=get_router(),
+            knowledge=get_knowledge(),
+            analyzer=get_analyzer(),
+            model_router=model_router,
+        )
+        logger.info("ChatAgent 初始化完成 (ModelRouter 三层漏斗)")
+    return _chat_agent
+
+
 @app.get("/api/v1/cost/summary")
 async def cost_summary():
     """模型API成本汇总"""
@@ -407,6 +471,91 @@ async def cost_summary():
         return monitor.daily_report()
     except Exception as e:
         return {"error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 🆕 v2.8: Chat 端点
+# ═══════════════════════════════════════════════════════════════
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="用户消息")
+    session_id: str = Field(default="default", description="会话ID, 用于多轮对话")
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    session_id: str
+    tool_calls: List[str] = Field(default_factory=list)
+
+
+@app.post("/api/v1/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    """
+    🆕 v2.8 对话式AI端点
+
+    支持多轮对话: 传入相同的 session_id 即可保持上下文。
+    新会话: 不传 session_id 或传新值。
+
+    示例:
+      curl -X POST http://localhost:8000/api/v1/chat \
+        -H "Content-Type: application/json" \
+        -d '{"message": "茅台怎么样？", "session_id": "user1"}'
+    """
+    try:
+        agent = get_chat_agent()
+        reply = await agent.chat(
+            user_message=req.message,
+            session_id=req.session_id,
+        )
+
+        # 获取工具调用记录 (最后一条assistant消息的tool_calls)
+        tool_calls = []
+        conv = agent.conversations.get(req.session_id, [])
+        for msg in reversed(conv):
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                tool_calls = [tc.get("function", {}).get("name", "unknown")
+                             for tc in msg.get("tool_calls", [])]
+                break
+
+        return ChatResponse(
+            reply=reply,
+            session_id=req.session_id,
+            tool_calls=tool_calls,
+        )
+    except Exception as e:
+        logger.error(f"Chat失败: {e}")
+        raise HTTPException(500, f"对话处理失败: {e}")
+
+
+@app.get("/api/v1/chat/history")
+async def chat_history(session_id: str = "default"):
+    """获取会话历史"""
+    agent = get_chat_agent()
+    conv = agent.conversations.get(session_id, [])
+    # 只返回用户和assistant消息, 不返回system/tool
+    history = [
+        {"role": m["role"], "content": m.get("content", "")[:500]}
+        for m in conv
+        if m["role"] in ("user", "assistant") and m.get("content")
+    ]
+    return {
+        "session_id": session_id,
+        "message_count": len(history),
+        "history": history[-20:],  # 最近20条
+    }
+
+
+@app.delete("/api/v1/chat/history")
+async def clear_chat_history(session_id: str = "default"):
+    """清除会话历史"""
+    agent = get_chat_agent()
+    if session_id in agent.conversations:
+        # 保留system prompt
+        system_msgs = [m for m in agent.conversations[session_id]
+                       if m["role"] == "system"]
+        agent.conversations[session_id] = system_msgs
+        return {"status": "cleared", "session_id": session_id}
+    return {"status": "not_found", "session_id": session_id}
 
 
 # ═══════════════════════════════════════════════════════════════

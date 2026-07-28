@@ -110,7 +110,7 @@ class AKShareProvider(DataProvider):
     async def get_stock_list(self) -> pd.DataFrame:
         """获取全A股股票列表(带缓存)"""
         if self._symbol_cache is not None and self._cache_time is not None:
-            if (datetime.now() - self._cache_time).seconds < 86400:  # 1天缓存
+            if (datetime.now() - self._cache_time).total_seconds() < 86400:  # 1天缓存 (v2.14: fix .seconds→.total_seconds)
                 return self._symbol_cache
 
         try:
