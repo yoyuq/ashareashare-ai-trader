@@ -264,8 +264,14 @@ def simulate(old_mode: bool, data: Dict[str, pd.DataFrame],
                         if new_rsi_filter(rsi, trend):
                             continue
                         max_pos = new_max_positions(regime)
-                        # 使用近似胜率和夏普
-                        pct = new_position_pct(0.55, 0.60, 1.5)
+                        # v2.14: 使用实际回测胜率和夏普 (而非硬编码0.55/0.60/1.5)
+                        # 对9个策略运行回测取平均胜率
+                        from analysis.recommender import STRATEGY_BACKTESTERS
+                        wr_vals = [bt_func(df).get("win_rate", 0.5) for bt_func in STRATEGY_BACKTESTERS.values()]
+                        sr_vals = [bt_func(df).get("sharpe", 1.0) for bt_func in STRATEGY_BACKTESTERS.values()]
+                        avg_wr = np.mean(wr_vals) if wr_vals else 0.55
+                        avg_sr = np.mean(sr_vals) if sr_vals else 1.5
+                        pct = new_position_pct(avg_wr, 0.60, avg_sr)
                         sl, tp = new_stop_loss(price, atr_val, regime, rsi)
 
                     if len(positions) >= max_pos:

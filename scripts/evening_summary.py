@@ -46,12 +46,14 @@ SIMULATION_DIR = Path(__file__).parent.parent / "simulation_data"
 from scripts.shared import load_watchlist, NAME_MAP, resolve_name, get_fallback_price
 
 
-async def run_analysis(pool: str = "default", no_llm: bool = False) -> Dict[str, Any]:
+async def run_analysis(pool: str = "default", no_llm: bool = False,
+                       run_date: str = "") -> Dict[str, Any]:
     """
     运行盘后分析 — 复用现有 DailyPipeline
     增强: 将收盘价和策略信息保存到 pending_recommendations
     """
-    logger.info(f"═══ 盘后分析 (pool={pool}, LLM={'禁用' if no_llm else '启用'}) ═══")
+    today_str = run_date or date.today().isoformat()
+    logger.info(f"═══ 盘后分析 (pool={pool}, date={today_str}, LLM={'禁用' if no_llm else '启用'}) ═══")
 
     from scripts.run_daily_analysis import DailyPipeline
 
@@ -114,7 +116,7 @@ async def run_analysis(pool: str = "default", no_llm: bool = False) -> Dict[str,
     # 保存到 portfolio
     manager = PortfolioManager()
     manager.state.pending_recommendations = buy_recs
-    manager.state.last_analysis_date = date.today().isoformat()
+    manager.state.last_analysis_date = today_str
     manager.save()
 
     logger.info(f"分析完成: {len(buy_recs)}条买入推荐 (含收盘价和策略信息)")
@@ -123,15 +125,15 @@ async def run_analysis(pool: str = "default", no_llm: bool = False) -> Dict[str,
                    f"price={r['close_price']:.2f} {r.get('strategy_name', '')}")
 
     # 🆕 v2.14: 信号追踪 — 记录今日信号 + 回顾N日前信号
-    _track_signals(buy_recs, result)
+    _track_signals(buy_recs, result, today_str)
 
     return result
 
 
-def _track_signals(today_recs: list, analysis_result: dict):
+def _track_signals(today_recs: list, analysis_result: dict, today_str: str = ""):
     """N日信号回顾 + 今日信号记录"""
     signal_file = SIMULATION_DIR / "signal_tracker.json"
-    today_str = date.today().isoformat()
+    today_str = today_str or date.today().isoformat()
 
     # 加载历史
     tracker = {"signals": {}, "reviews": []}
@@ -142,7 +144,7 @@ def _track_signals(today_recs: list, analysis_result: dict):
             pass
 
     # 回顾5天前的信号
-    review_date = (date.today() - timedelta(days=5)).isoformat()
+    review_date = (date.fromisoformat(today_str) - timedelta(days=5)).isoformat()
     pending = tracker.get("signals", {}).get(review_date, [])
     if pending:
         analysis_data = analysis_result.get("analysis", {})
@@ -237,12 +239,12 @@ def load_sell_signals(today_str: str) -> Dict[str, Dict]:
         return {}
 
 
-async def run_summary() -> Dict[str, Any]:
+async def run_summary(run_date: str = "") -> Dict[str, Any]:
     """
     运行收盘总结: Mark-to-Market + 止盈止损 + 快照
     """
-    logger.info(f"═══ 收盘总结 ═══")
-    today_str = date.today().isoformat()
+    today_str = run_date or date.today().isoformat()
+    logger.info(f"═══ 收盘总结 (date={today_str}) ═══")
 
     manager = PortfolioManager()
     engine = PaperTradingEngine(manager)
@@ -423,11 +425,11 @@ async def main():
 
     if args.analyze:
         logger.info("Phase 1/2: 盘后分析...")
-        await run_analysis(pool=args.pool, no_llm=args.no_llm)
+        await run_analysis(pool=args.pool, no_llm=args.no_llm, run_date=args.date)
 
     if args.summarize:
         logger.info("Phase 2/2: 收盘总结...")
-        await run_summary()
+        await run_summary(run_date=args.date)
 
     logger.info("✅ 晚间流程完成")
 

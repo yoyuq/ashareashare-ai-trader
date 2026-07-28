@@ -159,7 +159,7 @@ class DailyPipeline:
         async def _detect_one(sym: str, name: str) -> Optional[Tuple[str, float]]:
             try:
                 req = DataRequest(sym, date.today() - timedelta(days=365),
-                                date.today(), DataFrequency.DAILY)
+                                date.today(), DataFrequency.DAILY, adjust="qfq")
                 result = await asyncio.wait_for(
                     self.router.get_daily_kline(req), timeout=15
                 )

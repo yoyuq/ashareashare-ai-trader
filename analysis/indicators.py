@@ -653,6 +653,64 @@ class TechnicalAnalyzer:
         return result
 
     # ═══════════════════════════════════════════════════════════════
+    # 🆕 v2.14: ChromaDB 向量检索 — 相似K线形态匹配
+    # ═══════════════════════════════════════════════════════════════
+
+    def search_similar_patterns(
+        self,
+        df: pd.DataFrame,
+        top_k: int = 5,
+        lookback: int = 3,
+    ) -> List[Dict]:
+        """
+        用最近N根K线的特征向量检索ChromaDB中相似的历史形态。
+
+        Args:
+            df: OHLCV DataFrame
+            top_k: 返回最相似的K个形态
+            lookback: 取最近N根K线
+
+        Returns:
+            相似形态列表 [{pattern, description, distance}, ...]
+        """
+        try:
+            from knowledge.manager import KnowledgeManager
+            km = KnowledgeManager()
+
+            if not km.chroma_available:
+                return []
+
+            # 提取最近lookback根K线的特征向量
+            close = df["close"].values
+            open_p = df["open"].values
+            high = df["high"].values
+            low = df["low"].values
+
+            n = min(lookback, len(close))
+            recent = slice(-n, None)
+
+            # 归一化特征: body_ratio, upper_shadow_ratio, lower_shadow_ratio, body_direction
+            body = abs(close[recent] - open_p[recent])
+            total_range = np.maximum(high[recent] - low[recent], 1e-10)
+            body_ratio = float(np.mean(body / total_range))
+            upper_shadow = float(np.mean((high[recent] - np.maximum(close[recent], open_p[recent])) / total_range))
+            lower_shadow = float(np.mean((np.minimum(close[recent], open_p[recent]) - low[recent]) / total_range))
+            body_direction = float(np.sign(np.mean(close[recent] - open_p[recent])))
+
+            # 构建查询向量 (与播种时的6维向量对齐)
+            import numpy as np
+            query_vec = np.array([
+                body_ratio, upper_shadow, lower_shadow, body_direction, 0.0, 0.0
+            ], dtype=np.float32)
+            norm = np.linalg.norm(query_vec)
+            if norm > 0:
+                query_vec = query_vec / norm
+
+            return km.search_similar_klines(query_vec.tolist(), top_k=top_k)
+        except Exception:
+            return []
+
+    # ═══════════════════════════════════════════════════════════════
     # 工具方法
     # ═══════════════════════════════════════════════════════════════
 
