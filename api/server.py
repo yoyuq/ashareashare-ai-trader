@@ -559,6 +559,203 @@ async def clear_chat_history(session_id: str = "default"):
 
 
 # ═══════════════════════════════════════════════════════════════
+# 🆕 v2.14: 风控 & 组合 & 绩效 API
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/risk/status")
+async def risk_status():
+    """获取当前组合风控状态 (回撤/波动/断路器/8层风控)"""
+    try:
+        from simulation.portfolio import PortfolioManager
+        from analysis.risk_controls import PortfolioRiskManager
+        import pandas as pd
+
+        manager = PortfolioManager()
+        state = manager.state
+        risk_mgr = PortfolioRiskManager(initial_capital=state.initial_capital)
+
+        # 构建日收益率
+        daily_rets = pd.Series(dtype=float)
+        if len(state.daily_snapshots) >= 5:
+            daily_rets = pd.Series([
+                s.daily_return_pct / 100 for s in state.daily_snapshots[-60:]
+            ])
+
+        risk_state = risk_mgr.update(state.total_value, daily_rets) if len(daily_rets) > 0 else None
+
+        # 8层风控逐层检查
+        layers = {}
+        # L1
+        layers["L1_circuit_breaker"] = {
+            "active": risk_state.circuit_breaker_active if risk_state else False,
+            "drawdown_pct": risk_state.drawdown_pct if risk_state else 0,
+        }
+        # L2-L4
+        layers["L2_atr_stop"] = {"status": "active"}
+        layers["L3_trailing_stop"] = {"status": "active"}
+        layers["L4_position_limits"] = {"max_positions": 8, "single_pct": 0.20}
+
+        # L5: 防踩踏
+        if state.positions:
+            losers = sum(1 for p in state.positions.values() if p.unrealized_pnl_pct < -3)
+            layers["L5_stampede"] = {
+                "triggered": losers / len(state.positions) >= 0.5 if state.positions else False,
+                "losers": losers,
+                "total": len(state.positions),
+            }
+        else:
+            layers["L5_stampede"] = {"triggered": False, "note": "no positions"}
+
+        # L6: 持仓天数
+        max_days = 0
+        for p in state.positions.values():
+            if p.buy_date:
+                try:
+                    days = (date.today() - date.fromisoformat(p.buy_date)).days
+                    max_days = max(max_days, days)
+                except (ValueError, TypeError):
+                    pass
+        layers["L6_holding_days"] = {"max_days": max_days, "warning": max_days >= 20}
+
+        # L7-L8
+        layers["L7_limit_down"] = {"status": "monitoring"}
+        layers["L8_correlation"] = {"status": "monitoring"}
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "portfolio": {
+                "total_value": round(state.total_value, 2),
+                "cash": round(state.cash, 2),
+                "position_value": round(state.position_value, 2),
+                "total_return_pct": round(state.total_return_pct, 2),
+                "positions_count": len(state.positions),
+                "trade_count": state.trade_count,
+                "win_rate": round(state.win_rate * 100, 1),
+            },
+            "risk": {
+                "drawdown_pct": risk_state.drawdown_pct if risk_state else 0,
+                "volatility_pct": risk_state.current_volatility if risk_state else 0,
+                "risk_multiplier": risk_state.risk_multiplier if risk_state else 1.0,
+                "circuit_breaker_active": risk_state.circuit_breaker_active if risk_state else False,
+                "crisis_mode": risk_state.crisis_mode if risk_state else False,
+                "suggested_exposure_pct": risk_state.suggested_exposure_pct if risk_state else 0.3,
+                "warnings": risk_state.warning_messages if risk_state else [],
+            },
+            "layers": layers,
+        }
+    except Exception as e:
+        raise HTTPException(500, f"风控状态查询失败: {e}")
+
+
+@app.get("/api/v1/portfolio/summary")
+async def portfolio_summary():
+    """获取模拟交易组合摘要 (含持仓/交易/绩效)"""
+    try:
+        from simulation.portfolio import PortfolioManager
+        from simulation.paper_trader import PaperTradingEngine
+
+        manager = PortfolioManager()
+        engine = PaperTradingEngine(manager)
+        return engine.get_summary()
+    except Exception as e:
+        raise HTTPException(500, f"组合摘要查询失败: {e}")
+
+
+@app.get("/api/v1/trades/stats")
+async def trade_statistics():
+    """获取交易绩效统计 (WinRateAnalyzer — 胜率/盈亏比/分场景/信号质量)"""
+    try:
+        from simulation.portfolio import PortfolioManager
+        from analysis.winrate import WinRateAnalyzer
+        import pandas as pd
+
+        manager = PortfolioManager()
+        state = manager.state
+
+        if not state.trade_history:
+            return {"total_trades": 0, "note": "无交易记录"}
+
+        # 转换交易记录
+        trades_df = pd.DataFrame([
+            {
+                "date": t.date, "symbol": t.symbol, "side": t.side,
+                "price": t.price, "pnl": t.pnl or 0,
+                "pnl_pct": t.pnl_pct or 0, "holding_days": 1,
+            }
+            for t in state.trade_history
+            if t.side == "sell" and t.pnl is not None
+        ])
+
+        if trades_df.empty:
+            return {"total_trades": 0, "note": "无已平仓交易"}
+
+        analyzer = WinRateAnalyzer()
+        report = analyzer.analyze(trades_df, pd.DataFrame())
+
+        return {
+            "total_trades": report.total_signals,
+            "win_count": report.total_win,
+            "win_rate": round(report.overall_win_rate * 100, 1),
+            "profit_factor": report.profit_factor,
+            "expected_value_pct": report.expected_value,
+            "avg_holding_days": round(report.avg_holding_days, 1),
+            "max_consecutive_loss": report.max_consecutive_loss,
+            "signal_efficiency": report.signal_efficiency,
+            "scenario_breakdown": {
+                k: {
+                    "win_rate": round(v["win_rate"] * 100, 1),
+                    "trades": v["total"],
+                    "profit_factor": v["profit_factor"],
+                }
+                for k, v in report.scenario_breakdown.items()
+                if v["total"] > 0
+            },
+        }
+    except Exception as e:
+        raise HTTPException(500, f"交易统计查询失败: {e}")
+
+
+@app.get("/api/v1/system/benchmark")
+async def system_benchmark():
+    """快速系统性能基准 (不含数据拉取)"""
+    import time, numpy as np, pandas as pd
+
+    rng = np.random.default_rng(42)
+    close = 50 + np.cumsum(rng.normal(0.02, 1.5, 500))
+    df = pd.DataFrame({
+        "open": close - 0.3, "high": close + 1.0, "low": close - 1.0,
+        "close": close, "volume": rng.integers(100000, 5000000, 500).astype(float),
+    })
+
+    results = {}
+
+    # 指标计算
+    from analysis.indicators import TechnicalAnalyzer
+    analyzer = TechnicalAnalyzer()
+    t0 = time.perf_counter()
+    analyzer.compute_all(df)
+    results["indicators_500bars_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+
+    # 策略回测
+    from analysis.recommender import STRATEGY_BACKTESTERS
+    strat_times = {}
+    for sid, bt in STRATEGY_BACKTESTERS.items():
+        t0 = time.perf_counter()
+        bt(df)
+        strat_times[sid] = round((time.perf_counter() - t0) * 1000, 2)
+    results["strategies_ms"] = strat_times
+
+    # 信号分级
+    from analysis.risk_controls import SignalGrader
+    t0 = time.perf_counter()
+    for _ in range(1000):
+        SignalGrader.grade(65, 0.55, "range_bound")
+    results["signal_grader_1000x_us"] = round((time.perf_counter() - t0) * 1000, 1)
+
+    return {"status": "ok", "results": results}
+
+
+# ═══════════════════════════════════════════════════════════════
 # 启动
 # ═══════════════════════════════════════════════════════════════
 

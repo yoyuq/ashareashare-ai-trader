@@ -122,7 +122,67 @@ async def run_analysis(pool: str = "default", no_llm: bool = False) -> Dict[str,
         logger.info(f"  [{i+1}] {r['symbol']}: score={r['score']:.1f} conf={r['conviction']:.0%} "
                    f"price={r['close_price']:.2f} {r.get('strategy_name', '')}")
 
+    # 🆕 v2.14: 信号追踪 — 记录今日信号 + 回顾N日前信号
+    _track_signals(buy_recs, result)
+
     return result
+
+
+def _track_signals(today_recs: list, analysis_result: dict):
+    """N日信号回顾 + 今日信号记录"""
+    signal_file = SIMULATION_DIR / "signal_tracker.json"
+    today_str = date.today().isoformat()
+
+    # 加载历史
+    tracker = {"signals": {}, "reviews": []}
+    if signal_file.exists():
+        try:
+            tracker = json.loads(signal_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # 回顾5天前的信号
+    review_date = (date.today() - timedelta(days=5)).isoformat()
+    pending = tracker.get("signals", {}).get(review_date, [])
+    if pending:
+        analysis_data = analysis_result.get("analysis", {})
+        prices_data = analysis_result.get("prices", {})
+        reviewed = 0; correct = 0
+        for sig in pending:
+            sym = sig["symbol"]
+            close_price = prices_data.get(sym, {}).get("close", 0) if isinstance(
+                prices_data.get(sym, {}), dict) else 0
+            if close_price > 0:
+                actual_return = (close_price / sig["entry_price"] - 1) * 100
+                is_correct = (sig["direction"] == "long" and actual_return > 0) or \
+                            (sig["direction"] == "short" and actual_return < 0)
+                reviewed += 1
+                if is_correct: correct += 1
+        if reviewed > 0:
+            accuracy = correct / reviewed * 100
+            logger.info(f"[信号回顾] {review_date}: {correct}/{reviewed} 正确 ({accuracy:.0f}%)")
+            tracker.setdefault("reviews", []).append({
+                "date": review_date, "signals": len(pending),
+                "reviewed": reviewed, "correct": correct, "accuracy_pct": round(accuracy, 1),
+            })
+
+    # 记录今日信号
+    today_signals = []
+    for r in today_recs:
+        today_signals.append({
+            "symbol": r["symbol"],
+            "direction": "long",
+            "entry_price": r.get("close_price", 0),
+            "conviction": r.get("conviction", 0),
+            "score": r.get("score", 0),
+            "strategy": r.get("strategy_name", ""),
+        })
+    if today_signals:
+        tracker.setdefault("signals", {})[today_str] = today_signals
+
+    # 保存
+    signal_file.parent.mkdir(parents=True, exist_ok=True)
+    signal_file.write_text(json.dumps(tracker, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 async def get_closing_prices(symbols: List[str]) -> Dict[str, float]:
