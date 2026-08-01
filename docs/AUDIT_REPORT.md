@@ -35,8 +35,8 @@
 ### 遗留（诚实标注）
 - 真实 PBO 参数扫描变体矩阵（当前用跨策略矩阵近似，需参数扫描基础设施）
 - `daily_runner`/`providers`/`knowledge` 覆盖率偏低（12-33%）
-- `notify/` vs `notifications/` 双通知系统未收敛
-- `paper_account.py` / `parallel_scanner.py` / bull/bear/judge 模块类层为死代码（未删）
+- ~~`notify/` vs `notifications/` 双通知系统未收敛~~ ✅ v3.1-deerflow: 已收敛到 `notify/`（旧 `notifications/` 已删，`NotificationService` 迁移至 `notify/service.py`）
+- ~~`paper_account.py` / `parallel_scanner.py` / bull/bear/judge 模块类层死代码~~ ✅ v3.1-deerflow: 已全部删除（多空辩论由 workflow 内联 + knowledge/prompts 驱动）
 - `config/agents.yaml` 已移除不存在的类引用；README 已同步 v3.0
 
 ---
@@ -138,7 +138,7 @@
 - **H2** `analysis/winrate.py:406` 推荐"建议股数"恒按 ¥10/股硬编码：`shares = int(position_amount/10/100)*100`。茅台 entry≈1800、仓位¥20,000 → 输出 200 股（价值¥36万），严重超买
 - **H3** `analysis/recommender.py:547` 逐笔交易收益用 √252 年化（间隔不定，无意义）；`max_dd` 用 `cumsum(trades_net)` 百分点直接累加当净值曲线
 - **H4** `backtest/broker.py:226-238` 加仓不更新 `can_sell_date` → 新增股份当日即可卖出（T+1 漏洞）
-- **H5** `simulation/paper_account.py:111-113` 卖出费率把印花税按 0.1% 计（2023-08 起应为 0.05%），与其余模块不一致
+- **H5** `simulation/paper_account.py:111-113` 卖出费率把印花税按 0.1% 计（2023-08 起应为 0.05%），与其余模块不一致（✅ v3.1-deerflow: 该文件已删，费率统一走 paper_trader）
 - **M** multi_factor 回测 `vol_score` 被覆盖且加了两次（低波因子丢失）；"Walk-Forward"实为 OOS 季度稳定性无逐窗再优化；冲击成本用单日 |ret| 近似日波动率（系统性低估）；ST ±5% 涨跌停未覆盖；市价单以收盘价成交（时序乐观）
 
 ### 安全
@@ -183,7 +183,7 @@
 - **H5** TA-Lib"双引擎"是虚构：全仓零 `import talib`，`use_talib` 参数被写从不读；scikit-learn 宣称但从未 import
 - **H6** `web/dashboard.py` 1450 行上帝模块 + 12 处裸 `except: pass`（初始化失败被吞 → 界面看似正常实则无数据）；streamlit 仅在 `[all]` extra，按 README 装 `[dev,backtest]` 后 `streamlit run` 直接 ImportError
 - **H7** 凭据/实盘风险：`.env` 工作区有疑似真实 key；`broker/live.py:300` 硬编码 Windows QMT 路径；`submit_order` 直连真实账户无 dry-run/金额上限守卫
-- **M** 依赖清单冗余漂移（torch/transformers/celery/asyncpg 等 ~18 个从未 import，`pip install -r` 平白拉 2-3GB）；4 个扫描器职责重叠（`ParallelScanner` 是死代码）+ composite_scorer/factor_factory/factor_evaluator 孤儿簇；大量 `except Exception: pass/continue` 静默吞噬；业务常量（风控阈值/权重/模型名/URL）硬编码；4 个上帝模块；scripts 166 处 print 与 loguru 混用；README 数字与代码漂移（宣称 90 单测，实为 190）
+- **M** 依赖清单冗余漂移（torch/transformers/celery/asyncpg 等 ~18 个从未 import，`pip install -r` 平白拉 2-3GB）；4 个扫描器职责重叠（`ParallelScanner` 死代码 ✅ v3.1-deerflow 已删）+ composite_scorer/factor_factory/factor_evaluator 孤儿簇；大量 `except Exception: pass/continue` 静默吞噬；业务常量（风控阈值/权重/模型名/URL）硬编码；4 个上帝模块；scripts 166 处 print 与 loguru 混用；README 数字与代码漂移（宣称 90 单测，实为 190）
 
 ---
 
@@ -213,7 +213,7 @@
 ### P1 — 本迭代（可信度）
 6. 回测改"T 日信号 / T+1 开盘成交 + 涨跌停禁买禁卖"，修 `pctChg` 字段映射
 7. 重写或移除 PBO/MC/DSR（要么实现真正的 CSCV-PBO，要么别宣称）
-8. 把 T+1/涨跌停从 paper_account 统一接入真实 paper_trader
+8. 把 T+1/涨跌停从 paper_account 统一接入真实 paper_trader（✅ v3.1-deerflow: paper_account 已删，T+1/涨跌停已在 paper_trader + 新增 DecisionValidator 执行前校验）
 9. 建中央配置加载器，接线或删除死配置文件
 10. 给网络测试打 `network` 标记、删恒真断言；CI 纳入 integration
 

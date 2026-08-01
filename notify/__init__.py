@@ -4,6 +4,11 @@ Notification System (v3.1)
 Multi-channel notification dispatcher for WeChat Work, DingTalk, and Telegram.
 Wires up the previously-unused webhook URLs from .env.
 
+v3.1-deerflow: 废弃的 notifications/ 包已收敛到 notify/ 下 —
+  - notify.NotificationManager: 现代简洁 API (推荐)
+  - notify.NotificationService / DailySummary / SignalAlert: 旧通道服务
+    (迁移自 notifications/, 供 scripts/run_daily_analysis.py 使用)
+
 Usage:
     from notify import NotificationManager
     nm = NotificationManager()
@@ -19,6 +24,12 @@ from typing import Any, Dict, List, Optional
 
 import requests
 from loguru import logger
+
+# ── 旧通道服务 (收敛自 notifications/, 供主分析管线使用) ──
+from notify.service import (  # noqa: E402, F401
+    SignalAlert, DailySummary, CostAlert,
+    NotificationService, ConsoleChannel, WeComChannel, DingTalkChannel,
+)
 
 
 class NotificationManager:

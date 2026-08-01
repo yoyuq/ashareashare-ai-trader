@@ -40,6 +40,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "pyyaml>=6.0.0",
+    # v3.1-deerflow 已知冲突说明: akshare 的传递依赖 mootdx 要求 httpx<0.26/tenacity<9,
+    # 与本项目 httpx>=0.27 天然不可调和。mootdx 未被本项目代码直接使用 (仅为 akshare
+    # 部分 tdx 数据函数所用), 本项目实际走 Baostock/Tencent 主源, 该警告无害, 不降级 httpx。
     "httpx>=0.27.0",
     "loguru>=0.7.0",
     "python-dotenv>=1.0.0",

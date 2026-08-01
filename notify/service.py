@@ -1,5 +1,13 @@
-# [DEPRECATED v3.1] Use notify/ folder instead: from notify import NotificationManager
-import warnings; warnings.warn("notifications/ is deprecated, use notify/", DeprecationWarning, stacklevel=2)
+"""
+Legacy NotificationService (v3.1-deerflow: 从废弃的 notifications/ 收敛到 notify/)
+
+通道服务实现 — 供 scripts/run_daily_analysis.py 主分析管线使用。
+推荐使用 notify.NotificationManager (更简洁的现代 API), 本模块保留
+NotificationService/DailySummary 以兼容现有调用, 统一从 notify 包导入。
+
+v3.1-deerflow: 原 notifications/ 包已删除, 本实现迁移到 notify/service.py。
+"""
+
 import asyncio
 import json
 import os
@@ -205,7 +213,7 @@ class DingTalkChannel:
 
 class NotificationService:
     """
-    通知服务 — 多通道分发 (v2.8)
+    通知服务 — 多通道分发 (v2.8, 迁移自 notifications/)
 
     配置来源: .env + config/settings.yaml
 

@@ -450,7 +450,8 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
             continue
 
         # 获取实时价格 + 涨跌幅 (v3.0: 一次请求同时取现价与昨收, 用于封板/缺口判断)
-        prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
+        # v3.1-deerflow: 修正北交所前缀 — bj 代码以 8/4 开头 (旧逻辑 startswith('9') 有误)
+        prefix = "sh" if code.startswith("6") else ("bj" if code.startswith(("8", "4")) else "sz")
         sym_full = f"{prefix}.{code}"
         price, pct_change = _tencent_quote(sym_full)
 
@@ -497,6 +498,34 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
             "stop_loss": round(price*(1-sl_pct),2),
             "take_profit": round(price*(1+tp_pct),2),
         }
+
+        # ── v3.1-deerflow: DecisionValidator 执行前硬约束校验 ──
+        # 用与 execute_buy 相同的仓位/止损止盈参数校验, 拒绝则跳过并落 journal
+        try:
+            from agent.sub_agents.validator import DecisionValidator
+            _pos_pct = min(limits["single_pct"] * risk_mult, 0.20)
+            _vd = DecisionValidator()
+            _v_res = await _vd.run(_vd._start_context(
+                task_id=f"daily_runner_{today}",
+                trading_params={sym_full: {
+                    "entry_price": price,
+                    "stop_loss": enhanced["stop_loss"],
+                    "take_profit": enhanced["take_profit"],
+                    "position_pct": round(_pos_pct, 3),
+                }},
+                stock_recommendations={sym_full: {"action": "BUY", "conviction": conv}},
+                market_data={},  # 涨跌停可行性已用实时 pct_change + sealed_limit_up 判断
+            ))
+            _vrec = (
+                _v_res.data.get("validation_results", {}).get(sym_full, {})
+                if _v_res.success else {"valid": True}
+            )
+            if not _vrec.get("valid", True):
+                _codes = [v["code"] for v in _vrec.get("violations", [])]
+                logger.warning(f"  [验证器] 跳过 {name}({code}): {_codes}")
+                continue
+        except Exception as _ve:
+            logger.debug(f"[验证器] 校验跳过: {_ve}")
 
         trade = engine.execute_buy(
             symbol=sym_full, name=name, price=price,

@@ -56,3 +56,8 @@ htmlcov/
 .ipynb_checkpoints/
 *.ipynb
 simulation_data/
+# kill-test 信号/结果持久化
+killtest_data/
+reports/killtest_report.md
+reports/report_*.md
+reports/data_*.json

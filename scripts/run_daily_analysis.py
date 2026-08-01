@@ -136,7 +136,7 @@ class DailyPipeline:
                 logger.warning(f"  ModelRouter不可用, 使用规则引擎: {e}")
 
         if self.enable_notify:
-            from notifications import NotificationService
+            from notify import NotificationService
             self.notifications = NotificationService()
             logger.info(f"  OK NotificationService ({self.notifications.active_channels})")
 
@@ -590,7 +590,7 @@ class DailyPipeline:
         logger.info("[4/5] 推送通知...")
         if not self.notifications: return
         try:
-            from notifications import DailySummary
+            from notify import DailySummary
             stock_recs = result.get("stock_recommendations", {})
             picks = []
             for sym, rec in stock_recs.items():

@@ -411,19 +411,33 @@ async def run_morning_buy(
         score = rec.get("composite_score", rec.get("score", 5) * 10)
         rsi = rec.get("rsi", 50)
 
-        # 🆕 v2.13: ATR自适应止损止盈 (替代固定百分比)
+        # 🆕 v3.1-deerflow 执行管线统一: 优先消费 workflow 已算好的 trade_params
+        # (entry/stop/take/position 由代码计算, 消除两条管线各自重算 SL/TP 的漂移)
+        tp = rec.get("trade_params", {}) if isinstance(rec, dict) else {}
+        use_tp = (isinstance(tp, dict) and tp.get("stop_loss") and tp.get("take_profit")
+                  and 0 < tp["stop_loss"] < price < tp["take_profit"])
+
+        # 🆕 v2.13: ATR自适应止损止盈 (替代固定百分比) — trade_params 缺失时回退
         ap_data = analysis_data.get("analysis_prices", {}).get(sym, {})
         atr = ap_data.get("atr_14", 0) if isinstance(ap_data, dict) else 0
-        stop_loss, take_profit = calc_atr_stop_loss(price, atr, regime, rsi)
+        if use_tp:
+            stop_loss, take_profit = tp["stop_loss"], tp["take_profit"]
+            logger.info(f"  {name}({sym}): 使用 workflow trade_params "
+                        f"SL={stop_loss:.2f} TP={take_profit:.2f}")
+        else:
+            stop_loss, take_profit = calc_atr_stop_loss(price, atr, regime, rsi)
 
-        # 🆕 v2.13: 凯利公式仓位 (替代固定20%)
+        # 🆕 v2.13: 凯利公式仓位 (替代固定20%) — trade_params 合规仓位优先
         wr = rec.get("win_rate", 0)
         sharpe = rec.get("sharpe", 0)
         kelly_pct = calc_kelly_position_pct(wr, rec.get("conviction", 0),
                                             sharpe=sharpe)
         # 取凯利和市场上限的较小值
         effective_single_pct = min(kelly_pct, regime_single_pct) if kelly_pct > 0 else regime_single_pct
-        if kelly_pct > 0:
+        if use_tp and tp.get("position_pct") and 0 < tp["position_pct"] <= effective_single_pct:
+            effective_single_pct = tp["position_pct"]
+            logger.info(f"  {name}({sym}): 使用 workflow 仓位 {effective_single_pct:.1%}")
+        elif kelly_pct > 0:
             logger.debug(f"  {name}: Kelly={kelly_pct:.1%} WR={wr:.0%} → "
                         f"仓位上限{effective_single_pct:.1%}")
 
