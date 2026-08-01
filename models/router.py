@@ -273,6 +273,10 @@ class ModelRouter:
 
         choice = response.choices[0]
         content = choice.message.content or ""
+        if not content:
+            # v3.0: V4 思考模式(max_tokens 不足/思考占满) 时 content 可能为空,
+            # 回退到 reasoning_content 作为响应文本
+            content = getattr(choice.message, "reasoning_content", "") or ""
 
         # 工具调用: 将 tool_calls 序列化到 content 中传递
         if choice.message.tool_calls:

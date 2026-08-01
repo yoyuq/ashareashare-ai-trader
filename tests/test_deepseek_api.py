@@ -42,9 +42,10 @@ async def test_direct_api():
             messages=[
                 {"role": "user", "content": "用一句话介绍A股市场的T+1制度"},
             ],
-            max_tokens=100,
+            max_tokens=300,  # V4 思考模式需留足 token, 否则 content 为空
         )
-        content = response.choices[0].message.content
+        _msg = response.choices[0].message
+        content = _msg.content or getattr(_msg, "reasoning_content", "") or ""
         tokens_in = response.usage.prompt_tokens
         tokens_out = response.usage.completion_tokens
         cost = (tokens_in / 1_000_000) * 1.0 + (tokens_out / 1_000_000) * 2.0
@@ -63,9 +64,10 @@ async def test_direct_api():
             messages=[
                 {"role": "user", "content": "MACD金叉和死叉分别代表什么？用一句话回答"},
             ],
-            max_tokens=100,
+            max_tokens=300,  # V4 思考模式需留足 token, 否则 content 为空
         )
-        content = response.choices[0].message.content
+        _msg = response.choices[0].message
+        content = _msg.content or getattr(_msg, "reasoning_content", "") or ""
         tokens_in = response.usage.prompt_tokens
         tokens_out = response.usage.completion_tokens
         cost = (tokens_in / 1_000_000) * 1.0 + (tokens_out / 1_000_000) * 2.0
