@@ -206,9 +206,18 @@ def bench_overfitting(df: pd.DataFrame, n_runs: int = 3) -> dict:
 
 def bench_paper_trading(n_runs: int = 20) -> dict:
     """模拟交易性能"""
+    import os
+    import tempfile
     from simulation.portfolio import PortfolioManager
     from simulation.paper_trader import PaperTradingEngine
 
+    # v3.1 修复: 基准测试必须隔离, 不得触碰真实模拟账户。
+    # 此前裸 PortfolioManager() + manager.reset() 会把 simulation_data/portfolio.json
+    # 清空成初始状态 (真实持仓丢失), 且留下测试用的假茅台持仓。
+    os.environ.setdefault(
+        "PORTFOLIO_PATH",
+        os.path.join(tempfile.gettempdir(), "bench_portfolio.json"),
+    )
     manager = PortfolioManager()
     manager.reset()
     engine = PaperTradingEngine(manager)
