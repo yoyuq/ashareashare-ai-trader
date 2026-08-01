@@ -25,46 +25,15 @@ agents:
     parallel_allowed: false
     timeout_seconds: 60
 
-  # ── 辩论类Agent ──
-  bull_researcher:
-    name: "多头研究员"
-    class: agent.sub_agents.bull_researcher.BullResearcher
-    icon: "🐂"
-    model: pro
-    system_prompt: bull_researcher.txt
-    tools: []
-    description: "基于量化数据构建看涨论据"
-    parallel_allowed: true
-    timeout_seconds: 90
-
-  bear_researcher:
-    name: "空头研究员"
-    class: agent.sub_agents.bear_researcher.BearResearcher
-    icon: "🐻"
-    model: pro
-    system_prompt: bear_researcher.txt
-    tools: []
-    description: "基于量化数据构建看跌论据"
-    parallel_allowed: true
-    timeout_seconds: 90
-
-  judge:
-    name: "策略裁判"
-    class: agent.sub_agents.judge.Judge
-    icon: "⚖️"
-    model: pro
-    system_prompt: judge.txt
-    tools: []
-    description: "评估多空论据质量,输出结构化裁决"
-    parallel_allowed: false
-    timeout_seconds: 60
-
   # ── 综合类Agent ──
+  # v3.0: 移除 bull_researcher/bear_researcher/judge 条目 — 其类 (BullResearcher/
+  # BearResearcher/Judge) 不存在 (模块仅有 dataclass); 多空辩论/裁决由 workflow 直接
+  # 调用 ModelRouter + prompt 文件实现, 不经过本 registry。
   synthesis:
     name: "综合研判官"
     class: agent.sub_agents.synthesis.SynthesisAgent
     icon: "📋"
-    model: pro
+    model: flash
     system_prompt: synthesis.txt
     tools: []
     description: "汇总所有分析,输出最终报告和交易建议"

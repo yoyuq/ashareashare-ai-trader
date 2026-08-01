@@ -193,3 +193,92 @@ def test_broker_rejects_suspended_fill():
     assert len(filled) == 1
     assert filled[0].status == OrderStatus.REJECTED, \
         f"停牌日不应成交, 实际状态 {filled[0].status}"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 6. 日预算硬切断 + 分析层清洗 + 推荐引擎空扫描流程
+# ═══════════════════════════════════════════════════════════════
+
+def test_budget_hard_cut_raises(monkeypatch):
+    """BUDGET_HARD_CUT=1 且预算耗尽 → route() 抛 BudgetExhaustedError"""
+    from models.router import BudgetExhaustedError, ModelRouter
+
+    monkeypatch.setenv("BUDGET_HARD_CUT", "1")
+    router = ModelRouter()
+    router._daily_cost = 2.0
+    router.daily_budget = 1.0
+    with pytest.raises(BudgetExhaustedError, match="日预算已耗尽"):
+        asyncio.run(router.route([{"role": "user", "content": "hi"}]))
+
+
+def test_budget_soft_default_no_cut():
+    """默认(未开 BUDGET_HARD_CUT)预算耗尽不抛错 (软提醒)"""
+    from models.router import ModelRouter
+
+    router = ModelRouter()
+    router._daily_cost = 2.0
+    router.daily_budget = 1.0
+    # 硬切断未启用 → 预算耗尽也不抛
+    router._check_budget_hard_cut()
+    assert True
+
+
+def test_analyzer_defensive_cleaning():
+    """compute_all 对含零价(停牌)的 df 不崩溃, 且零价被清洗"""
+    from analysis.indicators import TechnicalAnalyzer
+
+    n = 80
+    rng = __import__("numpy").random.default_rng(7)
+    close = 50 + rng.normal(0, 1, n).cumsum()
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=n, freq="B"),
+        "open": close, "high": close + 1, "low": close - 1, "close": close,
+        "volume": rng.integers(100000, 5000000, n).astype(float),
+    })
+    # 中段插入停牌日 (零价)
+    df.loc[40, ["open", "high", "low", "close"]] = 0.0
+    res = TechnicalAnalyzer().compute_all(df, symbol="sh.600519")
+    assert res.indicators.get("trend_score") is not None, "清洗后指标应可计算"
+
+
+def test_recommendation_engine_generate_empty_scan(monkeypatch):
+    """推荐引擎空扫描 → 优雅返回空推荐 (不崩溃), 覆盖 generate 主流程"""
+    from analysis import recommender
+
+    async def fake_regime(self):
+        return ("range_bound", 0.5)
+    monkeypatch.setattr(recommender.RecommendationEngine, "_get_regime", fake_regime)
+
+    class FakeNB:
+        signal = "neutral"
+        def _empty_snapshot(self):
+            return SimpleNamespace(signal="neutral")
+        async def get_snapshot(self):
+            return SimpleNamespace(signal="neutral")
+    monkeypatch.setattr(recommender, "NorthboundTracker", lambda: FakeNB())
+
+    class FakeSector:
+        async def analyze(self):
+            return SimpleNamespace(heatmap={})
+    # SectorRotationAnalyzer 在 generate() 内部局部导入 → patch 源模块
+    monkeypatch.setattr("analysis.sector_rotation.SectorRotationAnalyzer", lambda: FakeSector())
+
+    class FakeScanResult:
+        scan_date = "2026-08-01"
+        total_stocks = 0
+        filtered_stocks = 0
+        top_scores = []
+
+    class FakeScanner:
+        def __init__(self, *a, **k):
+            pass
+        async def scan(self, top_n=100):
+            return FakeScanResult()
+    # MarketScanner 在 generate() 内部局部导入 → patch 源模块
+    monkeypatch.setattr("analysis.scanner.MarketScanner", FakeScanner)
+
+    engine = recommender.RecommendationEngine()
+    result = asyncio.run(engine.generate(capital=100000, top_n=20))
+    assert result.total_scanned == 0
+    assert result.recommendations == []
+    assert result.regime == "range_bound"

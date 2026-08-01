@@ -69,6 +69,10 @@ class RouteResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
+class BudgetExhaustedError(RuntimeError):
+    """日预算耗尽 — BUDGET_HARD_CUT=1 模式下 route() 拒绝付费调用时抛出"""
+
+
 class ModelRouter:
     """
     单模型路由器 (v3.0: 全部调用统一走 DeepSeek V4-Flash)
@@ -79,6 +83,10 @@ class ModelRouter:
             task_type="technical_analysis",
             messages=[{"role": "user", "content": "分析MACD金叉信号"}],
         )
+
+    预算控制 (v3.0):
+      - 默认软提醒: 预算达 90% 时日志告警, 不阻断 (兼容现有工作流)
+      - BUDGET_HARD_CUT=1: 预算耗尽时抛 BudgetExhaustedError (硬切断, 强制止付)
     """
 
     # 任务类型 → 统一路由到 FLASH
@@ -131,6 +139,8 @@ class ModelRouter:
 
         self._deepseek_client = None
         self._init_clients()
+        # v3.0: 预算硬切断开关 (BUDGET_HARD_CUT=1 → 耗尽时拒绝付费调用)
+        self._hard_cut = os.getenv("BUDGET_HARD_CUT", "").lower() in ("1", "true", "yes")
 
         self._call_log: List[RouteResult] = []
 
@@ -169,6 +179,7 @@ class ModelRouter:
         Returns:
             RouteResult
         """
+        self._check_budget_hard_cut()
         tier = self._resolve_tier(task_type, force_tier)
         return await self._execute_with_fallback(tier, messages, max_retries)
 
@@ -187,6 +198,14 @@ class ModelRouter:
         """
         tier = self._resolve_tier(task_type, force_tier)
         return await self._execute_with_fallback(tier, messages, max_retries, tools=tools)
+
+    def _check_budget_hard_cut(self):
+        """BUDGET_HARD_CUT 模式下预算耗尽 → 抛 BudgetExhaustedError 强制止付"""
+        if self._hard_cut and self._daily_cost >= self.daily_budget:
+            raise BudgetExhaustedError(
+                f"日预算已耗尽 ({self._daily_cost:.2f}/{self.daily_budget:.2f}元), "
+                "BUDGET_HARD_CUT=1 已启用, 拒绝付费调用"
+            )
 
     def _resolve_tier(self, task_type: str, force_tier: Optional[ModelTier] = None) -> ModelTier:
         """解析目标层级 — v3.0 统一为 FLASH"""

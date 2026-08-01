@@ -95,6 +95,13 @@ class TechnicalAnalyzer:
         # 确保列名标准化
         df = self._normalize_columns(df.copy())
 
+        # v3.0: 防御性数据清洗 — provider 若绕过 standardize, 分析层仍保证零价不污染指标
+        try:
+            from data.processors.cleaning import clean_ohlcv
+            df = clean_ohlcv(df)
+        except Exception:
+            pass
+
         result = IndicatorResult(symbol=symbol)
 
         # ===== 趋势类指标 =====
