@@ -243,11 +243,11 @@ def simulate(old_mode: bool, data: Dict[str, pd.DataFrame],
                     row = df[df["date"] == date_str]
                     if row.empty:
                         continue
-                    idx_in_df = df[df["date"] == date_str].index[0]
                     price = float(row["close"].iloc[0])
-                    atr_val = float(df["atr_14"].iloc[idx_in_df]) if "atr_14" in df.columns and not pd.isna(df["atr_14"].iloc[idx_in_df]) else price * 0.03
-                    rsi = float(df["rsi_14"].iloc[idx_in_df]) if "rsi_14" in df.columns and not pd.isna(df["rsi_14"].iloc[idx_in_df]) else 50
-                    trend = float(df["trend_score"].iloc[idx_in_df]) if "trend_score" in df.columns and not pd.isna(df["trend_score"].iloc[idx_in_df]) else 0.5
+                    # v3.1 修复: 用 row.iloc[0] 而非 label 索引, 避免指标 df 索引与位置不对齐导致越界
+                    atr_val = float(row["atr_14"].iloc[0]) if "atr_14" in row.columns and not pd.isna(row["atr_14"].iloc[0]) else price * 0.03
+                    rsi = float(row["rsi_14"].iloc[0]) if "rsi_14" in row.columns and not pd.isna(row["rsi_14"].iloc[0]) else 50
+                    trend = float(row["trend_score"].iloc[0]) if "trend_score" in row.columns and not pd.isna(row["trend_score"].iloc[0]) else 0.5
 
                     if pd.isna(price) or price <= 0:
                         continue

@@ -61,3 +61,5 @@ killtest_data/
 reports/killtest_report.md
 reports/report_*.md
 reports/data_*.json
+# 历史 PIT 回放数据/报告
+replay_data/
