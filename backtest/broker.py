@@ -393,14 +393,22 @@ class AShareBroker:
         return pending
 
     def _bar_open(self, symbol: str) -> float:
-        """当日开盘价 (延迟订单执行价); 缺失时退回收盘价"""
+        """当日开盘价 (延迟订单执行价); 缺失时退回收盘价。
+
+        v3.0: 停牌日 (is_trade=0, 数据清洗后价格被 ffill 为非0) 视为不可交易,
+        返回 0 触发上层拒单 — 否则清洗后的 ffill 价格会导致停牌日被误成交。
+        """
         bar = self._cur_prices.get(symbol)
         if bar is None:
             return 0.0
         if isinstance(bar, pd.Series):
+            if "is_trade" in bar.index and bar.get("is_trade", 1) == 0:
+                return 0.0
             open_px = float(bar.get("open", 0)) if "open" in bar.index else 0.0
             return open_px if open_px > 0 else float(bar.get("close", 0))
         if isinstance(bar, dict):
+            if bar.get("is_trade", 1) == 0:
+                return 0.0
             return float(bar.get("open") or bar.get("close") or 0)
         return float(bar) if isinstance(bar, (int, float)) else 0.0
 

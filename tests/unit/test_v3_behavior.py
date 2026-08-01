@@ -9,6 +9,7 @@
 
 import asyncio
 import json
+from datetime import date
 from types import SimpleNamespace
 
 import pandas as pd
@@ -144,3 +145,51 @@ def test_calc_bt_stats_empty():
     stats = _calc_bt_stats([])
     assert stats["signals"] == 0
     assert stats["trades"] == []
+
+
+# ═══════════════════════════════════════════════════════════════
+# 5. 清洗接线 (standardize) + 券商停牌拒单
+# ═══════════════════════════════════════════════════════════════
+
+def test_standardize_applies_cleaning():
+    """DataResult.standardize() 应用 clean_ohlcv: 加 is_trade + 停牌价 ffill"""
+    from data.providers.base import DataFrequency, DataResult, DataSource
+
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=2, freq="D"),
+        "open": [10.0, 0.0], "high": [11.0, 0.0], "low": [9.0, 0.0],
+        "close": [10.5, 0.0], "volume": [1000, 0],
+    })
+    res = DataResult(symbol="sh.600519", source=DataSource.BAOSTOCK,
+                     frequency=DataFrequency.DAILY, data=df)
+    out = res.standardize()
+    assert "is_trade" in out.data.columns, "standardize 应产出 is_trade"
+    assert out.data.loc[1, "close"] == 10.5, "停牌日价格应被 ffill"
+    assert out.data["is_trade"].tolist() == [1, 0]
+
+
+def test_broker_rejects_suspended_fill():
+    """停牌日 (is_trade=0, 价格被 ffill 为非0) → 延迟卖出应被拒绝"""
+    from backtest.broker import AShareBroker, OrderStatus, Position, PositionSide
+
+    broker = AShareBroker()
+    broker.deferred_execution = True
+    broker._cur_date = date(2026, 8, 1)
+    broker._st_symbols = set()
+    broker.account.cash = 100000.0
+    broker.account.positions["sh.600519"] = Position(
+        symbol="sh.600519", side=PositionSide.LONG,
+        buy_date="2026-07-31", can_sell_date=date(2026, 8, 1),
+        quantity=100, avg_cost=50.0, total_cost=5000.0,
+    )
+    # 停牌日: 价格非0(ffill) 但 is_trade=0
+    broker._cur_prices = {"sh.600519": {
+        "open": 50.0, "high": 50.0, "low": 50.0, "close": 50.0,
+        "pre_close": 50.0, "pct_change": 0.0, "is_trade": 0,
+    }}
+
+    broker.sell("sh.600519", 100)
+    filled = broker.execute_pending_orders()
+    assert len(filled) == 1
+    assert filled[0].status == OrderStatus.REJECTED, \
+        f"停牌日不应成交, 实际状态 {filled[0].status}"
