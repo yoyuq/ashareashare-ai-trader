@@ -74,10 +74,10 @@ curl http://localhost:8000/health
 | 特性 | 说明 |
 |------|------|
 | **8 数据源** | Baostock / Tencent / EastMoney / AKShare / Tushare / 另类数据 / 基本面 / 财务 |
-| **130+ 技术指标** | TA-Lib + pandas-ta 双引擎, 10大类 (趋势/动量/波动/量/形态/周期/统计/自定义/因子) |
+| **130+ 技术指标** | pandas-ta 引擎, 10大类 (趋势/动量/波动/量/形态/周期/统计/自定义/因子) |
 | **6 市场状态** | strong_bull / weak_bull / range_bound / weak_bear / strong_bear / crisis |
 | **9 策略回测** | 双均线 / MACD / 布林 / RSI / 动量突破 / 涨停板 / 低波动 / 海龟 / 多因子 |
-| **3 层模型漏斗** | Ollama Qwen3-4B (免费,60%) → DeepSeek Flash (¥1-2/M,30%) → DeepSeek Pro (复杂,10%) |
+| **统一模型** | DeepSeek V4-Flash (全量, ¥1-2/M) — v3.0 移除 Ollama/Pro 分层 |
 | **6 层过拟合防控** | 时间分割 → PBO → Deflated SR → Walk-Forward → 参数敏感性 → Monte Carlo |
 | **8 层风控** | 回撤熔断 / ATR止损 / 移动止盈 / 市场仓位 / 防踩踏 / 持仓天数 / 跌停检测 / 相关性 |
 | **代码即推理** | Python 做计算, LLM 只叙事 — 消除 AI 幻觉 |
@@ -112,7 +112,7 @@ ashare-ai-trader/
 │   ├── storage/            # PostgreSQL/TimescaleDB models
 │   └── cache.py            # Redis 缓存层
 ├── models/             # LLM 模型层
-│   ├── router.py           # 3 层模型漏斗
+│   ├── router.py           # 单模型路由 (V4-Flash + 预算/成本)
 │   └── cost_monitor.py     # API 成本追踪
 ├── backtest/           # 回测引擎
 │   ├── engine.py           # 事件驱动回测引擎
@@ -223,10 +223,10 @@ python scripts/run_scheduler.py  # 后台常驻, 自动执行盘前/盘中/盘�
 |------|------|
 | 数据 | AKShare / Baostock / 东方财富 / 腾讯行情 / Tushare |
 | 数据库 | PostgreSQL + TimescaleDB / Redis / ChromaDB |
-| 分析 | TA-Lib / pandas-ta / scikit-learn / numpy / scipy |
-| LLM | DeepSeek V4 (Flash+Pro) + Ollama (Qwen3-4B) |
+| 分析 | pandas-ta / scikit-learn / numpy / scipy |
+| LLM | DeepSeek V4-Flash (统一) |
 | 编排 | LangGraph |
-| 回测 | 自研事件驱动引擎 / backtrader / vectorbt |
+| 回测 | 自研事件驱动引擎 |
 | Web | FastAPI + Streamlit |
 | 部署 | Docker Compose |
 

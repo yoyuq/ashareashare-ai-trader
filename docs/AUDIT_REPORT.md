@@ -7,6 +7,42 @@
 
 ---
 
+## ═══ v3.0 复查 (2026-08-01) — 本轮修复对照 ═══
+
+本报告的 P0/P1 问题已在 v3.0 大规模修复。以下为逐项对照现状：
+
+### 已修复并验证 (196 项测试保护)
+- [x] **P0 沙箱逃逸 RCE**: code_executor 移除裸 `__import__` + 受限导入白名单 + dunder 内省拦截
+- [x] **P0 认证 fail-open**: 改 fail-closed + `hmac.compare_digest` + 仅接受 X-API-Key 头 + CORS 经 `CORS_ORIGINS` 收敛
+- [x] **P0 PBO/MC/DSR**: 真 CSCV-PBO + 符号随机化 MC + Lo(2002) DSR + K 多重检验；`variant_returns` 接线（跨策略矩阵）
+- [x] **P0 回测同日收盘成交**: T+1 开盘成交 + 开盘封板判定（`_is_sealed_at_open`）；显式价格绕过已堵
+- [x] **P0 数据层静默错误**: 复权语义统一 / 假K线删除 / 空响应熔断 / 股票列表 schema / 北交所代码 / 成交量单位
+- [x] **P0 6 个运行时崩溃点**: 全部修复
+- [x] **P1 交易规则适配**: 主板 ST ±5%→±10%（2026-07-06 新规）/ 过户费两市 / 盘后固定价格会话 / 沪深基金收盘竞价
+- [x] **P1 模拟盘 T+1/涨跌停**: 已接线（sealed flags + 板块感知阈值 10/20/30%）
+- [x] **P1 幸存者偏差**: 回测报告显式标注（当前快照不含退市股）
+- [x] **P1 模型**: 全量 `deepseek-v4-flash`（删 PRO/Ollama 层）+ 思考模式适配（工具路径关闭思考防 400）
+- [x] **P1 AI 防护**: NumericSafetyChecker 真正生效（numpy+Series 修复）/ synthesis 交易参数代码注入并兜底覆盖 / ChromaDB 真实向量检索（哈希嵌入余弦）
+- [x] **P1 集成测试**: 断言修复 + tmp 隔离（不再污染真实账户）
+
+### v3.0 新增
+- 数据清洗 `clean_ohlcv` 三层接入（standardize + 分析层 + 券商停牌防护）
+- API 敏感端点（portfolio/mtm、bot/*）强制鉴权（此前未鉴权可读持仓）
+- 预算硬切断 `BUDGET_HARD_CUT`（耗尽抛 BudgetExhaustedError）
+- CI 硬化（189 非网络测试 + 覆盖率 + F821/F823 硬门槛）
+- 测试从 146 → **196 项**（对抗回归 + 行为测试）
+
+### 遗留（诚实标注）
+- 真实 PBO 参数扫描变体矩阵（当前用跨策略矩阵近似，需参数扫描基础设施）
+- `daily_runner`/`providers`/`knowledge` 覆盖率偏低（12-33%）
+- `notify/` vs `notifications/` 双通知系统未收敛
+- `paper_account.py` / `parallel_scanner.py` / bull/bear/judge 模块类层为死代码（未删）
+- `config/agents.yaml` 已移除不存在的类引用；README 已同步 v3.0
+
+---
+
+
+
 ## 一、总体结论
 
 > **核心计算层的骨架是中上的，但大量"卖点功能"是装饰性实现，且存在一批"看似在工作、实则产出错误数据"的系统性 bug。文档严重领先实现。**
