@@ -1268,19 +1268,38 @@ class AnalysisWorkflow:
                 stock_recs = state.get("stock_recommendations", {})
                 critic_results = state.get("critic_results", {})
                 # v3.0: 代码计算交易参数(入场/止损/止盈/仓位), 消除 LLM 编造价格
+                # 容错提取: 兼容 technical_indicators 键格式差异, 回退 market_data OHLCV 末行
                 tech_ind = state.get("technical_indicators", {})
+                market_data = state.get("market_data", {})
                 trade_params = {}
                 for sym in stock_recs.keys():
-                    ind = tech_ind.get(sym, {})
+                    ind = tech_ind.get(sym) or tech_ind.get(sym.split(".")[-1]) or {}
                     last = {}
-                    for k, v in ind.items():
-                        if isinstance(v, dict) and v:
-                            last[k] = v[max(v)]  # DataFrame.to_dict: 取最后一行
-                        elif isinstance(v, list) and v:
-                            last[k] = v[-1]
-                        elif isinstance(v, (int, float)):
-                            last[k] = v
+                    if ind:
+                        for k, v in ind.items():
+                            if isinstance(v, dict) and v:
+                                last[k] = v[max(v)]  # DataFrame.to_dict: 取最后一行
+                            elif isinstance(v, list) and v:
+                                last[k] = v[-1]
+                            elif isinstance(v, (int, float)):
+                                last[k] = v
+                    elif not last:
+                        # 回退: 直接取 market_data OHLCV 末行 (一定含 close)
+                        dfx = market_data.get(sym) or market_data.get(sym.split(".")[-1])
+                        if dfx is not None and not getattr(dfx, "empty", True):
+                            last = dfx.iloc[-1].to_dict()
                     close = float(last.get("close") or 0)
+                    if not close:
+                        # 指标 df 不含 OHLC 列 (只有 atr_14 等) → 回退 market_data 末行拿 close
+                        # 注意: 不能用 `dfx = a or b` (DataFrame 的 or 触发歧义真值错误)
+                        dfx = market_data.get(sym)
+                        if dfx is None:
+                            dfx = market_data.get(sym.split(".")[-1])
+                        if dfx is not None and not getattr(dfx, "empty", True):
+                            _lr = dfx.iloc[-1].to_dict()
+                            close = float(_lr.get("close") or 0)
+                            if not last.get("atr_14"):
+                                last["atr_14"] = float(_lr.get("atr_14") or 0) or close * 0.02
                     atr = float(last.get("atr_14") or 0) or close * 0.02
                     conv = float(stock_recs[sym].get("conviction", 0.5))
                     if close > 0:
@@ -1311,6 +1330,9 @@ class AnalysisWorkflow:
                     "date": state.get("date", ""),
                     "regime": state.get("market_regime"),
                     "regime_confidence": state.get("regime_confidence"),
+                    # v3.0: 代码计算的交易参数放最前, 避免被长上下文截断 (此前在 stock_summary
+                    # 尾部, 上下文 [:N] 截断后 LLM 只能输出 null)
+                    "trading_params": trade_params,
                     "scan_results": state.get("scan_results", []),
                     "analysis_reports": {
                         k: v[:600] for k, v in state.get("analysis_reports", {}).items()
@@ -1337,7 +1359,8 @@ class AnalysisWorkflow:
                     "reflections": reflection_contexts,  # v3.1 反思上下文
                 }
 
-                context = json.dumps(context_parts, ensure_ascii=False, default=str)[:12000]
+                # v3.0: v4-flash 支持 1M 上下文, 放宽截断 (此前 12K 会切掉尾部关键字段)
+                context = json.dumps(context_parts, ensure_ascii=False, default=str)[:30000]
 
                 result = await self.router.route(
                     messages=[
@@ -1347,6 +1370,29 @@ class AnalysisWorkflow:
                     task_type="daily_synthesis",
                 )
                 state["final_report"] = result.response
+
+                # v3.0: 代码兜底覆盖交易参数 — LLM 常输出 0/null (此前 null→0.0),
+                # 用 computed trade_params 强制填入, 消除日报幻觉价格
+                try:
+                    _parsed = json.loads(result.response)
+                    _recs = _parsed.get("recommendations", [])
+                    _filled = 0
+                    for _rec in _recs:
+                        _tp = trade_params.get(_rec.get("symbol"))
+                        if _tp:
+                            for _k in ("entry_price", "stop_loss", "take_profit", "position_pct"):
+                                if not _rec.get(_k):
+                                    _rec[_k] = _tp[_k]
+                                    _filled += 1
+                    state["final_report"] = json.dumps(_parsed, ensure_ascii=False, indent=2)
+                    # 仅在实际计算失败(推荐对应 trade_params 为空)时告警
+                    if _recs and not any(trade_params.get(r.get("symbol")) for r in _recs):
+                        logger.warning(
+                            f"[综合研判] trade_params 计算为空 (tech_keys={list(tech_ind.keys())[:3]}, "
+                            f"mkt_keys={list(market_data.keys())[:3]})"
+                        )
+                except Exception as _e:
+                    logger.debug(f"[综合研判] 交易参数兜底失败: {_e}")
 
             except Exception as e:
                 state["final_report"] = (
