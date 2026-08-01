@@ -1,0 +1,129 @@
+# ====== Agent 定义配置 (v3.1) ======
+# 可配置化 Agent 平台 — 所有Agent从此文件加载,支持热修改
+
+agents:
+  # ── 分析类Agent ──
+  technical_analyst:
+    name: "技术分析专家"
+    class: agent.sub_agents.technical_analyst.TechnicalAnalystAgent
+    icon: "📊"
+    model: flash              # flash | pro | ollama
+    system_prompt: technical_analyst.txt
+    tools: [analyze_stock]
+    description: "6维度技术分析 (趋势/动量/波动/量/形态/统计)"
+    parallel_allowed: true
+    timeout_seconds: 120
+
+  market_scanner:
+    name: "市场扫描专家"
+    class: agent.sub_agents.market_scanner.MarketScannerAgent
+    icon: "🔍"
+    model: flash
+    system_prompt: market_scanner.txt
+    tools: [scan_market, get_market_overview]
+    description: "全市场4维扫描 (技术面/资金流/动量/质量)"
+    parallel_allowed: false
+    timeout_seconds: 60
+
+  # ── 辩论类Agent ──
+  bull_researcher:
+    name: "多头研究员"
+    class: agent.sub_agents.bull_researcher.BullResearcher
+    icon: "🐂"
+    model: pro
+    system_prompt: bull_researcher.txt
+    tools: []
+    description: "基于量化数据构建看涨论据"
+    parallel_allowed: true
+    timeout_seconds: 90
+
+  bear_researcher:
+    name: "空头研究员"
+    class: agent.sub_agents.bear_researcher.BearResearcher
+    icon: "🐻"
+    model: pro
+    system_prompt: bear_researcher.txt
+    tools: []
+    description: "基于量化数据构建看跌论据"
+    parallel_allowed: true
+    timeout_seconds: 90
+
+  judge:
+    name: "策略裁判"
+    class: agent.sub_agents.judge.Judge
+    icon: "⚖️"
+    model: pro
+    system_prompt: judge.txt
+    tools: []
+    description: "评估多空论据质量,输出结构化裁决"
+    parallel_allowed: false
+    timeout_seconds: 60
+
+  # ── 综合类Agent ──
+  synthesis:
+    name: "综合研判官"
+    class: agent.sub_agents.synthesis.SynthesisAgent
+    icon: "📋"
+    model: pro
+    system_prompt: synthesis.txt
+    tools: []
+    description: "汇总所有分析,输出最终报告和交易建议"
+    parallel_allowed: false
+    timeout_seconds: 120
+
+  risk_assessor:
+    name: "风控评估师"
+    class: agent.sub_agents.risk_assessor.RiskAssessorAgent
+    icon: "🛡️"
+    model: flash
+    system_prompt: risk_assessor.txt
+    tools: []
+    description: "8层风控评估 (回撤熔断/ATR止损/移动止盈/防踩踏等)"
+    parallel_allowed: true
+    timeout_seconds: 60
+
+  critic:
+    name: "策略审计师"
+    class: agent.sub_agents.critic.CriticAgent
+    icon: "🔎"
+    model: flash
+    system_prompt: critic.txt
+    tools: []
+    description: "5维对抗性审计 (Look-Ahead/Regime Cherry-Pick/Overfit/Cost/Fragility)"
+    parallel_allowed: true
+    timeout_seconds: 60
+
+# ── 工具配置 ──
+tools:
+  # 工具发现: auto 表示自动扫描 ToolRegistry
+  discovery: auto
+
+  # MCP 工具暴露 (对外部AI IDE)
+  mcp_export:
+    enabled: true
+    max_tools: 20
+    timeout_seconds: 30
+
+# ── 工作流配置 ──
+workflow:
+  # 节点执行顺序
+  nodes:
+    - data_preparation
+    - technical_analysis
+    - market_scanner
+    - strategy_matching
+    - backtest_verification
+    - adversarial_debate
+    - critic_audit
+    - synthesis
+
+  # 节点间依赖关系
+  edges:
+    - [data_preparation, technical_analysis]
+    - [technical_analysis, market_scanner]
+    - [market_scanner, strategy_matching]
+    - [strategy_matching, backtest_verification]
+    - [backtest_verification, adversarial_debate]
+    - [adversarial_debate, critic_audit]
+    - [critic_audit, synthesis]
+    - [synthesis, END]

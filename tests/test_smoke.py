@@ -312,12 +312,12 @@ class TestBacktestEngine:
         returns = pd.Series(np.random.randn(252) * 0.01 + 0.0005)  # SR≈0.8
 
         report = guard.evaluate(returns)
-        assert report.pbo >= 0  # PBO应在0~1
+        assert np.isnan(report.pbo) or 0 <= report.pbo <= 1  # 无变体矩阵时PBO为NaN(未定义)
         assert report.deflated_sharpe is not None
         assert report.monte_carlo_pvalue >= 0
 
         # 没有参数扫描数据时,PBO=0, DSR不应为负过大
-        assert not report.is_overfit or report.is_overfit  # 随机序列可能标记过拟合
+        assert isinstance(report.is_overfit, bool)  # 过拟合判定应为有效布尔值
 
     def test_time_split(self):
         """时间分割"""
@@ -581,6 +581,7 @@ class TestKnowledgeBase:
         assert km.verify_definition("volume_expansion", 2.0) == True   # >1.5
         assert km.verify_definition("volume_expansion", 1.2) == False  # <1.5
 
+    @pytest.mark.network  # ChromaDB 默认 embedding 需下载模型, 依赖网络
     def test_knowledge_manager_rag(self):
         """KnowledgeManager RAG检索"""
         from knowledge.manager import KnowledgeManager
@@ -630,7 +631,7 @@ class TestKnowledgeBase:
 
         assert "strategies" in registry
         strategies = registry["strategies"]
-        assert len(strategies) == 9  # 9个策略
+        assert len(strategies) >= 9  # v3.1: 9个策略 + northbound_follow
 
         # 每个策略有关键字段
         for s in strategies:
@@ -786,7 +787,10 @@ class TestIntegration:
         # Agent
         from agent import AnalysisWorkflow, AgentMemory, MarketAnalysisState
 
-        assert True
+        # 上面全部导入成功即通过; 再验证关键符号可用
+        assert callable(EventDrivenBacktestEngine)
+        assert callable(ModelRouter)
+        assert callable(AnalysisWorkflow)
 
     def test_config_files_exist(self):
         """配置文件完整"""

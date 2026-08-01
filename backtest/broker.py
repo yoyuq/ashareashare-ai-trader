@@ -110,6 +110,13 @@ class Account:
         return self.cash + position_value
 
     @property
+    def total_return_pct(self) -> float:
+        """总收益率(百分比%). 无行情时按成本价估值持仓"""
+        if self.initial_capital <= 0:
+            return 0.0
+        return (self.total_asset() - self.initial_capital) / self.initial_capital * 100
+
+    @property
     def total_return(self) -> float:
         """v2.14: 修复 — total_return 应包含持仓市值, 非仅现金"""
         return self.total_return_pct
@@ -140,6 +147,10 @@ class AShareBroker:
         self.trade_log: List[Dict] = []
         self._cur_date: Optional[date] = None
         self._cur_prices: Dict[str, pd.Series] = {}  # {symbol: daily_bar}
+        # T+1 延迟执行: True 时 buy/sell 只入队挂单, 由 execute_pending_orders()
+        # 在次日以开盘价执行 (消除"收盘价决策+收盘价成交"的时序乐观偏差)
+        self.deferred_execution: bool = False
+        self._pending_orders: List[Order] = []
 
     def set_date(self, dt: date):
         """设置当前交易日"""
@@ -174,8 +185,8 @@ class AShareBroker:
         lots = max(quantity // 100, 1)
         qty = lots * 100
 
-        # 获取执行价
-        exec_price = self._get_execution_price(symbol, price, OrderSide.BUY)
+        # 获取执行价 (延迟执行模式保留原始委托价: None=市价, 执行时按次日开盘价)
+        exec_price = price if self.deferred_execution else self._get_execution_price(symbol, price, OrderSide.BUY)
 
         order = Order(
             symbol=symbol,
@@ -185,6 +196,11 @@ class AShareBroker:
             order_id=f"B-{self._cur_date}-{symbol}-{len(self.orders)}",
             create_time=self._cur_date or date.today(),
         )
+
+        # T+1 延迟执行: 仅挂单, 次日开盘由 execute_pending_orders() 校验并成交
+        if self.deferred_execution:
+            self._pending_orders.append(order)
+            return order
 
         # 费用计算
         amount = qty * exec_price
@@ -259,8 +275,8 @@ class AShareBroker:
         lots = max(quantity // 100, 1)
         qty = lots * 100
 
-        # 获取执行价
-        exec_price = self._get_execution_price(symbol, price, OrderSide.SELL)
+        # 获取执行价 (延迟执行模式保留原始委托价: None=市价, 执行时按次日开盘价)
+        exec_price = price if self.deferred_execution else self._get_execution_price(symbol, price, OrderSide.SELL)
 
         order = Order(
             symbol=symbol,
@@ -270,6 +286,11 @@ class AShareBroker:
             order_id=f"S-{self._cur_date}-{symbol}-{len(self.orders)}",
             create_time=self._cur_date or date.today(),
         )
+
+        # T+1 延迟执行: 仅挂单, 次日开盘由 execute_pending_orders() 校验并成交
+        if self.deferred_execution:
+            self._pending_orders.append(order)
+            return order
 
         # T+1检查
         pos = self.account.positions.get(symbol)
@@ -349,6 +370,157 @@ class AShareBroker:
         return order
 
     # ═══════════════════════════════════════════════════════════════
+    # 延迟执行 (T+1: T日下单 → T+1日开盘价成交)
+    # ═══════════════════════════════════════════════════════════════
+
+    def execute_pending_orders(self) -> List[Order]:
+        """以当日开盘价执行上一交易日的挂单 (引擎每日 set_prices 后调用)。
+
+        成交前重新校验: 涨停封板(买)/跌停封板(卖)/T+1/资金/持仓。
+        无法成交的订单标记 REJECTED (策略可于后续交易日重新触发信号)。
+        """
+        pending, self._pending_orders = self._pending_orders, []
+        for order in pending:
+            if order.side == OrderSide.BUY:
+                self._fill_pending_buy(order)
+            else:
+                self._fill_pending_sell(order)
+        return pending
+
+    def _bar_open(self, symbol: str) -> float:
+        """当日开盘价 (延迟订单执行价); 缺失时退回收盘价"""
+        bar = self._cur_prices.get(symbol)
+        if bar is None:
+            return 0.0
+        if isinstance(bar, pd.Series):
+            open_px = float(bar.get("open", 0)) if "open" in bar.index else 0.0
+            return open_px if open_px > 0 else float(bar.get("close", 0))
+        if isinstance(bar, dict):
+            return float(bar.get("open") or bar.get("close") or 0)
+        return float(bar) if isinstance(bar, (int, float)) else 0.0
+
+    def _fill_pending_buy(self, order: Order):
+        symbol = order.symbol
+        exec_price = self._bar_open(symbol) if order.price is None else order.price
+        if exec_price <= 0:  # 停牌/无数据
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        if self._is_limit_hit(symbol, OrderSide.BUY):  # 涨停封板买不进
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        # 按开盘价重算, 资金不足则逐手缩减
+        qty = order.quantity
+        commission = transfer_fee = total_cost = amount = 0.0
+        while qty >= 100:
+            amount = qty * exec_price
+            commission = max(amount * self.COMMISSION_RATE, self.MIN_COMMISSION)
+            transfer_fee = amount * self.TRANSFER_FEE_RATE if self._is_shanghai(symbol) else 0.0
+            total_cost = amount + commission + transfer_fee
+            if total_cost <= self.account.cash:
+                break
+            qty -= 100
+        if qty < 100:
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        order.status = OrderStatus.FILLED
+        order.quantity = qty
+        order.filled_qty = qty
+        order.filled_price = exec_price
+        order.commission = commission
+        order.stamp_duty = 0.0
+        order.transfer_fee = transfer_fee
+
+        self.account.cash -= total_cost
+        self.account.total_commission += commission
+        self.account.total_transfer_fee += transfer_fee
+        self.account.trade_count += 1
+
+        if symbol not in self.account.positions:
+            self.account.positions[symbol] = Position(
+                symbol=symbol,
+                side=PositionSide.LONG,
+                buy_date=self._cur_date,
+                can_sell_date=self._next_trade_date(),
+            )
+        pos = self.account.positions[symbol]
+        pos.quantity += qty
+        pos.total_cost += qty * exec_price
+        pos.avg_cost = pos.total_cost / pos.quantity if pos.quantity > 0 else 0
+
+        self.orders.append(order)
+        self._log_trade(order)
+
+    def _fill_pending_sell(self, order: Order):
+        symbol = order.symbol
+        pos = self.account.positions.get(symbol)
+        if pos is None or pos.quantity <= 0:
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        # T+1: 执行日早于可卖日 → 拒绝
+        if self._cur_date and pos.can_sell_date and self._cur_date < pos.can_sell_date:
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        if self._is_limit_hit(symbol, OrderSide.SELL):  # 跌停封板卖不出
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        exec_price = self._bar_open(symbol) if order.price is None else order.price
+        if exec_price <= 0:
+            order.status = OrderStatus.REJECTED
+            self.orders.append(order)
+            return
+
+        qty = min(order.quantity, pos.quantity)
+        amount = qty * exec_price
+        commission = max(amount * self.COMMISSION_RATE, self.MIN_COMMISSION)
+        stamp_duty = amount * self.STAMP_DUTY_RATE
+        transfer_fee = amount * self.TRANSFER_FEE_RATE if self._is_shanghai(symbol) else 0.0
+        sell_income = amount - (commission + stamp_duty + transfer_fee)
+        cost_basis = pos.avg_cost * qty
+        pnl = sell_income - cost_basis
+
+        order.status = OrderStatus.FILLED
+        order.quantity = qty
+        order.filled_qty = qty
+        order.filled_price = exec_price
+        order.commission = commission
+        order.stamp_duty = stamp_duty
+        order.transfer_fee = transfer_fee
+        order._pnl = pnl
+        order._pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0.0
+
+        self.account.cash += sell_income
+        self.account.total_commission += commission
+        self.account.total_stamp_duty += stamp_duty
+        self.account.total_transfer_fee += transfer_fee
+        self.account.trade_count += 1
+        if pnl >= 0:
+            self.account.win_count += 1
+        else:
+            self.account.loss_count += 1
+
+        pos.quantity -= qty
+        if pos.quantity <= 0:
+            self.account.positions.pop(symbol)
+        else:
+            pos.total_cost -= cost_basis
+            pos.avg_cost = pos.total_cost / pos.quantity
+
+        self.orders.append(order)
+        self._log_trade(order)
+
+    # ═══════════════════════════════════════════════════════════════
     # 辅助方法
     # ═══════════════════════════════════════════════════════════════
 
@@ -393,6 +565,12 @@ class AShareBroker:
             pct_change = bar.get("pct_change", 0) if "pct_change" in bar.index else 0
         else:
             return False
+
+        # 无 pct_change 字段时用 pre_close 现算 (避免默认0导致涨跌停判定失效)
+        if not pct_change:
+            pre_close = bar.get("pre_close", 0)
+            if pre_close and close:
+                pct_change = (close / pre_close - 1) * 100
 
         # v2.14: 按板块区分涨跌停幅度
         limit_pct = 10.0  # 主板默认

@@ -1,10 +1,18 @@
-"""End-to-end test: Ollama + DeepSeek + Full Pipeline"""
+"""End-to-end test: Ollama + DeepSeek + Full Pipeline
+
+联网/环境依赖测试, 整文件标记为 network, 默认套件跳过 (pytest -m "not network"),
+显式运行: pytest -m network tests/test_e2e.py
+"""
 import asyncio, sys, os, json, time
 from pathlib import Path
 from datetime import date, timedelta
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv; load_dotenv()
+
+pytestmark = pytest.mark.network
 
 async def test_ollama_available():
     """Test 1: Ollama"""

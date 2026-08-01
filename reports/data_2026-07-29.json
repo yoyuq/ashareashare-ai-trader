@@ -1,0 +1,1070 @@
+{
+  "date": "2026-07-29",
+  "market_regime": {
+    "regime": "weak_bear",
+    "confidence": 0.5,
+    "scores": {
+      "votes": {
+        "range_bound": 1,
+        "weak_bear": 3,
+        "crisis": 2
+      },
+      "valid_indices": 6
+    },
+    "index_details": {
+      "上证综指": {
+        "regime": "range_bound",
+        "confidence": 0.056
+      },
+      "深证成指": {
+        "regime": "weak_bear",
+        "confidence": 0.262
+      },
+      "创业板指": {
+        "regime": "crisis",
+        "confidence": 1.0
+      },
+      "科创50": {
+        "regime": "crisis",
+        "confidence": 1.0
+      },
+      "沪深300": {
+        "regime": "weak_bear",
+        "confidence": 0.098
+      },
+      "中证500": {
+        "regime": "weak_bear",
+        "confidence": 0.223
+      }
+    },
+    "recommendation": "减仓防守，仓位20-30%"
+  },
+  "debate": {
+    "direction": "bullish",
+    "confidence": 0.3,
+    "divergence": 0.5,
+    "summary": "规则引擎: 15BUY/7HOLD/8SELL"
+  },
+  "stock_recommendations": {
+    "sh.600036": {
+      "action": "HOLD",
+      "conviction": 0.35,
+      "score": 9.7,
+      "key_reasons": [
+        "综合97分(前20%)",
+        "趋势强劲(0.86)"
+      ],
+      "risks": [
+        "RSI=73超买区间"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 3.3,
+      "verdict_summary": "规则: HOLD(35%) net=+3",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.000333": {
+      "action": "HOLD",
+      "conviction": 0.35,
+      "score": 9.7,
+      "key_reasons": [
+        "综合97分(前20%)",
+        "趋势强劲(0.84)"
+      ],
+      "risks": [
+        "RSI=76超买区间"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 3.3,
+      "verdict_summary": "规则: HOLD(35%) net=+3",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.688981": {
+      "action": "SELL",
+      "conviction": 0.79,
+      "score": 0.4,
+      "key_reasons": [
+        "技术指标中性"
+      ],
+      "risks": [
+        "综合仅4分(后30%)",
+        "趋势偏空(-0.37)"
+      ],
+      "bull_quality": 2.4,
+      "bear_quality": 3.7,
+      "verdict_summary": "规则: SELL(79%) net=-27",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.002230": {
+      "action": "SELL",
+      "conviction": 0.81,
+      "score": 3.2,
+      "key_reasons": [
+        "技术指标中性"
+      ],
+      "risks": [
+        "综合偏低(32分)",
+        "趋势走弱(-0.65)"
+      ],
+      "bull_quality": 2.4,
+      "bear_quality": 3.9,
+      "verdict_summary": "规则: SELL(81%) net=-29",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.601127": {
+      "action": "SELL",
+      "conviction": 0.47,
+      "score": 3.1,
+      "key_reasons": [
+        "趋势偏多(0.23)"
+      ],
+      "risks": [
+        "综合偏低(31分)"
+      ],
+      "bull_quality": 2.6,
+      "bear_quality": 3.0,
+      "verdict_summary": "规则: SELL(47%) net=-8",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600031": {
+      "action": "BUY",
+      "conviction": 0.59,
+      "score": 9.7,
+      "key_reasons": [
+        "综合97分(前20%)",
+        "趋势强劲(0.77)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(59%) net=+14",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.601088": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 10.0,
+      "key_reasons": [
+        "综合100分(前20%)",
+        "趋势强劲(0.61)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.601668": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 9.7,
+      "key_reasons": [
+        "综合97分(前20%)",
+        "趋势强劲(0.56)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.601318": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 9.3,
+      "key_reasons": [
+        "综合93分(前20%)",
+        "趋势强劲(0.55)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.000651": {
+      "action": "HOLD",
+      "conviction": 0.35,
+      "score": 9.4,
+      "key_reasons": [
+        "综合94分(前20%)",
+        "趋势强劲(0.86)"
+      ],
+      "risks": [
+        "RSI=74超买区间"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 3.3,
+      "verdict_summary": "规则: HOLD(35%) net=+3",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.688111": {
+      "action": "BUY",
+      "conviction": 0.47,
+      "score": 8.3,
+      "key_reasons": [
+        "综合83分(前20%)",
+        "趋势偏多(0.24)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.1,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(47%) net=+8",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.688256": {
+      "action": "SELL",
+      "conviction": 0.76,
+      "score": 0.0,
+      "key_reasons": [
+        "RSI=31超卖区间"
+      ],
+      "risks": [
+        "综合仅0分(后30%)",
+        "趋势偏空(-0.36)"
+      ],
+      "bull_quality": 2.6,
+      "bear_quality": 3.7,
+      "verdict_summary": "规则: SELL(76%) net=-24",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.601012": {
+      "action": "HOLD",
+      "conviction": 0.35,
+      "score": 4.9,
+      "key_reasons": [
+        "趋势强劲(0.51)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 2.9,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: HOLD(35%) net=+3",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600276": {
+      "action": "SELL",
+      "conviction": 0.6,
+      "score": 4.4,
+      "key_reasons": [
+        "技术指标中性"
+      ],
+      "risks": [
+        "趋势偏空(-0.37)"
+      ],
+      "bull_quality": 2.4,
+      "bear_quality": 3.2,
+      "verdict_summary": "规则: SELL(60%) net=-16",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600309": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 8.1,
+      "key_reasons": [
+        "综合81分(前20%)",
+        "趋势强劲(0.52)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.002714": {
+      "action": "BUY",
+      "conviction": 0.59,
+      "score": 8.9,
+      "key_reasons": [
+        "综合90分(前20%)",
+        "趋势强劲(0.52)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(59%) net=+14",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600519": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 9.7,
+      "key_reasons": [
+        "综合97分(前20%)",
+        "趋势强劲(0.58)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600030": {
+      "action": "SELL",
+      "conviction": 0.77,
+      "score": 2.9,
+      "key_reasons": [
+        "技术指标中性"
+      ],
+      "risks": [
+        "综合仅29分(后30%)"
+      ],
+      "bull_quality": 2.2,
+      "bear_quality": 3.5,
+      "verdict_summary": "规则: SELL(77%) net=-24",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.603605": {
+      "action": "HOLD",
+      "conviction": 0.26,
+      "score": 7.7,
+      "key_reasons": [
+        "综合77分(偏强)",
+        "趋势偏多(0.49)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 2.9,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: HOLD(26%) net=+0",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.300502": {
+      "action": "SELL",
+      "conviction": 0.76,
+      "score": 0.0,
+      "key_reasons": [
+        "RSI=29超卖区间"
+      ],
+      "risks": [
+        "综合仅0分(后30%)",
+        "趋势偏空(-0.36)"
+      ],
+      "bull_quality": 2.6,
+      "bear_quality": 3.7,
+      "verdict_summary": "规则: SELL(76%) net=-24",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.300750": {
+      "action": "HOLD",
+      "conviction": 0.33,
+      "score": 4.9,
+      "key_reasons": [
+        "趋势偏多(0.50)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 2.6,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: HOLD(33%) net=-3",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.300124": {
+      "action": "SELL",
+      "conviction": 0.82,
+      "score": 0.6,
+      "key_reasons": [
+        "RSI=33超卖区间"
+      ],
+      "risks": [
+        "综合仅6分(后30%)",
+        "趋势走弱(-0.61)"
+      ],
+      "bull_quality": 2.6,
+      "bear_quality": 4.1,
+      "verdict_summary": "规则: SELL(82%) net=-31",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.300760": {
+      "action": "BUY",
+      "conviction": 0.47,
+      "score": 9.4,
+      "key_reasons": [
+        "综合94分(前20%)",
+        "趋势偏多(0.29)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.1,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(47%) net=+8",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600900": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 10.0,
+      "key_reasons": [
+        "综合100分(前20%)",
+        "趋势强劲(0.87)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.000858": {
+      "action": "BUY",
+      "conviction": 0.59,
+      "score": 8.9,
+      "key_reasons": [
+        "综合89分(前20%)",
+        "趋势强劲(0.57)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(59%) net=+14",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.002415": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 7.3,
+      "key_reasons": [
+        "综合73分(偏强)",
+        "趋势强劲(0.78)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.2,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(48%) net=+10",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sz.002594": {
+      "action": "BUY",
+      "conviction": 0.47,
+      "score": 9.2,
+      "key_reasons": [
+        "综合92分(前20%)",
+        "趋势偏多(0.29)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.1,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(47%) net=+8",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600760": {
+      "action": "HOLD",
+      "conviction": 0.29,
+      "score": 7.8,
+      "key_reasons": [
+        "综合78分(偏强)",
+        "趋势强劲(0.55)"
+      ],
+      "risks": [
+        "RSI=76超买区间"
+      ],
+      "bull_quality": 3.2,
+      "bear_quality": 3.3,
+      "verdict_summary": "规则: HOLD(29%) net=-1",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.601899": {
+      "action": "BUY",
+      "conviction": 0.48,
+      "score": 9.8,
+      "key_reasons": [
+        "综合98分(前20%)",
+        "趋势强劲(0.55)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.9,
+      "verdict_summary": "规则: BUY(48%) net=+11",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    },
+    "sh.600009": {
+      "action": "BUY",
+      "conviction": 0.59,
+      "score": 9.3,
+      "key_reasons": [
+        "综合93分(前20%)",
+        "趋势强劲(0.53)"
+      ],
+      "risks": [
+        "无显著风险信号"
+      ],
+      "bull_quality": 3.5,
+      "bear_quality": 2.8,
+      "verdict_summary": "规则: BUY(59%) net=+14",
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0
+    }
+  },
+  "analysis_prices": {
+    "sh.600036": {
+      "close": 39.59,
+      "rsi_14": 73.0,
+      "trend_score": 0.86,
+      "composite_score": 96.9,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.000333": {
+      "close": 85.37,
+      "rsi_14": 75.9,
+      "trend_score": 0.84,
+      "composite_score": 97.1,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.688981": {
+      "close": 136.7,
+      "rsi_14": 35.7,
+      "trend_score": -0.37,
+      "composite_score": 3.7,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.002230": {
+      "close": 39.81,
+      "rsi_14": 40.8,
+      "trend_score": -0.65,
+      "composite_score": 31.8,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.601127": {
+      "close": 55.93,
+      "rsi_14": 46.1,
+      "trend_score": 0.23,
+      "composite_score": 30.8,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600031": {
+      "close": 19.7,
+      "rsi_14": 61.7,
+      "trend_score": 0.77,
+      "composite_score": 96.7,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.601088": {
+      "close": 45.44,
+      "rsi_14": 64.5,
+      "trend_score": 0.61,
+      "composite_score": 99.6,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.601668": {
+      "close": 4.64,
+      "rsi_14": 67.3,
+      "trend_score": 0.56,
+      "composite_score": 96.7,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.601318": {
+      "close": 54.2,
+      "rsi_14": 70.5,
+      "trend_score": 0.55,
+      "composite_score": 92.6,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.000651": {
+      "close": 40.8,
+      "rsi_14": 73.8,
+      "trend_score": 0.86,
+      "composite_score": 93.6,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.688111": {
+      "close": 241.24,
+      "rsi_14": 57.5,
+      "trend_score": 0.24,
+      "composite_score": 83.1,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.688256": {
+      "close": 1128.0,
+      "rsi_14": 30.7,
+      "trend_score": -0.36,
+      "composite_score": 0.4,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.601012": {
+      "close": 12.68,
+      "rsi_14": 60.2,
+      "trend_score": 0.51,
+      "composite_score": 49.0,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600276": {
+      "close": 53.29,
+      "rsi_14": 42.5,
+      "trend_score": -0.37,
+      "composite_score": 44.4,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600309": {
+      "close": 74.2,
+      "rsi_14": 62.7,
+      "trend_score": 0.52,
+      "composite_score": 81.4,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.002714": {
+      "close": 39.3,
+      "rsi_14": 54.1,
+      "trend_score": 0.52,
+      "composite_score": 89.5,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600519": {
+      "close": 1320.0,
+      "rsi_14": 70.5,
+      "trend_score": 0.58,
+      "composite_score": 96.9,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600030": {
+      "close": 28.09,
+      "rsi_14": 47.4,
+      "trend_score": -0.13,
+      "composite_score": 28.7,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.603605": {
+      "close": 60.26,
+      "rsi_14": 62.9,
+      "trend_score": 0.49,
+      "composite_score": 76.9,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.300502": {
+      "close": 406.9,
+      "rsi_14": 28.7,
+      "trend_score": -0.36,
+      "composite_score": 0.2,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.300750": {
+      "close": 390.86,
+      "rsi_14": 57.9,
+      "trend_score": 0.5,
+      "composite_score": 48.8,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.300124": {
+      "close": 58.67,
+      "rsi_14": 32.7,
+      "trend_score": -0.61,
+      "composite_score": 6.0,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.300760": {
+      "close": 150.54,
+      "rsi_14": 59.4,
+      "trend_score": 0.29,
+      "composite_score": 94.4,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600900": {
+      "close": 29.07,
+      "rsi_14": 66.9,
+      "trend_score": 0.87,
+      "composite_score": 100.0,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.000858": {
+      "close": 74.8,
+      "rsi_14": 59.0,
+      "trend_score": 0.57,
+      "composite_score": 89.3,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.002415": {
+      "close": 36.14,
+      "rsi_14": 61.9,
+      "trend_score": 0.78,
+      "composite_score": 73.1,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sz.002594": {
+      "close": 93.35,
+      "rsi_14": 61.0,
+      "trend_score": 0.29,
+      "composite_score": 92.4,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600760": {
+      "close": 43.46,
+      "rsi_14": 75.8,
+      "trend_score": 0.55,
+      "composite_score": 78.1,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.601899": {
+      "close": 31.69,
+      "rsi_14": 64.1,
+      "trend_score": 0.55,
+      "composite_score": 98.1,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    },
+    "sh.600009": {
+      "close": 24.04,
+      "rsi_14": 60.0,
+      "trend_score": 0.53,
+      "composite_score": 93.2,
+      "best_strategy_id": "",
+      "best_strategy_name": "",
+      "best_strategy_win_rate": 0,
+      "best_strategy_sharpe": 0,
+      "second_strategy_id": "",
+      "second_strategy_name": "",
+      "second_strategy_win_rate": 0,
+      "strategies_checked": 0,
+      "fundamentals": {}
+    }
+  },
+  "data_source": "baostock",
+  "elapsed_seconds": null,
+  "cost_total": 0.0
+}

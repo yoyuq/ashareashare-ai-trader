@@ -101,6 +101,10 @@ class DataResult:
             "closePrice": "close",
             "tradestatus": "trade_status",
             "isST": "is_st",
+            # Baostock 涨跌幅/昨收列 — pct_change 供回测涨跌停判定使用
+            # (此前缺失映射导致 _is_limit_hit 恒取默认0, 涨跌停永不触发)
+            "pctChg": "pct_change",
+            "preclose": "pre_close",
         }
         self.data = self.data.rename(columns={
             k: v for k, v in col_map.items() if k in self.data.columns

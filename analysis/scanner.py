@@ -82,6 +82,7 @@ class MarketScanner:
         min_daily_amount: float = 5e7,
         min_price: float = 3.0,
         max_concurrent: int = 8,
+        use_parallel: bool = False,  # v3.1: enable multiprocessing for CPU-bound work
     ) -> ScanResult:
         """
         全市场扫描 (两阶段: 快速筛选 → 深度分析)

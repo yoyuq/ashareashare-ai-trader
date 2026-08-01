@@ -135,3 +135,18 @@ strategies:
     market_regimes: ["strong_bull", "weak_bull", "range_bound", "weak_bear"]
     capacity_limit: 20000000
     version: "1.0"
+
+  # ====== 资金跟随 (1个) ======
+  - id: northbound_follow
+    name: "北向资金跟随策略"
+    category: "flow_following"
+    description: "跟踪北向资金(聪明钱)动向: 连续3日净流入+技术面共振做多"
+    params:
+      consecutive_days: 3
+      inflow_threshold: 0.05
+      tech_confirm: true
+      stop_loss_pct: 0.06
+    timeframes: ["daily"]
+    market_regimes: ["strong_bull", "weak_bull", "range_bound"]
+    capacity_limit: 12000000
+    version: "1.0"

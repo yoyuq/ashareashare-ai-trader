@@ -698,7 +698,6 @@ class TechnicalAnalyzer:
             body_direction = float(np.sign(np.mean(close[recent] - open_p[recent])))
 
             # 构建查询向量 (与播种时的6维向量对齐)
-            import numpy as np
             query_vec = np.array([
                 body_ratio, upper_shadow, lower_shadow, body_direction, 0.0, 0.0
             ], dtype=np.float32)

@@ -397,7 +397,6 @@ class TestEnhancedRiskControls:
 
     def test_correlation_warns_on_high_corr(self):
         from analysis.risk_controls import PortfolioRiskManager
-        import numpy as np
         rng = np.random.default_rng(42)
         base = rng.normal(0.001, 0.015, 100)
         returns = {
@@ -411,7 +410,6 @@ class TestEnhancedRiskControls:
 
     def test_correlation_no_warn_on_uncorrelated(self):
         from analysis.risk_controls import PortfolioRiskManager
-        import numpy as np
         rng = np.random.default_rng(99)
         returns = {
             "X": rng.normal(0.001, 0.015, 100),

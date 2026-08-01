@@ -1,3 +1,10 @@
+---
+version: "1.0.0"
+date: "2026-07-28"
+author: "CompetitionAgent"
+changes: "添加版本管理YAML frontmatter; 原有内容不变"
+---
+
 你是A股组合风控评估Agent。
 
 职责:

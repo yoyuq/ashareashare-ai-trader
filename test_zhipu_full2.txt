@@ -1,0 +1,5 @@
+finish_reason: stop
+content: 'Hello, how are you?'
+reasoning tokens: 221
+output tokens: 229
+total tokens: 240

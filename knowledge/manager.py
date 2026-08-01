@@ -71,18 +71,24 @@ class KnowledgeManager:
         if "{indicator_guide}" in prompt:
             guide = self._load_yaml("rules/indicator_guide.yaml")
             if guide:
+                guide_json = json.dumps(guide, ensure_ascii=False, indent=2)
+                if len(guide_json) > 10000:
+                    logger.warning(f"indicator_guide 过大({len(guide_json)}字符), 截断至10000字符")
                 prompt = prompt.replace(
                     "{indicator_guide}",
-                    json.dumps(guide, ensure_ascii=False, indent=2)[:8000]
+                    guide_json[:10000] + ("...(已截断)" if len(guide_json) > 10000 else "")
                 )
 
         # {trading_rules}
         if "{trading_rules}" in prompt:
             rules = self._load_yaml("rules/trading_rules.yaml")
             if rules:
+                rules_json = json.dumps(rules, ensure_ascii=False, indent=2)
+                if len(rules_json) > 8000:
+                    logger.warning(f"trading_rules 过大({len(rules_json)}字符), 截断至8000字符")
                 prompt = prompt.replace(
                     "{trading_rules}",
-                    json.dumps(rules, ensure_ascii=False, indent=2)[:5000]
+                    rules_json[:8000] + ("...(已截断)" if len(rules_json) > 8000 else "")
                 )
 
         # {strategy_list}
@@ -122,12 +128,124 @@ class KnowledgeManager:
             return path.read_text(encoding="utf-8")
         return None
 
-    def get_few_shot_examples(self, scenario: str) -> Optional[List[Dict]]:
-        """获取Few-shot示例"""
+    def get_few_shot_examples(self, scenario: str, normalized: bool = True) -> Optional[List[Dict]]:
+        """
+        获取Few-shot示例
+
+        Args:
+            scenario: 场景名(不含.json)
+            normalized: 是否统一格式为标准 examples 数组
+
+        Returns:
+            标准化后的示例列表, 或 None
+        """
         path = self.root / "prompts" / "few_shots" / f"{scenario}.json"
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-        return None
+        if not path.exists():
+            return None
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if normalized:
+            return self._normalize_few_shot(raw)
+        return raw if isinstance(raw, list) else [raw]
+
+    def _normalize_few_shot(self, raw: Any) -> List[Dict]:
+        """
+        统一 Few-shot 格式 → 标准 examples 数组
+
+        标准格式: [{scenario, description, examples: [{id, query, analysis, decision}]}]
+
+        支持的输入格式:
+          - examples 数组 (panic_sell, sector_rotation, signal_review)
+          - assistant_response.decision_tree (limit_up_analysis, breakout_chase)
+          - 直接对象
+        """
+        # 已是标准格式
+        if isinstance(raw, dict) and "examples" in raw:
+            return raw["examples"] if isinstance(raw["examples"], list) else [raw["examples"]]
+
+        # decision_tree 格式 → 转为 examples
+        if isinstance(raw, dict) and "assistant_response" in raw:
+            ar = raw["assistant_response"]
+            example = {
+                "id": raw.get("scenario", "unknown"),
+                "query": ar.get("structure", {}).get("current_status", raw.get("description", "")),
+                "analysis": {"key_principles": ar.get("key_principles", []),
+                            "decision_tree": ar.get("decision_tree", {})},
+                "decision": {"action": "VARIES", "reasoning": ar.get("key_principles", []),
+                            "risk_warning": "见决策树各分支"},
+            }
+            return [example]
+
+        # 直接对象
+        if isinstance(raw, dict):
+            return [raw]
+
+        # 数组
+        if isinstance(raw, list):
+            return raw
+
+        return []
+
+    # ═══════════════════════════════════════════════════════════════
+    # 1.5 提示词版本管理 (v3.0-competition)
+    # ═══════════════════════════════════════════════════════════════
+
+    def get_prompt_version(self, agent_name: str) -> Optional[Dict[str, str]]:
+        """
+        获取提示词的版本信息 (从 YAML frontmatter 解析)
+
+        Args:
+            agent_name: Agent名称
+
+        Returns:
+            dict with keys: version, date, author, changes
+            如果文件不存在或无版本信息,返回 None
+        """
+        path = self.root / "prompts" / "system" / f"{agent_name}.txt"
+        if not path.exists():
+            return None
+
+        content = path.read_text(encoding="utf-8")
+        frontmatter = self._parse_prompt_frontmatter(content)
+        return frontmatter if frontmatter else None
+
+    def _parse_prompt_frontmatter(self, content: str) -> Dict[str, str]:
+        """解析提示词文件的 YAML frontmatter"""
+        if not content.startswith("---"):
+            return {}
+
+        try:
+            end = content.index("---", 3)
+            fm_text = content[3:end].strip()
+            result = {}
+            for line in fm_text.split("\n"):
+                line = line.strip()
+                if ":" in line:
+                    key, _, value = line.partition(":")
+                    result[key.strip()] = value.strip().strip('"')
+            return result
+        except (ValueError, IndexError):
+            return {}
+
+    def list_all_prompts(self) -> List[Dict]:
+        """列出所有系统提示词及其版本信息"""
+        prompts = []
+        prompt_dir = self.root / "prompts" / "system"
+        if not prompt_dir.exists():
+            return prompts
+
+        for f in sorted(prompt_dir.glob("*.txt")):
+            version_info = self.get_prompt_version(f.stem)
+            prompts.append({
+                "name": f.stem,
+                "file": f.name,
+                "size_chars": f.stat().st_size,
+                "version": version_info.get("version", "unknown") if version_info else "unknown",
+                "date": version_info.get("date", "") if version_info else "",
+                "author": version_info.get("author", "") if version_info else "",
+            })
+
+        return prompts
 
     # ═══════════════════════════════════════════════════════════════
     # 2. 规则知识 (结构化查询)
@@ -208,6 +326,70 @@ class KnowledgeManager:
             return True
 
         return value >= threshold
+
+    def pit_verify(self, data_date: str, analysis_date: str = None) -> Dict[str, Any]:
+        """
+        PIT (Point-in-Time) 数据时点校验
+
+        防止 look-ahead bias: 确认分析所用数据的日期不晚于分析执行日期。
+
+        Args:
+            data_date: 数据报告日期 (如 '2026Q1', '2026-03-31')
+            analysis_date: 分析执行日期 (默认今天)
+
+        Returns:
+            {pit_ok: bool, gap_days: int, warning: str}
+        """
+        from datetime import date as dt_date, timedelta
+
+        if analysis_date is None:
+            analysis_date = dt_date.today().isoformat()
+
+        try:
+            # 处理季度格式
+            if "Q" in data_date:
+                year = int(data_date[:4])
+                quarter = int(data_date[5]) if len(data_date) > 5 else int(data_date.split("Q")[1])
+                month = quarter * 3
+                data_dt = dt_date(year, month, 1) + timedelta(days=90)
+            else:
+                data_dt = dt_date.fromisoformat(data_date[:10])
+
+            analysis_dt = dt_date.fromisoformat(analysis_date[:10])
+            gap = (analysis_dt - data_dt).days
+
+            if gap < -7:
+                return {"pit_ok": False, "gap_days": gap,
+                        "warning": f"数据日期({data_date})晚于分析日期({analysis_date}), 存在未来信息泄露风险"}
+            elif gap > 180:
+                return {"pit_ok": True, "gap_days": gap,
+                        "warning": f"数据过旧({gap}天前), 建议更新"}
+            else:
+                return {"pit_ok": True, "gap_days": gap, "warning": ""}
+        except Exception as e:
+            return {"pit_ok": False, "gap_days": 0, "warning": f"日期解析失败: {e}"}
+
+    def get_pit_report(self, data_sources: Dict[str, str]) -> Dict[str, Any]:
+        """
+        批量 PIT 校验
+
+        Args:
+            data_sources: {来源名: 数据日期}, e.g. {"财报": "2026Q1", "行情": "2026-07-30"}
+
+        Returns:
+            {all_ok: bool, checks: [{source, pit_ok, warning}], summary: str}
+        """
+        checks = []
+        for source, ddate in data_sources.items():
+            r = self.pit_verify(ddate)
+            r["source"] = source
+            checks.append(r)
+
+        all_ok = all(c["pit_ok"] for c in checks)
+        issues = [c for c in checks if not c["pit_ok"] or c["warning"]]
+        summary = "PIT校验通过" if all_ok else f"{len(issues)}个数据源存在问题"
+
+        return {"all_ok": all_ok, "checks": checks, "summary": summary}
 
     # ═══════════════════════════════════════════════════════════════
     # 3. 策略知识
@@ -307,7 +489,11 @@ class KnowledgeManager:
 
     @property
     def chroma_available(self) -> bool:
-        """ChromaDB是否可用(含数据)"""
+        """
+        ChromaDB是否可用(含数据)
+
+        v3.0-competition: 首次访问时自动初始化ChromaDB并播种示例数据
+        """
         try:
             if self._chroma_client is None:
                 import chromadb
@@ -318,7 +504,12 @@ class KnowledgeManager:
                 )
             # 检查是否有collection
             collections = self._chroma_client.list_collections()
-            return len(collections) > 0
+            if len(collections) == 0:
+                # v3.0: 自动播种示例数据
+                logger.info("ChromaDB未初始化,自动播种K线形态数据...")
+                self.initialize_vectordb()
+                return len(self._chroma_client.list_collections()) > 0
+            return True
         except Exception:
             return False
 
@@ -349,16 +540,21 @@ class KnowledgeManager:
             # 检查collection是否已存在
             existing = [c.name for c in self._chroma_client.list_collections()]
             if collection_name in existing:
-                logger.info(f"ChromaDB collection '{collection_name}' 已存在 ({self._chroma_client.get_collection(collection_name).count()} 条)")
+                col = self._chroma_client.get_collection(collection_name)
+                count = col.count()
+                logger.info(f"ChromaDB collection '{collection_name}' exists ({count} patterns)")
+                # v3.1: 如果为空, 重新播种
+                if count == 0:
+                    self._seed_pattern_data(col)
                 return True
 
-            # 创建新collection
+            # 创建新collection (v3.1: manual float vectors, no model download needed)
             collection = self._chroma_client.create_collection(
                 name=collection_name,
-                metadata={"description": "K线形态向量索引 (v2.9)"},
+                metadata={"description": "K-line pattern vector index (v3.1)"},
             )
 
-            # 🆕 v2.9: 播种示例形态数据 (真实形态的归一化向量)
+            # v3.1: 播种K线形态数据 (manual float embeddings)
             self._seed_pattern_data(collection)
 
             logger.info(f"ChromaDB初始化成功: {store_path} / {collection_name}")
@@ -430,48 +626,107 @@ class KnowledgeManager:
             })
 
         try:
+            # v3.1: Use manual float embeddings (no model download required)
             collection.add(
                 ids=ids,
                 embeddings=embeddings,
                 documents=documents,
                 metadatas=metadatas,
             )
-            logger.info(f"[ChromaDB] 播种 {len(ids)} 条K线形态数据")
+            logger.info(f"[ChromaDB] Seeded {len(ids)} K-line patterns (manual vectors)")
         except Exception as e:
-            logger.debug(f"[ChromaDB] 播种跳过: {e}")
+            logger.debug(f"[ChromaDB] Seed skipped: {e}")
 
     def search_similar_klines(
         self,
-        vector: List[float],
+        query: Any = None,
         top_k: int = 30,
     ) -> List[Dict]:
         """
-        向量检索历史相似K线形态
+        Retrieve similar K-line patterns from ChromaDB.
+
+        v3.1: Accepts either text query (str) or float vector (List[float]).
 
         Args:
-            vector: 查询向量
-            top_k: 返回数量
+            query: Text description OR float vector for similarity search
+            top_k: Number of results to return
 
         Returns:
-            相似K线列表, 含metadata
+            List of matching patterns with metadata
         """
         if not self.chroma_available:
-            logger.debug("ChromaDB不可用或无数据, 跳过向量检索")
+            logger.debug("ChromaDB unavailable, skipping vector search")
+            return []
+
+        if query is None:
             return []
 
         try:
-            collection = self._chroma_client.get_or_create_collection(
-                "kline_patterns"
-            )
-            results = collection.query(
-                query_embeddings=[vector],
-                n_results=top_k,
-                include=["metadatas", "distances"],
-            )
-            return results
+            collection = self._chroma_client.get_collection("kline_patterns")
+
+            # v3.1: Auto-detect query type.
+            # For text queries without an embedding function, fall back to keyword matching.
+            if isinstance(query, str):
+                # Try text query first (requires embedding function on collection)
+                try:
+                    results = collection.query(
+                        query_texts=[query],
+                        n_results=top_k,
+                        include=["metadatas", "distances"],
+                    )
+                except Exception:
+                    # Fallback: keyword match on document content
+                    return self._keyword_match_klines(query, top_k)
+            else:
+                results = collection.query(
+                    query_embeddings=[query],
+                    n_results=top_k,
+                    include=["metadatas", "distances"],
+                )
+
+            # Format results
+            formatted = []
+            if results and results.get("ids") and results["ids"][0]:
+                for i, doc_id in enumerate(results["ids"][0]):
+                    meta = results.get("metadatas", [[]])[0]
+                    dist = results.get("distances", [[]])[0]
+                    formatted.append({
+                        "id": doc_id,
+                        "pattern": meta[i].get("pattern", "unknown") if i < len(meta) else "unknown",
+                        "similarity": round(1 - dist[i], 3) if i < len(dist) else 0,
+                        "description": results.get("documents", [[""]])[0][i] if results.get("documents") else "",
+                    })
+            return formatted
         except Exception as e:
             logger.debug(f"向量检索失败: {e}")
             return []
+
+    def _keyword_match_klines(self, query: str, top_k: int = 5) -> List[Dict]:
+        """v3.1: Fallback keyword matching for K-line pattern search."""
+        patterns_map = {
+            "doji": "Cross star — open near close, upper/lower shadows similar length. Trend reversal signal.",
+            "hammer": "Hammer — long lower shadow (>=2x body), small body at top. Bullish reversal after downtrend.",
+            "shooting_star": "Shooting star — long upper shadow (>=2x body), small body at bottom. Bearish reversal after uptrend.",
+            "bullish_engulfing": "Bullish engulfing — white body fully covers prior black body. Strong bullish reversal.",
+            "bearish_engulfing": "Bearish engulfing — black body fully covers prior white body. Strong bearish reversal.",
+            "morning_star": "Morning star — three-day pattern: black->doji->white. Bottom reversal.",
+            "evening_star": "Evening star — three-day pattern: white->doji->black. Top reversal.",
+            "three_soldiers": "Three white soldiers — three consecutive white candles. Bullish continuation.",
+        }
+        query_lower = query.lower()
+        results = []
+        for name, desc in patterns_map.items():
+            # Simple keyword matching
+            words = set(query_lower.replace('=', ' ').replace(',', ' ').split())
+            desc_lower = desc.lower()
+            if any(w in desc_lower for w in words) or name.replace('_', ' ') in query_lower:
+                results.append({
+                    "id": f"kw_{name}",
+                    "pattern": name,
+                    "similarity": 0.5,
+                    "description": desc,
+                })
+        return results[:top_k]
 
     def rag_query(self, query: str, top_k: int = 5) -> str:
         """
@@ -488,12 +743,16 @@ class KnowledgeManager:
         Returns:
             拼接后的相关文本
         """
-        # 尝试向量检索
+        # 尝试向量检索 (v3.1: fixed collection name)
         if self.chroma_available:
             try:
-                collection = self._chroma_client.get_collection(
-                    "knowledge_base"
-                )
+                # 优先搜索 kline_patterns (种子数据所在collection)
+                # fallback到 knowledge_base (用户自定义知识)
+                existing_collections = [c.name for c in self._chroma_client.list_collections()]
+                target = "kline_patterns" if "kline_patterns" in existing_collections else "knowledge_base"
+                if target not in existing_collections:
+                    return self._keyword_fallback(query)
+                collection = self._chroma_client.get_collection(target)
                 results = collection.query(
                     query_texts=[query],
                     n_results=top_k,

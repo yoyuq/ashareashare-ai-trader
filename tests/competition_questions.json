@@ -1,0 +1,201 @@
+{
+  "name": "AI+金融量化分析智能体 — 竞赛测试问题集",
+  "version": "1.0.0",
+  "created": "2026-07-28",
+  "description": "覆盖比赛场景的20+个测试问题,用于对话质量评估",
+  "scoring_guide": {
+    "format_compliance": "回复格式是否规范 (0-3分)",
+    "data_accuracy": "数值是否可验证 (0-2分)",
+    "logic_consistency": "逻辑是否自洽 (0-2分)",
+    "risk_warning": "是否包含风险提示 (0-3分)"
+  },
+  "categories": {
+    "market_analysis": {
+      "label": "市场分析",
+      "weight": 1.0,
+      "description": "市场状态判断和宏观分析能力"
+    },
+    "stock_analysis": {
+      "label": "个股诊断",
+      "weight": 1.5,
+      "description": "个股技术面和基本面分析能力"
+    },
+    "strategy_recommendation": {
+      "label": "策略推荐",
+      "weight": 1.2,
+      "description": "策略匹配和回测验证能力"
+    },
+    "risk_warning": {
+      "label": "风险预警",
+      "weight": 1.3,
+      "description": "风险识别和预警能力"
+    },
+    "concept_explanation": {
+      "label": "概念解释",
+      "weight": 0.8,
+      "description": "A股交易规则和概念解释能力"
+    }
+  },
+  "questions": [
+    {
+      "id": "q001",
+      "category": "market_analysis",
+      "question": "当前A股市场整体处于什么状态？请判断牛熊并给出数据依据。",
+      "expected_points": ["市场体制判断", "指数数据", "成交量", "涨跌比"],
+      "min_score": 5,
+      "tags": ["市场体制", "牛熊判断"]
+    },
+    {
+      "id": "q002",
+      "category": "market_analysis",
+      "question": "最近北向资金是什么流向？这对市场意味着什么？",
+      "expected_points": ["北向资金数据", "流向分析", "市场影响"],
+      "min_score": 4,
+      "tags": ["北向资金", "资金流向"]
+    },
+    {
+      "id": "q003",
+      "category": "market_analysis",
+      "question": "当前哪些行业板块表现最强？请给出轮动分析。",
+      "expected_points": ["领涨板块", "领跌板块", "轮动阶段", "资金流向"],
+      "min_score": 5,
+      "tags": ["板块轮动", "行业分析"]
+    },
+    {
+      "id": "q004",
+      "category": "stock_analysis",
+      "question": "分析一下600519贵州茅台的技术面，给出综合评分和操作建议。",
+      "expected_points": ["趋势分析", "动量指标", "成交量", "支撑阻力", "综合评分"],
+      "min_score": 6,
+      "tags": ["蓝筹", "技术分析"]
+    },
+    {
+      "id": "q005",
+      "category": "stock_analysis",
+      "question": "000858五粮液的RSI指标现在是什么状态？是否存在顶底背离？",
+      "expected_points": ["RSI数值", "超买超卖判断", "背离分析"],
+      "min_score": 4,
+      "tags": ["RSI", "背离"]
+    },
+    {
+      "id": "q006",
+      "category": "stock_analysis",
+      "question": "最近市场上有哪些股票突破了60日均线且成交量放大？",
+      "expected_points": ["突破标的", "成交量确认", "信号可靠性"],
+      "min_score": 5,
+      "tags": ["均线突破", "量价配合"]
+    },
+    {
+      "id": "q007",
+      "category": "stock_analysis",
+      "question": "扫描一下全市场，找出评分最高的10只股票。",
+      "expected_points": ["扫描结果", "评分维度", "过滤规则"],
+      "min_score": 5,
+      "tags": ["全市场扫描", "评分排序"]
+    },
+    {
+      "id": "q008",
+      "category": "strategy_recommendation",
+      "question": "当前市场环境下，应该使用什么投资策略？请说明理由。",
+      "expected_points": ["市场体制", "适配策略", "策略参数", "风险提示"],
+      "min_score": 5,
+      "tags": ["策略匹配", "市场适配"]
+    },
+    {
+      "id": "q009",
+      "category": "strategy_recommendation",
+      "question": "回测一下MACD趋势策略在600519贵州茅台上近2年的表现。",
+      "expected_points": ["回测结果", "胜率", "夏普比率", "最大回撤"],
+      "min_score": 6,
+      "tags": ["回测", "策略绩效"]
+    },
+    {
+      "id": "q010",
+      "category": "strategy_recommendation",
+      "question": "比较一下双均线策略和MACD策略在震荡市中的表现差异。",
+      "expected_points": ["策略对比", "震荡市特征", "适用性分析"],
+      "min_score": 5,
+      "tags": ["策略对比", "震荡市"]
+    },
+    {
+      "id": "q011",
+      "category": "strategy_recommendation",
+      "question": "北向资金最近3天连续流入哪些股票？分析是否可以跟随。",
+      "expected_points": ["北向数据", "跟随逻辑", "风险提示"],
+      "min_score": 4,
+      "tags": ["北向资金", "跟随策略"]
+    },
+    {
+      "id": "q012",
+      "category": "risk_warning",
+      "question": "我满仓持有300750宁德时代，当前回撤已经超过10%了，该怎么办？",
+      "expected_points": ["回撤评估", "风控触发", "具体建议", "仓位管理"],
+      "min_score": 6,
+      "tags": ["回撤管理", "风控触发"]
+    },
+    {
+      "id": "q013",
+      "category": "risk_warning",
+      "question": "我的持仓里面有4只白酒股，有什么问题吗？如何调整？",
+      "expected_points": ["行业集中度", "风险分析", "分散建议"],
+      "min_score": 5,
+      "tags": ["行业集中度", "组合风险"]
+    },
+    {
+      "id": "q014",
+      "category": "risk_warning",
+      "question": "如果明天大盘突然暴跌5%，我的持仓会承受多大损失？应该提前做什么准备？",
+      "expected_points": ["情景分析", "损失估算", "应对方案", "止损设置"],
+      "min_score": 5,
+      "tags": ["压力测试", "情景分析"]
+    },
+    {
+      "id": "q015",
+      "category": "risk_warning",
+      "question": "什么是ATR动态止损？怎么设置才合理？",
+      "expected_points": ["ATR概念", "计算方法", "设置建议", "实例说明"],
+      "min_score": 4,
+      "tags": ["ATR", "止损"]
+    },
+    {
+      "id": "q016",
+      "category": "concept_explanation",
+      "question": "A股的T+1制度是什么意思？对我的交易有什么影响？",
+      "expected_points": ["T+1定义", "与T+0对比", "实操影响", "应对策略"],
+      "min_score": 4,
+      "tags": ["T+1", "交易规则"]
+    },
+    {
+      "id": "q017",
+      "category": "concept_explanation",
+      "question": "什么是MACD金叉和死叉？在A股实战中可靠性如何？",
+      "expected_points": ["MACD原理", "金叉死叉定义", "可靠性评估", "实战注意事项"],
+      "min_score": 4,
+      "tags": ["MACD", "金叉死叉"]
+    },
+    {
+      "id": "q018",
+      "category": "concept_explanation",
+      "question": "北交所的涨跌停制度和主板有什么不同？",
+      "expected_points": ["涨跌停制度对比", "创业板/科创板/北交所区别"],
+      "min_score": 3,
+      "tags": ["涨跌停", "交易制度"]
+    },
+    {
+      "id": "q019",
+      "category": "stock_analysis",
+      "question": "帮我分析一下002594比亚迪的技术面和资金面，给出评分。",
+      "expected_points": ["技术指标", "资金流向", "综合评分", "风险提示"],
+      "min_score": 5,
+      "tags": ["个股分析", "新能源"]
+    },
+    {
+      "id": "q020",
+      "category": "market_analysis",
+      "question": "现在是适合加仓的时机吗？请从多个维度分析。",
+      "expected_points": ["市场体制", "估值水平", "资金面", "技术面", "风险提示"],
+      "min_score": 6,
+      "tags": ["择时", "综合研判"]
+    }
+  ]
+}

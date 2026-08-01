@@ -26,7 +26,7 @@ dependencies = [
     "pandas>=2.0.0",
     "scipy>=1.12.0",
     "scikit-learn>=1.4.0",
-    "pandas-ta>=0.3.14",
+    "pandas-ta>=0.3.14b0",
     "psycopg[binary]>=3.1.0",
     "sqlalchemy>=2.0.0",
     "redis>=5.0.0",
@@ -69,7 +69,7 @@ backtest = [
 all = [
     "tushare>=1.4.0",
     "efinance>=0.5.0",
-    "mplfinance>=0.12.10",
+    "mplfinance>=0.12.10b0",
     "streamlit>=1.35.0",
 ]
 
@@ -93,6 +93,8 @@ warn_unused_configs = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+# 默认跳过联网测试(会真实调用付费API); 需要时显式 pytest -m network
+addopts = "-m \"not network\""
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "network: marks tests requiring network access",

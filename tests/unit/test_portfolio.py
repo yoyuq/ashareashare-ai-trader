@@ -153,6 +153,9 @@ class TestPaperTradingEngine:
         )
         assert "sh.600519" in engine.state.positions
 
+        # T+1: 模拟持仓为前一交易日买入 (当日买入不可当日卖出)
+        engine.state.positions["sh.600519"].buy_date = "2020-01-01"
+
         # 再卖出
         trade = engine.execute_sell(
             symbol="sh.600519", exit_reason="take_profit",
@@ -203,8 +206,9 @@ class TestPaperTradingEngine:
             recommendation={"conviction": 0.7},
         )
         # 可能被行业集中度或现金缓冲限制
-        # 这取决于具体计算,但逻辑应该存在
-        assert t2 is None or t2 is not None  # 至少不会崩溃
+        # 无论是否触发限制, 结果必须是合法类型且账户状态一致
+        assert t2 is None or hasattr(t2, "symbol"), f"非法交易结果类型: {type(t2)}"
+        assert engine.state.cash >= 0, "买入后现金不应为负"
 
     def test_mark_to_market(self, tmp_path):
         from simulation.portfolio import PortfolioManager

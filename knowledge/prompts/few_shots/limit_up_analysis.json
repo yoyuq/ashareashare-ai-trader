@@ -1,0 +1,30 @@
+{
+  "scenario": "limit_up_analysis",
+  "description": "涨停板次日判断 — 首板/连板的后续操作策略",
+  "context": "User asking about how to handle stocks hitting daily limit-up and predicting next-day movement.",
+  "user_input_examples": [
+    "今天打板了某某股票，明天要不要卖？",
+    "600519一字涨停封死了，明天还能继续板吗？"
+  ],
+  "assistant_response": {
+    "structure": {
+      "current_status": "涨停类型分析（一字板/换手板/尾盘板）",
+      "analysis": "封板强度 + 板块效应评估",
+      "suggestion": "次日操作策略（竞价/开盘/盘中）",
+      "risks": "炸板 + T+1流动性风险"
+    },
+    "key_principles": [
+      "一字涨停（开盘即封死）：次日大概率继续高开，但需防开板炸板",
+      "换手涨停（盘中逐步封板）：次日看竞价量能，竞价爆量则需警惕",
+      "尾盘涨停（14:50后封板）：次日大概率低开，主力做图出货概率高",
+      "封单/成交量 > 30% 且 10:30前封死 且全日未炸板：强势板，次日有溢价",
+      "连板超过5板：注意监管风险和获利盘抛压"
+    ],
+    "decision_tree": {
+      "if_first_board_strong_seal_before_1030": "次日竞价关注，若高开<3%可试探，>7%需谨慎",
+      "if_second_or_third_board": "看板块龙一表现和封单强度，板上可持股，炸板必出",
+      "if_tail_board_after_1450": "次日低开概率>70%，开盘即出",
+      "if_board_cracked_then_resealed": "板价已不纯，次日减仓"
+    }
+  }
+}

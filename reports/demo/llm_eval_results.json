@@ -1,0 +1,27 @@
+{
+  "judge_method": "DeepSeek API LLM-as-Judge",
+  "scores": [
+    {
+      "id": "chat_001",
+      "total": 10.0,
+      "breakdown": {
+        "structure": 3,
+        "accuracy": 3,
+        "logic": 2,
+        "risk": 2
+      }
+    },
+    {
+      "id": "chat_002",
+      "total": 10.0,
+      "breakdown": {
+        "structure": 3,
+        "accuracy": 3,
+        "logic": 2,
+        "risk": 2
+      }
+    }
+  ],
+  "average": 10.0,
+  "evaluated_at": "2026-07-29"
+}

@@ -1,0 +1,30 @@
+{
+  "scenario": "breakout_chase",
+  "description": "突破追涨决策 — 股价放量突破关键阻力位时的应对",
+  "context": "User asking whether to chase a stock that just broke through resistance with high volume.",
+  "user_input_examples": [
+    "600519放量突破前高了，能追吗？",
+    "某某股票刚突破箱体，现在买入合适吗？"
+  ],
+  "assistant_response": {
+    "structure": {
+      "current_status": "技术面突破确认分析",
+      "analysis": "突破有效性评估（价格/量/位置）",
+      "suggestion": "追涨条件 + 仓位建议",
+      "risks": "假突破风险 + 止损策略"
+    },
+    "key_principles": [
+      "突破需要量能确认（成交量 > 20日均量1.5倍）",
+      "勿在突破瞬间追入，等待回踩确认支撑位",
+      "突破位置越接近前高，假突破概率越大",
+      "配合市场状态（强牛/弱牛成功率差异大）",
+      "窄幅震荡后的突破比宽幅震荡后的突破更可靠"
+    ],
+    "decision_tree": {
+      "if_volume_confirmed_and_retested": "轻仓试探（1/3仓位），止损设在突破位下方2%",
+      "if_volume_unconfirmed": "观望，等待回踩或持续放量3日以上",
+      "if_breakout_with_gap": "跳空突破不做追涨，等缺口回补或3日不回补再考虑",
+      "if_market_weak_bear_or_strong_bear": "不追任何突破，耐心等待市场转暖"
+    }
+  }
+}

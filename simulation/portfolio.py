@@ -315,6 +315,8 @@ class PortfolioState:
                 cumulative_return_pct=sdata.get("cumulative_return_pct", 0.0),
                 positions_count=sdata.get("positions_count", 0),
             ))
+        # 确保快照按日期有序 (防御性排序)
+        state.daily_snapshots.sort(key=lambda s: s.date)
 
         # 恢复待处理推荐
         state.pending_recommendations = d.get("pending_recommendations", [])

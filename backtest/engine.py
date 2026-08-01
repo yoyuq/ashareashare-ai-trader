@@ -123,9 +123,11 @@ class EventDrivenBacktestEngine:
         result = engine.run(strategy_func)
     """
 
-    def __init__(self, config: BacktestConfig):
+    def __init__(self, config: BacktestConfig, deferred_execution: bool = True):
         self.config = config
         self.broker = AShareBroker(initial_capital=config.initial_capital)
+        # A股默认 T+1 延迟执行: T日收盘信号 → T+1日开盘价成交 (传 False 恢复当日成交)
+        self.broker.deferred_execution = deferred_execution
         self._data: Dict[str, pd.DataFrame] = {}
         self._benchmark: Optional[pd.DataFrame] = None
         self._equity: List[float] = []
@@ -142,6 +144,9 @@ class EventDrivenBacktestEngine:
             df = df.reset_index()
         df["date"] = pd.to_datetime(df["date"]).dt.date
         df = df.sort_values("date")
+        # 涨跌幅列供券商涨跌停判定使用 (数据源未提供时由收盘价计算)
+        if "pct_change" not in df.columns:
+            df["pct_change"] = df["close"].pct_change() * 100
         self._data[symbol] = df
 
     def load_benchmark(self, df: pd.DataFrame):
@@ -217,7 +222,10 @@ class EventDrivenBacktestEngine:
 
             self.broker.set_prices(bars)
 
-            # 执行策略
+            # 先以当日开盘价执行上一交易日的挂单 (T+1 延迟执行)
+            self.broker.execute_pending_orders()
+
+            # 执行策略 (新订单入队, 次日成交)
             try:
                 strategy_func(today, bars, self.broker)
             except Exception as e:

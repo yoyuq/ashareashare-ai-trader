@@ -1,21 +1,33 @@
 """
 DeepSeek API 连通性测试 + ModelRouter 端到端验证
+
+注意: 联网测试标记为 network, 默认测试套件跳过 (pytest -m "not network"),
+仅在显式 `pytest -m network` 或 `python tests/test_deepseek_api.py` 时运行,
+避免每次全量测试都真实调用付费 API。
 """
 import asyncio
 import os
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
 api_key = os.getenv("DEEPSEEK_API_KEY", "")
-print(f"API Key: {api_key[:15]}...{api_key[-4:]}")
 
 
+def _require_api_key():
+    if not api_key:
+        pytest.skip("未设置 DEEPSEEK_API_KEY, 跳过联网测试")
+
+
+@pytest.mark.network
 async def test_direct_api():
     """测试直接调用 DeepSeek API"""
+    _require_api_key()
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
@@ -37,12 +49,12 @@ async def test_direct_api():
         tokens_out = response.usage.completion_tokens
         cost = (tokens_in / 1_000_000) * 1.0 + (tokens_out / 1_000_000) * 2.0
 
+        assert content, "DeepSeek 返回空内容"
         print(f"  ✅ 响应: {content[:100]}...")
         print(f"  Tokens: {tokens_in} in + {tokens_out} out")
         print(f"  💰 成本: ¥{cost:.6f}")
     except Exception as e:
-        print(f"  ❌ 失败: {e}")
-        return False
+        pytest.fail(f"DeepSeek Chat 调用失败: {e}")
 
     print("\n--- 测试 2: DeepSeek Reasoner (V4-Pro) ---")
     try:
@@ -76,8 +88,10 @@ async def test_direct_api():
     return True
 
 
+@pytest.mark.network
 async def test_model_router():
     """测试 ModelRouter 三层路由"""
+    _require_api_key()
     print("\n--- 测试 3: ModelRouter 完整路由 ---")
     from models.router import ModelRouter
 
@@ -91,11 +105,12 @@ async def test_model_router():
             messages=[{"role": "user", "content": "用一句话描述什么是十字星K线"}],
             task_type="kline_describe",
         )
+        assert result.response, "ModelRouter 返回空响应"
         print(f"  ✅ 路由: {result.tier.value} → {result.model_name}")
         print(f"  📄 响应: {result.response[:120]}...")
         print(f"  💰 成本: ¥{result.cost:.6f} | 延迟: {result.latency_ms:.0f}ms")
     except Exception as e:
-        print(f"  ❌ 失败: {e}")
+        pytest.fail(f"ModelRouter 路由失败: {e}")
 
     # 测试中等任务 → Flash
     print("\n  📊 中等任务: technical_analysis")
@@ -104,11 +119,12 @@ async def test_model_router():
             messages=[{"role": "user", "content": "当前RSI=58.3, MACD刚金叉, 请分析技术面含义"}],
             task_type="technical_analysis",
         )
+        assert result.response, "ModelRouter 返回空响应"
         print(f"  ✅ 路由: {result.tier.value} → {result.model_name}")
         print(f"  📄 响应: {result.response[:120]}...")
         print(f"  💰 成本: ¥{result.cost:.6f} | 延迟: {result.latency_ms:.0f}ms")
     except Exception as e:
-        print(f"  ❌ 失败: {e}")
+        pytest.fail(f"ModelRouter 路由失败: {e}")
 
     # 成本汇总
     print(f"\n  📊 日成本汇总: {router.cost_summary()}")
@@ -129,6 +145,8 @@ async def test_cost_monitor():
     monitor.record_call("pro", input_tokens=10000, output_tokens=5000)
 
     report = monitor.daily_report()
+    assert report["total_calls_today"] == 3, f"调用计数错误: {report.get('total_calls_today')}"
+    assert report["daily_cost"] > 0, "日成本应大于0"
     print(f"  日花费: ¥{report['daily_cost']:.4f} / ¥{report['daily_budget']}")
     print(f"  月花费: ¥{report['monthly_cost']:.4f} / ¥{report['monthly_budget']}")
     print(f"  今日调用: {report['total_calls_today']} 次")
@@ -136,8 +154,10 @@ async def test_cost_monitor():
         print(f"    {tier}: {stats['count']}次, ¥{stats['cost']:.4f}, {stats['tokens']} tokens")
 
 
+@pytest.mark.network
 async def test_knowledge_with_llm():
     """测试 KnowledgeManager + LLM 组合"""
+    _require_api_key()
     print("\n--- 测试 5: KnowledgeManager + LLM 综合分析 ---")
     from knowledge.manager import KnowledgeManager
     from models.router import ModelRouter
@@ -147,6 +167,7 @@ async def test_knowledge_with_llm():
 
     # 获取带规则注入的Prompt
     prompt = km.get_system_prompt("technical_analyst")
+    assert len(prompt) > 0, "system prompt 为空"
     print(f"  Prompt长度: {len(prompt)} chars (含注入的指标指南)")
 
     # 硬化口径校验

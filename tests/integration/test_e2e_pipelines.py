@@ -227,7 +227,8 @@ class TestPaperTradingPipeline:
         mtm2 = engine.mark_to_market({"sh.600519": 95.0})
         assert mtm2["sh.600519"]["unrealized_pnl"] < 0
 
-        # 手动卖出
+        # 手动卖出 (T+1: 模拟持仓为前一交易日买入)
+        engine.state.positions["sh.600519"].buy_date = "2020-01-01"
         sell_trade = engine.execute_sell(
             symbol="sh.600519", exit_reason="manual", price=105.0,
         )
@@ -321,7 +322,7 @@ class TestOverfittingAndCompare:
         report = guard.evaluate(returns)
 
         assert hasattr(report, "is_overfit")
-        assert 0 <= report.pbo <= 1
+        assert np.isnan(report.pbo) or 0 <= report.pbo <= 1  # 无变体矩阵时PBO为NaN
         assert hasattr(report, "monte_carlo_pvalue")
 
     def test_time_split_maintains_order(self):

@@ -129,33 +129,51 @@ class ToolExecutor:
         self.analyzer = analyzer
 
     async def execute(self, name: str, args: dict) -> str:
-        """执行工具并返回JSON字符串"""
+        """
+        执行工具并返回JSON字符串
+
+        v3.0: 使用字典分发 + ToolRegistry fallback
+        新增工具只需: (1)在_dispatch_map注册 (2)实现方法
+        """
         try:
-            if name == "get_market_overview":
-                return await self._market_overview()
-            elif name == "analyze_stock":
-                return await self._analyze_stock(args.get("symbol", ""))
-            elif name == "run_backtest":
-                return await self._backtest(
-                    args.get("symbol", ""),
-                    args.get("strategy", "dual_ma_trend"),
-                    args.get("years", 2),
-                )
-            elif name == "get_win_rate":
-                return self._win_rate_query(
-                    args.get("strategy", ""),
-                    args.get("regime", "range_bound"),
-                )
-            elif name == "scan_market":
-                return await self._scan(args.get("top_n", 10))
-            elif name == "list_strategies":
-                return self._list_strategies()
-            elif name == "explain_concept":
-                return self._explain(args.get("concept", ""))
-            else:
-                return json.dumps({"error": f"未知工具: {name}"}, ensure_ascii=False)
+            # v3.0: 字典分发 (替代 if/elif 链)
+            handler = self._dispatch_map.get(name)
+            if handler is not None:
+                return await handler(args)
+
+            # fallback: 尝试 ToolRegistry
+            from agent.tools.registry import ToolRegistry
+            registry_func = ToolRegistry().get_tool(name)
+            if registry_func is not None:
+                return await registry_func(executor=self, **args)
+
+            return json.dumps({"error": f"未知工具: {name}"}, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+    @property
+    def _dispatch_map(self) -> dict:
+        """
+        v3.0: 工具分发字典
+
+        添加新工具: 在dict中添加 name → handler 映射即可
+        """
+        return {
+            "get_market_overview": lambda args: self._market_overview(),
+            "analyze_stock": lambda args: self._analyze_stock(args.get("symbol", "")),
+            "run_backtest": lambda args: self._backtest(
+                args.get("symbol", ""),
+                args.get("strategy", "dual_ma_trend"),
+                args.get("years", 2),
+            ),
+            "get_win_rate": lambda args: self._win_rate_query(
+                args.get("strategy", ""),
+                args.get("regime", "range_bound"),
+            ),
+            "scan_market": lambda args: self._scan(args.get("top_n", 10)),
+            "list_strategies": lambda args: self._list_strategies(),
+            "explain_concept": lambda args: self._explain(args.get("concept", "")),
+        }
 
     async def _market_overview(self) -> str:
         """市场总览 — 仅用快速数据"""
@@ -514,9 +532,29 @@ class ChatAgent:
         self.executor = ToolExecutor(router, knowledge, analyzer)
         self.conversations: Dict[str, List[Dict]] = {}
         self._model_router = model_router
+        self._knowledge = knowledge  # v3.0: 保留knowledge引用用于加载外部提示词
         self._sessions_dir = Path(sessions_dir)
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
         self._loaded_sessions: set = set()
+
+    def _get_system_prompt(self) -> str:
+        """
+        v3.0-competition: 从知识库加载系统提示词, fallback到硬编码默认值
+
+        优先加载 knowledge/prompts/system/chat_assistant.txt
+        """
+        if self._knowledge:
+            prompt = self._knowledge.get_system_prompt("chat_assistant")
+            if prompt and "Prompt文件缺失" not in prompt:
+                # 去除 YAML frontmatter
+                if prompt.startswith("---"):
+                    try:
+                        end_idx = prompt.index("---", 3)
+                        prompt = prompt[end_idx + 3:].strip()
+                    except ValueError:
+                        pass
+                return prompt
+        return self.SYSTEM_PROMPT
 
     def _session_path(self, session_id: str) -> Path:
         safe = session_id.replace("/", "_").replace("\\", "_").replace("..", "_")
@@ -592,7 +630,7 @@ class ChatAgent:
                 self.conversations[session_id] = saved
             else:
                 self.conversations[session_id] = [
-                    {"role": "system", "content": self.SYSTEM_PROMPT}
+                    {"role": "system", "content": self._get_system_prompt()}
                 ]
 
         history = conversation_history or self.conversations[session_id]
@@ -694,7 +732,7 @@ class ChatAgent:
             )
 
             kwargs = {
-                "model": "deepseek-chat",
+                "model": os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
                 "messages": messages,
                 "temperature": 0.3,
                 "max_tokens": 2000,

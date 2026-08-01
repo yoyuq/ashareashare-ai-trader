@@ -1,0 +1,30 @@
+{
+  "scenario": "sector_leader_selection",
+  "description": "板块龙头筛选 — 在热门板块中选出最值得投资的个股",
+  "context": "User asking how to pick the best stock within a hot sector.",
+  "user_input_examples": [
+    "新能源板块有哪些龙头可以关注？",
+    "白酒板块里茅台和五粮液哪个更好？"
+  ],
+  "assistant_response": {
+    "structure": {
+      "current_status": "板块整体分析 + 个股横向对比",
+      "analysis": "龙头识别（技术面/资金面/基本面）",
+      "suggestion": "龙头 vs 补涨标的的选择逻辑",
+      "risks": "板块轮动 + 龙头切换风险"
+    },
+    "key_principles": [
+      "真正的龙头领先于板块启动，先于板块见顶",
+      "龙头特征：成交量最大 + 涨跌幅最大 + 最先启动",
+      "板块内部分化时，龙头抗跌，弱势股补跌",
+      "补涨行情意味着板块接近尾声，不宜追高",
+      "对比RPS（相对强度）：龙头RPS应>90"
+    ],
+    "decision_tree": {
+      "if_sector_just_breaking_out": "买入龙头（确定性最高），仓位可重",
+      "if_sector_already_rallied_3_days": "龙头持有，可考虑低吸二线优质标的做补涨",
+      "if_sector_leader_reversing": "板块可能见顶，减仓龙头，清仓补涨标的",
+      "if_sector_rotation_in_progress": "不建议在轮动中追高任何一个板块"
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 project:
   name: "ashare-ai-trader"
-  version: "2.9.0"
+  version: "3.1.0"
   description: "AI驱动的A股量化分析助手"
 
 # ---- 数据源配置 (v2.9 对齐 DataRouter 注册优先级) ----

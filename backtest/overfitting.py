@@ -3,11 +3,11 @@
 
 层级设计:
   L1: 严格时间分割 (60% train / 20% validation / 20% test)
-  L2: PBO (Probability of Backtest Overfitting)
-  L3: Deflated Sharpe Ratio (DSR)
+  L2: PBO (Probability of Backtest Overfitting, CSCV法 — 需多变体绩效矩阵)
+  L3: Deflated Sharpe Ratio (DSR, 多重检验校正 + Lo 2002 标准误)
   L4: Walk-Forward Validation (滚动窗口验证)
   L5: 参数敏感性分析
-  L6: Monte Carlo置换检验
+  L6: Monte Carlo 随机化检验 (符号翻转零假设)
 
 v2.1新增:
   - 48小时冷静期(策略设计→冻结→回测)
@@ -71,6 +71,7 @@ class OverfittingGuard:
         oos_returns: Optional[pd.Series] = None,
         param_results: Optional[pd.DataFrame] = None,
         benchmark_returns: Optional[pd.Series] = None,
+        variant_returns: Optional[pd.DataFrame] = None,
     ) -> OverfittingReport:
         """
         全面过拟合评估
@@ -80,16 +81,13 @@ class OverfittingGuard:
             oos_returns: 样本外日收益率(用于Walk-Forward)
             param_results: 参数扫描结果 (columns: param1, param2, ..., sharpe)
             benchmark_returns: 基准收益率
+            variant_returns: 多策略变体逐期收益矩阵 (index=时间顺序, columns=各参数/策略变体),
+                用于真正的 CSCV-PBO。不提供时 PBO 为 NaN (单一序列不存在"多重选择"问题, 不参与判定)。
         """
         n = len(returns)
 
-        # L2: PBO (需要日收益率序列, 不是 DataFrame)
-        if param_results is not None and isinstance(returns, pd.Series):
-            pbo = self._compute_pbo(returns)
-        elif param_results is not None and isinstance(returns, pd.DataFrame) and "return" in returns.columns:
-            pbo = self._compute_pbo(returns["return"])
-        else:
-            pbo = 0.0
+        # L2: PBO — 真正的 CSCV 需要多变体绩效矩阵; 单一收益序列无法计算 (返回 NaN)
+        pbo = self._compute_pbo(variant_returns) if variant_returns is not None else float("nan")
 
         # L3: Deflated Sharpe Ratio
         dsr, dsr_pval = self._deflated_sharpe_ratio(
@@ -130,6 +128,7 @@ class OverfittingGuard:
                 "n_samples": n,
                 "flags_triggered": flags,
                 "threshold": 2,
+                "pbo_defined": variant_returns is not None,  # False: 未提供多变体矩阵, PBO=NaN 不参与判定
             },
         )
 
@@ -139,42 +138,73 @@ class OverfittingGuard:
 
     def _compute_pbo(
         self,
-        returns: pd.Series,
-        n_trials: int = 1000,
+        variant_returns: Optional[pd.DataFrame],
+        max_partitions: int = 100,
     ) -> float:
         """
-        PBO计算 (Bailey et al. 2014)
+        PBO计算 — 真正的 CSCV 法 (Bailey, Borwein, López de Prado, Zhu 2014)
 
-        思路: 随机排序收益率序列→计算最佳参数的Sharpe→
-              重复N次→统计有多少次随机序列超过了实际最优Sharpe
+        PBO = P(样本内最优变体 在样本外排名低于中位数), 通过组合对称交叉验证估计:
+          1. 将时间轴切成 S 个等长块 (S 为偶数)
+          2. 对每个组合 C(S, S/2): 选中的 S/2 块作样本内(IS), 其余作样本外(OOS)
+          3. 找出 IS 最优变体 n*, 统计其 OOS 绩效是否低于 OOS 中位数
+          4. PBO = 低于中位数的划分数 / 有效划分数
 
-        PBO ≈ P(random Sharpe > best in-sample Sharpe)
+        注意: "打乱收益序列再比Sharpe"不是PBO (打乱不改变均值/标准差, 原实现恒返回0)。
+        PBO 度量的是"从多个候选中挑选"带来的选择过拟合, 因此必须有多变体矩阵。
+
+        Args:
+            variant_returns: 多变体逐期收益矩阵 (index=时间顺序, columns=变体)
+
+        Returns:
+            PBO ∈ [0,1]; 变体或样本不足时返回 NaN (未定义)
         """
-        if len(returns) < 50:
-            return 0.5
+        if variant_returns is None:
+            return float("nan")
 
-        # 实际Sharpe
-        actual_sharpe = (
-            returns.mean() / max(returns.std(), 1e-10) * np.sqrt(252)
-        )
+        T, N = variant_returns.shape
+        if N < 2 or T < 16:
+            return float("nan")
 
-        # 生成随机序列
-        random_sharpes = []
-        n = len(returns)
+        # 1. 切成 S 块 (每块≥8期, S 为偶数, 至少2块)
+        S = min(10, (T // 8) * 2)
+        S = max(S, 2)
+        block_size = T // S
+        if block_size < 4:
+            return float("nan")
+        blocks = [variant_returns.iloc[i * block_size:(i + 1) * block_size] for i in range(S)]
 
-        for _ in range(min(n_trials, 1000)):
-            # 随机打乱收益率
-            shuffled = returns.sample(frac=1, replace=False).values
-            sr = np.mean(shuffled) / max(np.std(shuffled), 1e-10) * np.sqrt(252)
-            random_sharpes.append(sr)
+        # 2. 枚举 C(S, S/2) 划分 (过多时固定种子采样, 保证可复现)
+        from itertools import combinations
+        half = S // 2
+        combs = list(combinations(range(S), half))
+        if len(combs) > max_partitions:
+            rng = np.random.default_rng(42)
+            pick = rng.choice(len(combs), max_partitions, replace=False)
+            combs = [combs[int(i)] for i in pick]
 
-        random_sharpes = np.array(random_sharpes)
-        pbo = np.mean(random_sharpes >= actual_sharpe)
+        def _sharpe_by_variant(df: pd.DataFrame) -> pd.Series:
+            sd = df.std()
+            out = df.mean() / sd.replace(0, np.nan)
+            return out.fillna(-np.inf)  # 排名用, 无需年化 (单调变换不影响名次)
 
-        # 修正: 对称区间
-        pbo = min(pbo, 1.0 - pbo) * 2
+        # 3. 逐划分: IS最优变体在OOS是否低于中位数
+        below_median, valid = 0, 0
+        for is_idx in combs:
+            is_set = set(is_idx)
+            oos_idx = [j for j in range(S) if j not in is_set]
+            is_perf = _sharpe_by_variant(pd.concat([blocks[j] for j in is_idx]))
+            oos_perf = _sharpe_by_variant(pd.concat([blocks[j] for j in oos_idx]))
+            if not np.isfinite(is_perf).any() or not np.isfinite(oos_perf).any():
+                continue
+            n_star = is_perf.idxmax()
+            if oos_perf[n_star] < oos_perf.median():
+                below_median += 1
+            valid += 1
 
-        return pbo
+        if valid == 0:
+            return float("nan")
+        return below_median / valid
 
     # ═══════════════════════════════════════════════════════════════
     # L3: Deflated Sharpe Ratio (DSR)
@@ -186,42 +216,50 @@ class OverfittingGuard:
         param_results: pd.DataFrame,
     ) -> Tuple[float, float]:
         """
-        Deflated Sharpe Ratio (Lopez de Prado 2016)
+        Deflated Sharpe Ratio (Bailey & López de Prado 2014)
 
-        考虑多重检验后的Sharpe比率
-        DSR = Prob(实际SR > E[max(SR) from random])
+        DSR 检验 "观测SR 是否在扣除多重检验基准 SR₀=E[max SR|K次试验] 后仍显著":
+            DSR = Φ( (SR̂ - SR₀) / √Var[SR̂] )
+        其中 Var[SR̂] = (1 - γ₃·SR̂ + (γ₄-1)/4·SR̂²) / (T-1)  (Lo 2002, 含偏度γ₃/峰度γ₄修正)
+
+        修复: 旧实现返回的 p 值基于"未缩减的原始SR", 多重检验校正从未进入 p 值。
+
+        Returns:
+            (deflated_sharpe_年化, p_value) — p 小表示通过多重检验校正
         """
         if returns.empty:
             return 0, 1.0
 
-        # 实际SR
         n = len(returns)
-        sr = returns.mean() / max(returns.std(), 1e-10) * np.sqrt(252)
+        # 每期 SR (不年化 — DSR 公式要求与 T=期数 同单位)
+        sr = returns.mean() / max(returns.std(), 1e-10)
+        skew = float(returns.skew()) if n > 2 else 0.0
+        kurt_excess = float(returns.kurt()) if n > 3 else 0.0  # pandas 返回超额峰度 (γ₄-3)
 
-        # 有效试验次数
+        # 有效试验次数 K (参数扫描的组数)
         if not param_results.empty and "sharpe" in param_results.columns:
-            K = len(param_results)
+            K = max(len(param_results), 1)
         else:
             K = 1
 
-        # 期望最大SR (Bailey & Lopez de Prado公式)
-        # E[max(SR)] ≈ sqrt(2 * log(K)) * (1 - gamma * n**-1)
+        # 多重检验基准 SR₀ = E[max SR] (K 个独立试验, Bailey & López de Prado)
         if K > 1:
-            euler = 0.5772
-            expected_max = (1 - euler) * stats.norm.ppf(1 - 1/K) + euler * stats.norm.ppf(1 - 1/(K*np.e))
-            expected_max = max(expected_max, 0)
+            euler = 0.5772156649
+            sr0 = (1 - euler) * stats.norm.ppf(1 - 1.0 / K) \
+                + euler * stats.norm.ppf(1 - 1.0 / (K * np.e))
+            sr0 = max(sr0, 0.0)
         else:
-            expected_max = 0
+            sr0 = 0.0
 
-        # 经缩减的SR
-        deflated_sr = max(sr - expected_max, 0)
+        # SR 估计量方差 (Lo 2002; (γ₄-1)/4 = (超额峰度+2)/4)
+        var_sr = (1.0 - skew * sr + (kurt_excess + 2) / 4.0 * sr ** 2) / max(n - 1, 1)
+        se = float(np.sqrt(max(var_sr, 1e-12)))
 
-        # p值
-        se = 1.0 / np.sqrt(max(n, 1))
-        z_stat = sr / max(se, 1e-10)
-        p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
+        dsr_stat = (sr - sr0) / se
+        p_value = float(1.0 - stats.norm.cdf(dsr_stat))  # 单侧: SR 显著高于多重检验基准
 
-        return deflated_sr, p_value
+        deflated_sr_annualized = (sr - sr0) * np.sqrt(252)
+        return deflated_sr_annualized, p_value
 
     # ═══════════════════════════════════════════════════════════════
     # L4: Walk-Forward Validation
@@ -301,31 +339,36 @@ class OverfittingGuard:
         n_sims: int = 1000,
     ) -> float:
         """
-        Monte Carlo置换检验
+        Monte Carlo 随机化检验
 
-        H0: 策略收益 = 随机交易 (无真实Alpha)
+        H0: 策略无方向选择能力 (收益与信号无关)。
+        零分布经"随机符号翻转"构造: r* = s⊙r, s∈{±1} iid ——
+        保留收益的幅度结构 (波动率), 同时令期望收益为0。
 
-        生成N条随机净值曲线 → 统计超越实际Sharpe的比例 → p值
+        修复: 旧实现对收益本身做 bootstrap 重采样, SR 天然围绕样本SR波动 →
+        p 值恒≈0.5, 任何策略 (含纯噪声) 都不报警。符号翻转零分布以0为中心,
+        有效策略 p→0, 噪声策略 p≈0.5 → 触发过拟合标记。
+
+        Returns:
+            p值 = P(SR* ≥ SR_actual | H0)
         """
         if returns.empty:
             return 1.0
 
-        actual_sr = returns.mean() / max(returns.std(), 1e-10) * np.sqrt(252)
-        n = len(returns)
+        r = returns.to_numpy(dtype=float)
+        r = r[np.isfinite(r)]
+        if len(r) < 10:
+            return 1.0
 
-        # 生成随机净值曲线
-        random_srs = []
-        for _ in range(min(n_sims, 500)):
-            # 方式1: 对收益率自助法(bootstrap)
-            sampled = np.random.choice(returns.values, size=n, replace=True)
-            sr = np.mean(sampled) / max(np.std(sampled), 1e-10) * np.sqrt(252)
-            random_srs.append(sr)
+        actual_sr = np.mean(r) / max(np.std(r, ddof=1), 1e-10) * np.sqrt(252)
+        rng = np.random.default_rng(1234)  # 固定种子, 结果可复现
+        sims = min(n_sims, 1000)
+        signs = rng.choice(np.array([-1.0, 1.0]), size=(sims, len(r)))
+        sim_returns = r[None, :] * signs
+        sim_std = np.maximum(sim_returns.std(axis=1, ddof=1), 1e-10)
+        sim_srs = sim_returns.mean(axis=1) / sim_std * np.sqrt(252)
 
-        random_srs = np.array(random_srs)
-
-        # p值 = 随机SR > 实际SR 的比例
-        p_value = np.mean(random_srs >= actual_sr)
-
+        p_value = float(np.mean(sim_srs >= actual_sr))
         return p_value
 
     # ═══════════════════════════════════════════════════════════════

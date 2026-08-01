@@ -200,6 +200,9 @@ curl -X POST http://localhost:8000/api/v1/chat \
   -d '{"message": "茅台怎么样？"}'
 ```
 
+> **关于 API 认证**：`API_KEY` 不是 AI 模型密钥，而是**你自己定义**的一串密码，用于保护本服务的接口，调用时经 `X-API-Key` 请求头传递（如上例）。
+> 安全默认（fail-closed）：未设置 `API_KEY` 时，除 `/health` 外所有请求返回 403；本地开发可在 `.env` 设置 `API_ALLOW_INSECURE_NO_AUTH=true` 放开无认证访问。
+
 ### 4. 策略回测对比
 
 ```bash
@@ -237,7 +240,9 @@ python scripts/run_scheduler.py  # 后台常驻, 自动执行盘前/盘中/盘�
 | `DEEPSEEK_BASE_URL` | 否 | API 地址 (默认 https://api.deepseek.com/v1) |
 | `OLLAMA_HOST` | 否 | Ollama 地址 (默认 localhost:11434) |
 | `OLLAMA_MODEL` | 否 | 模型名 (默认 qwen3:4b) |
-| `API_KEY` | 否 | API 认证密钥 |
+| `API_KEY` | 否 | REST API 认证密码 (自定义, 经 `X-API-Key` 请求头传递; 未设置时默认拒绝访问) |
+| `API_ALLOW_INSECURE_NO_AUTH` | 否 | 未设 API_KEY 时允许无认证访问 (仅本地开发, 默认 false) |
+| `CORS_ORIGINS` | 否 | CORS 来源白名单 (逗号分隔, 默认 `*`) |
 | `POSTGRES_HOST/PORT/DB/USER/PASSWORD` | 否 | 数据库连接 |
 | `REDIS_HOST/PORT/DB` | 否 | Redis 连接 |
 

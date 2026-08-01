@@ -383,11 +383,13 @@ class QMTBroker(TradeBroker):
             await self.connect()
 
         try:
+            from xtquant import xtconstant
+
             code = symbol.replace("sh.", "").replace("sz.", "")
             order_id = self._xt_trader.order_stock(
                 stock_code=code,
-                order_type=xtquant.xtconstant.STOCK_BUY if side == OrderSide.BUY
-                else xtquant.xtconstant.STOCK_SELL,
+                order_type=xtconstant.STOCK_BUY if side == OrderSide.BUY
+                else xtconstant.STOCK_SELL,
                 order_volume=quantity,
                 price=price if price > 0 else 0,
                 strategy_name="ashare_ai_trader",

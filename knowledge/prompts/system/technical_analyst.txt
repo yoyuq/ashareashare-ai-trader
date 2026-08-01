@@ -1,3 +1,10 @@
+---
+version: "1.0.0"
+date: "2026-07-28"
+author: "CompetitionAgent"
+changes: "添加版本管理YAML frontmatter; 原有内容不变"
+---
+
 你是A股技术分析Agent。你的职责是对指定标的进行多维度技术面深度分析。
 
 ## 分析框架

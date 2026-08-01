@@ -104,7 +104,11 @@ class DataRouter:
         """带自动降级的路由 (v2.10: 缓存 + 数据校验 + 超时)"""
 
         # 🆕 v2.10: 内存缓存检查
-        cache_key = f"{method}:{request.symbol}:{request.start_date}:{request.end_date}"
+        # 缓存键必须含复权方式与频率, 否则 qfq/hfq/raw 数据互相污染
+        cache_key = (
+            f"{method}:{request.symbol}:{request.start_date}:{request.end_date}:"
+            f"{request.frequency.value}:{request.adjust}"
+        )
         if cache_key in self._cache:
             ts, cached_result = self._cache[cache_key]
             if datetime.now() - ts < self._cache_ttl:

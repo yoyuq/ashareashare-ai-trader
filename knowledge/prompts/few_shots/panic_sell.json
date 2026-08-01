@@ -1,0 +1,58 @@
+{
+  "scenario": "panic_sell",
+  "version": "1.0.0",
+  "description": "恐慌性抛售应对 — 当市场或个股出现恐慌性下跌时的决策示例",
+  "examples": [
+    {
+      "id": "panic_001",
+      "context": "上证指数单日下跌-5.2%,全市场超3000只股票下跌,恐慌指数飙升",
+      "query": "大盘暴跌5个点,我持有的600519贵州茅台也跌了4%,要不要马上卖掉?",
+      "analysis": {
+        "market_regime": "strong_bear",
+        "stock_indicators": {
+          "symbol": "sh.600519",
+          "rsi_14": 28,
+          "macd": "死叉,柱状线扩大",
+          "ma_60": 1680,
+          "current_price": 1620,
+          "volume_ratio": 1.8
+        },
+        "assessment": "RSI进入超卖区(28),短期有反弹需求。60日均线1680为关键支撑位,当前1620已跌破。但贵州茅台作为核心资产,恐慌性下跌后通常率先反弹。"
+      },
+      "decision": {
+        "action": "HOLD",
+        "reasoning": [
+          "RSI超卖(28)表明短期过度下跌,割肉可能卖在最低点",
+          "贵州茅台为A股核心资产,流动性好,恐慌后会率先反弹",
+          "量比1.8说明有承接盘进入"
+        ],
+        "risk_warning": "如大盘继续下跌且茅台跌破1600整数关口,止损出局",
+        "correct": true,
+        "outcome": "5个交易日后反弹至1650 (+1.9%)"
+      }
+    },
+    {
+      "id": "panic_002",
+      "context": "某小盘题材股因利空消息跌停,封单量巨大",
+      "query": "我持有的002xxx跌停了,封单还有50万手,要挂明天竞价卖出吗?",
+      "analysis": {
+        "market_regime": "weak_bear",
+        "stock_type": "小盘题材股",
+        "limit_down_status": "封单50万手,全天成交仅5万手",
+        "fundamental_check": "PE 120x,业绩亏损,题材炒作标的"
+      },
+      "decision": {
+        "action": "SELL",
+        "reasoning": [
+          "封单巨大(10倍日成交量),次日大概率继续跌停",
+          "基本面差(PE 120x + 亏损),无价值支撑",
+          "题材股一旦退潮,下跌幅度通常很大(30-50%)"
+        ],
+        "execution": "次日9:15竞价挂跌停价卖出,争取最早成交",
+        "risk_warning": "踩踏风险,如无法卖出则连续挂单直至成交",
+        "correct": true,
+        "outcome": "次日继续跌停,第三日竞价卖出累计亏损-18%"
+      }
+    }
+  ]
+}

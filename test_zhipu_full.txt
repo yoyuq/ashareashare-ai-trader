@@ -1,0 +1,6 @@
+finish_reason: length
+content repr: ''
+content len: 0
+model: glm-4.7-flash
+usage: CompletionUsage(completion_tokens=100, prompt_tokens=11, total_tokens=111, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=100, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cache_write_tokens=None, cached_tokens=2))
+full message: ChatCompletionMessage(content='', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='1.  **Analyze the Request:** The user wants me to say "hello" using exactly three words.\n\n2.  **Identify the Core Task:** The task is simple: provide a greeting consisting of three words.\n\n3.  **Brainstorm Options:**\n    *   "Hello there, friend." (3 words)\n    *   "Hi, how are you?" (3 words)\n    *   "Greetings, earthlings." (3 words)\n    *   "Hello')

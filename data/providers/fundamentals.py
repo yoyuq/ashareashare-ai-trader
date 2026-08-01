@@ -16,8 +16,10 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from loguru import logger
 
+from data.providers.base import DataProvider, DataRequest, DataResult
 
-class FundamentalsProvider:
+
+class FundamentalsProvider(DataProvider):
     """
     基本面数据提供器
 
@@ -27,6 +29,25 @@ class FundamentalsProvider:
       - 财务健康: 资产负债率, 流动比率, 经营现金流
       - 成长性: 3年营收CAGR, 3年净利润CAGR
     """
+
+    # ── DataProvider ABC implementation (v3.1) ──
+
+    async def get_daily_kline(self, request: DataRequest) -> DataResult:
+        """Not applicable for fundamentals provider."""
+        return DataResult(pd.DataFrame(), source="fundamentals")
+
+    async def get_minute_kline(self, request: DataRequest) -> DataResult:
+        """Not applicable for fundamentals provider."""
+        return DataResult(pd.DataFrame(), source="fundamentals")
+
+    async def get_stock_list(self) -> pd.DataFrame:
+        """Return empty — use other providers for stock lists."""
+        return pd.DataFrame()
+
+    async def health_check(self) -> bool:
+        return True
+
+    # ── Fundamental-specific methods ──
 
     def __init__(self):
         self._cache: Dict[str, Dict] = {}
@@ -85,6 +106,29 @@ class FundamentalsProvider:
             logger.debug(f"获取{symbol}基本面失败: {e}")
             return None
 
+    @staticmethod
+    def _yoy_growth(df: "pd.DataFrame", col: str) -> float:
+        """同比增速(%): 最新报告期 vs 一年前同期; 缺同期时退回上一期"""
+        if df is None or len(df) < 2 or col not in df.columns:
+            return 0.0
+        try:
+            now_val = float(df.iloc[0].get(col, 0) or 0)
+            prev_val = None
+            if "报告期" in df.columns:
+                cur_p = str(df.iloc[0].get("报告期", ""))
+                if len(cur_p) >= 8 and cur_p[:4].isdigit():
+                    target = str(int(cur_p[:4]) - 1) + cur_p[4:]
+                    match = df[df["报告期"].astype(str) == target]
+                    if not match.empty:
+                        prev_val = float(match.iloc[0].get(col, 0) or 0)
+            if prev_val is None:  # 退回上一期(环比)
+                prev_val = float(df.iloc[1].get(col, 0) or 0)
+            if prev_val > 0:
+                return round((now_val / prev_val - 1) * 100, 1)
+        except (ValueError, TypeError):
+            pass
+        return 0.0
+
     async def get_financial_summary(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
         获取财务摘要 (含成长性指标)
@@ -110,29 +154,15 @@ class FundamentalsProvider:
             if df is None or df.empty:
                 return await self.get_valuation(symbol)
 
+            # akshare 按报告期升序返回(最早在前), 降序排列使第0行为最新报告期
+            if "报告期" in df.columns:
+                df = df.sort_values("报告期", ascending=False).reset_index(drop=True)
+
             latest = df.iloc[0] if len(df) > 0 else {}
 
-            # 营收增速 (同比)
-            rev_growth = 0.0
-            if len(df) >= 2:
-                try:
-                    rev_now = float(df.iloc[0].get("营业收入", 0) or 0)
-                    rev_prev = float(df.iloc[1].get("营业收入", 0) or 0)
-                    if rev_prev > 0:
-                        rev_growth = round((rev_now / rev_prev - 1) * 100, 1)
-                except (ValueError, TypeError):
-                    pass
-
-            # 净利润增速
-            profit_growth = 0.0
-            if len(df) >= 2:
-                try:
-                    profit_now = float(df.iloc[0].get("净利润", 0) or 0)
-                    profit_prev = float(df.iloc[1].get("净利润", 0) or 0)
-                    if profit_prev > 0:
-                        profit_growth = round((profit_now / profit_prev - 1) * 100, 1)
-                except (ValueError, TypeError):
-                    pass
+            # 营收 / 净利润增速 (同比: 一年前同期, 缺失时退回上一期)
+            rev_growth = self._yoy_growth(df, "营业收入")
+            profit_growth = self._yoy_growth(df, "净利润")
 
             result = {
                 "symbol": symbol,

@@ -1,25 +1,5 @@
-"""
-通知推送模块 (v2.8)
-
-三层通道:
-  - Console: loguru 日志输出 (始终可用)
-  - WeCom: 企业微信 Webhook
-  - DingTalk: 钉钉机器人
-
-触发条件:
-  - 高置信度交易信号
-  - 每日分析摘要
-  - API 费用告警
-  - 数据异常告警
-  - 系统异常告警
-
-使用方式:
-    from notifications import NotificationService
-    ns = NotificationService()
-    await ns.send_daily_summary(report_text)
-    await ns.send_signal_alert(symbol, strategy, confidence)
-"""
-
+# [DEPRECATED v3.1] Use notify/ folder instead: from notify import NotificationManager
+import warnings; warnings.warn("notifications/ is deprecated, use notify/", DeprecationWarning, stacklevel=2)
 import asyncio
 import json
 import os

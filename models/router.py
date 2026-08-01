@@ -18,6 +18,10 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, time
 from enum import Enum
+
+# 模型名 — 与 models/__init__.py 保持同步, 经环境变量可覆盖
+DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
+DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro")
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -79,25 +83,30 @@ class ModelRouter:
 
     # 任务复杂度 → 默认路由层级
     TASK_ROUTING = {
-        # === Tier 1: LOCAL (Ollama Qwen3-4B) ===
+        # === Tier 1: LOCAL (Ollama Qwen3-4B) — 便宜/快速 ===
         "indicator_read": ModelTier.LOCAL,
         "kline_describe": ModelTier.LOCAL,
         "news_summary": ModelTier.LOCAL,
         "text_classify": ModelTier.LOCAL,
         "simple_qa": ModelTier.LOCAL,
         "data_format": ModelTier.LOCAL,
+        "market_scan_prefilter": ModelTier.LOCAL,   # 初筛可本地做
 
-        # === Tier 2: FLASH (DeepSeek V4-Flash) ===
+        # === Tier 2: FLASH (DeepSeek V4-Flash) — 分析/评估 ===
         "technical_analysis": ModelTier.FLASH,
+        "fundamental_analysis": ModelTier.FLASH,     # 基本面分析: 数据驱动, Flash够用
         "strategy_match": ModelTier.FLASH,
         "signal_verify": ModelTier.FLASH,
         "multi_factor_analysis": ModelTier.FLASH,
         "backtest_interpret": ModelTier.FLASH,
         "regime_analysis": ModelTier.FLASH,
+        "macro_event_analysis": ModelTier.FLASH,     # 宏观事件分析
 
-        # === Tier 3: PRO (DeepSeek V4-Pro) ===
+        # === Tier 3: PRO (DeepSeek V4-Pro) — 辩论/决策/风控 ===
         "daily_synthesis": ModelTier.PRO,
         "adversarial_debate": ModelTier.PRO,
+        "bull_bear_research": ModelTier.PRO,          # 多空辩论需要深度推理
+        "judge_verdict": ModelTier.PRO,              # 裁判裁决需要深度推理
         "strategy_optimize": ModelTier.PRO,
         "market_outlook": ModelTier.PRO,
         "risk_assessment": ModelTier.PRO,
@@ -371,10 +380,10 @@ class ModelRouter:
             raise RuntimeError("DeepSeek客户端未初始化")
 
         model_map = {
-            ModelTier.FLASH: "deepseek-chat",      # V4-Flash
-            ModelTier.PRO: "deepseek-reasoner",     # V4-Pro
+            ModelTier.FLASH: DEEPSEEK_FLASH_MODEL,
+            ModelTier.PRO: DEEPSEEK_PRO_MODEL,
         }
-        model = model_map.get(tier, "deepseek-chat")
+        model = model_map.get(tier, DEEPSEEK_FLASH_MODEL)
 
         kwargs = {
             "model": model,
@@ -514,7 +523,7 @@ class ModelRouter:
     def _get_model_name(self, tier: ModelTier) -> str:
         names = {
             ModelTier.LOCAL: os.getenv("OLLAMA_MODEL", "qwen3:4b"),
-            ModelTier.FLASH: "deepseek-chat",
-            ModelTier.PRO: "deepseek-reasoner",
+            ModelTier.FLASH: DEEPSEEK_FLASH_MODEL,
+            ModelTier.PRO: DEEPSEEK_PRO_MODEL,
         }
         return names.get(tier, "unknown")

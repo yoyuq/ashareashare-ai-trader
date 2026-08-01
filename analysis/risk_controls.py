@@ -143,14 +143,16 @@ class PortfolioRiskManager:
         if dd <= self.DD_LIQUIDATE:
             risk_mult = 0.05
             circuit = True
-            warnings.append(f"⚠️ 回撤{dd:.1%}触发清仓线(-15%),风险乘数降至0.05")
+            warnings.append(f"CRITICAL: Drawdown {dd:.1%} triggered liquidation (-15%), risk multiplier reduced to 0.05")
+            self._notify_circuit("LIQUIDATE", dd)  # v3.1
         elif dd <= self.DD_REDUCE:
             risk_mult = 0.5
             circuit = True
-            warnings.append(f"⚡ 回撤{dd:.1%}触发减仓线(-8%),风险乘数降至0.5")
+            warnings.append(f"WARNING: Drawdown {dd:.1%} triggered reduction (-8%), risk multiplier reduced to 0.5")
+            self._notify_circuit("REDUCE", dd)  # v3.1
         elif dd <= self.DD_WARNING:
             risk_mult = 0.8
-            warnings.append(f"回撤{dd:.1%}接近预警线(-5%),风险乘数降至0.8")
+            warnings.append(f"Drawdown {dd:.1%} near warning line (-5%), risk multiplier reduced to 0.8")
 
         # 波动率调整
         if vol > self.VOL_TARGET:
@@ -162,7 +164,8 @@ class PortfolioRiskManager:
         crisis = (vol > self.VOL_CRISIS and market_breadth < self.BREADTH_CRISIS)
         if crisis:
             risk_mult = min(risk_mult, 0.05)
-            warnings.append("🚨 危机模式: 高波动+低广度,强制95%现金")
+            warnings.append("CRISIS MODE: High volatility + low breadth, forced 95% cash")
+            self._notify_circuit("CRISIS", dd)  # v3.1
 
         # 建议仓位
         suggested_exposure = max(0, min(1.0, risk_mult))
@@ -182,6 +185,20 @@ class PortfolioRiskManager:
             suggested_cash_pct=round(suggested_cash, 3),
             warning_messages=warnings,
         )
+
+    def _notify_circuit(self, level: str, drawdown: float):
+        """v3.1: Send notification on circuit breaker events"""
+        try:
+            from notify import NotificationManager
+            nm = NotificationManager()
+            if nm.enabled:
+                nm.send_alert(
+                    f"Risk circuit breaker: {level} | Drawdown: {drawdown:.1%} | "
+                    f"Peak capital: RMB{self.peak_capital:,.0f}",
+                    level="critical" if level in ("LIQUIDATE", "CRISIS") else "warning",
+                )
+        except Exception:
+            pass  # Never let notification failure affect risk controls
 
     def check_position_limit(self, position_value: float,
                              total_capital: float) -> Tuple[bool, str]:

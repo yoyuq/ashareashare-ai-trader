@@ -59,6 +59,19 @@ class ProvenanceReport:
     violations: List[str] = field(default_factory=list)
 
 
+def _restricted_import(name, *args, **kwargs):
+    """受限导入: 仅允许白名单顶层模块 numpy/pandas (及其子模块), 其余一律拒绝。
+
+    沙箱代码可能写 `import numpy as np`, 因此保留 __import__ 但收窄为白名单。
+    即便借助 fromlist 拿到子模块对象, AST 审计层已拦截 dunder 与危险属性访问
+    (如 .os / .popen / .__dict__), 无法据此逃逸。
+    """
+    root = str(name).split(".")[0]
+    if root not in ("numpy", "pandas"):
+        raise ImportError(f"禁止导入: {name}。沙箱仅允许 numpy / pandas")
+    return __import__(name, *args, **kwargs)
+
+
 class CodeExecutor:
     """
     Python代码执行引擎 (受控沙箱)
@@ -76,7 +89,8 @@ class CodeExecutor:
       - 导入任意模块
     """
 
-    # 安全白名单
+    # 安全白名单 — __import__ 收窄为仅 numpy/pandas 的受限版本;
+    # 绝不放入 getattr/eval/globals/vars 等可用于内省逃逸的内置。
     SAFE_BUILTINS = {
         "abs": abs, "min": min, "max": max, "round": round,
         "sum": sum, "len": len, "range": range, "enumerate": enumerate,
@@ -84,7 +98,16 @@ class CodeExecutor:
         "int": int, "float": float, "str": str, "bool": bool,
         "list": list, "dict": dict, "tuple": tuple, "set": set,
         "True": True, "False": False, "None": None,
-        "print": print, "__import__": __import__,
+        "print": print, "__import__": _restricted_import,
+    }
+
+    # 属性访问黑名单叶子名 — 拦截经白名单模块内部对象的逃逸链
+    # (如 pd.io.common.os.popen / np.lib.os.system)
+    _DANGEROUS_ATTRS = {
+        "os", "sys", "subprocess", "shutil", "socket", "signal", "ctypes",
+        "popen", "system", "exec", "eval", "compile", "execfile",
+        "globals", "vars", "open", "input", "breakpoint",
+        "load", "loads", "__import__",
     }
 
     ALLOWED_MODULES = {"numpy": "np", "pandas": "pd"}
@@ -161,6 +184,15 @@ class CodeExecutor:
             raise RuntimeError(f"代码语法错误: {e}")
 
         for node in ast.walk(tree):
+            # 禁止 dunder 属性访问 — 拦截对象内省逃逸
+            # (().__class__.__bases__[0].__subclasses__() 等全部依赖 dunder 属性)
+            if isinstance(node, ast.Attribute):
+                if node.attr.startswith("__") and node.attr.endswith("__"):
+                    raise RuntimeError(f"禁止访问特殊属性: {node.attr}")
+                # 拦截经白名单模块内部对象到达的危险叶子 (pd.io.common.os 等)
+                if node.attr in self._DANGEROUS_ATTRS:
+                    raise RuntimeError(f"禁止访问危险属性: {node.attr}")
+
             # 禁止import
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 if isinstance(node, ast.ImportFrom):

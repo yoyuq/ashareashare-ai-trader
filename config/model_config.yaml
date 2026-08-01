@@ -21,7 +21,7 @@ models:
   # ---- Tier 2: DeepSeek V4-Flash (¥1-2/百万tokens,处理30%中等任务) ----
   flash:
     provider: "deepseek"
-    model: "deepseek-chat"               # V4-Flash (性价比最高)
+    model: "deepseek-v4-flash"               # V4-Flash (性价比最高)
     api_key: "${DEEPSEEK_API_KEY}"
     base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
     max_context_length: 131072           # 128K
@@ -41,7 +41,7 @@ models:
   # ---- Tier 3: DeepSeek V4-Pro (¥3-6/百万tokens,处理10%复杂任务) ----
   pro:
     provider: "deepseek"
-    model: "deepseek-reasoner"           # V4-Pro (最强推理)
+    model: "deepseek-v4-pro"           # V4-Pro (最强推理)
     api_key: "${DEEPSEEK_API_KEY}"
     base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
     max_context_length: 131072

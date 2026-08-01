@@ -1,0 +1,71 @@
+{
+  "scenario": "stop_loss_execution",
+  "version": "1.0.0",
+  "description": "止损执行决策 — 在不同市场环境下如何执行止损的决策示例",
+  "examples": [
+    {
+      "id": "stop_loss_001",
+      "query": "我买入后股价从10元跌到9.2元,亏损8%了,要不要止损?",
+      "context": {
+        "entry_price": 10.00,
+        "current_price": 9.20,
+        "loss_pct": -8.0,
+        "market_regime": "weak_bull",
+        "industry": "消费电子",
+        "industry_trend": "上涨"
+      },
+      "analysis": {
+        "technical_check": {
+          "ma_60": 9.00,
+          "support_level": "60日均线 9.00 (强支撑)",
+          "rsi_14": 35,
+          "volume": "下跌缩量 (量比0.6)"
+        },
+        "risk_assessment": "已触发L1回撤熔断(8%),但处于weak_bull环境且行业趋势向好,60日线9.00提供强支撑"
+      },
+      "decision": {
+        "action": "减仓50%,保留50%观察60日线支撑",
+        "reasoning": [
+          "触发L1风控(8%回撤),必须减仓控制风险",
+          "但下跌缩量+行业趋势好+60日线接近 → 不是恐慌性下跌",
+          "保留一半仓位,如跌破60日线(9.00)则全平"
+        ],
+        "hard_stop": "9.00 (60日线)",
+        "correct": true,
+        "outcome": "股价在60日线获得支撑,反弹至10.50 (+5%相对于原仓位)"
+      }
+    },
+    {
+      "id": "stop_loss_002",
+      "query": "买入后一路阴跌,持仓18天了亏了12%,怎么办?",
+      "context": {
+        "entry_price": 50.00,
+        "current_price": 44.00,
+        "loss_pct": -12.0,
+        "holding_days": 18,
+        "market_regime": "weak_bear",
+        "stock_type": "中盘周期股"
+      },
+      "analysis": {
+        "risk_triggers": [
+          "L1回撤熔断(-12%): 已触发减仓50%",
+          "L6时间止损(18天接近20天): 即将触发",
+          "市场环境不利(weak_bear)"
+        ],
+        "assessment": "单向阴跌+持仓时间长+市场环境不利 → 没有继续持有的理由"
+      },
+      "decision": {
+        "action": "全部平仓",
+        "reasoning": [
+          "超12%回撤已触发L1减仓50%,应减至50%",
+          "接近20天时间止损,提前2天平仓避免被动",
+          "weak_bear环境不支持周期股反弹",
+          "继续持有机会成本高"
+        ],
+        "lesson": "初始止损设在买入价的-8%(ATR法),不要等到亏损扩大再处理",
+        "correct": true,
+        "outcome": "20个交易日后股价进一步跌至40 (-20%)"
+      }
+    }
+  ]
+}

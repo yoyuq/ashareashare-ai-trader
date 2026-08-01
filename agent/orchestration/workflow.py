@@ -1,22 +1,30 @@
 """
-LangGraph工作流 — AI Agent编排引擎
+LangGraph工作流 — AI Agent编排引擎 (v3.1)
 
 分析流水线:
-  数据准备 → 市场扫描 → 技术分析 → 策略匹配 → 回测验证 → 多空辩论 → 综合研判
+  数据准备 → 技术分析 → 市场扫描 → 策略匹配 → 回测验证
+  → 多空辩论 → Critic审计 → 综合研判(含反思注入)
+  → 决策持久化 → END
 
-每个节点是LangGraph的Node,通过State在节点间传递数据。
+v3.1 新增:
+  - CriticAgent 独立审计节点 (对抗性验证)
+  - DecisionLogger 决策持久化 (SQLite)
+  - AgentMemory 反思注入 (历史决策→Prompt)
+  - CheckpointManager 断点续跑 (SqliteSaver)
 """
 
 import asyncio
 import json
 import uuid
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 from langgraph.graph import END, StateGraph
 from loguru import logger
 
 from .state import MarketAnalysisState
+from .memory import AgentMemory
 from analysis.regime import get_regime_parameters
 
 
@@ -37,13 +45,34 @@ class AnalysisWorkflow:
     def __init__(self, router=None, knowledge_manager=None):
         self.router = router
         self.knowledge = knowledge_manager
+        # v3.0: 实例化正式Agent类 (替代内联LLM调用)
+        self._agent_instances = {}
+        # v3.1: 决策记忆与自进化
+        self._memory = AgentMemory()
+        self._decision_logger = None  # 延迟初始化
         self.graph = self._build_graph()
+
+    def _init_decision_logger(self):
+        """v3.1: 延迟初始化 DecisionLogger"""
+        if self._decision_logger is None:
+            from agent.orchestration.decision_log import DecisionLogger
+            self._decision_logger = DecisionLogger()
+            self._memory.set_decision_logger(self._decision_logger)
+
+    def _get_agent(self, name: str):
+        """v3.0: 懒加载Agent实例"""
+        if name not in self._agent_instances:
+            from agent.sub_agents import create_agent
+            self._agent_instances[name] = create_agent(
+                name, knowledge_manager=self.knowledge, model_router=self.router
+            )
+        return self._agent_instances[name]
 
     def _build_graph(self) -> StateGraph:
         """
-        构建LangGraph有向图 (v2.2 改进: 显式fan-in文档 + 图校验)
+        构建LangGraph有向图 (v3.1: 新增 Critic审计 + Checkpoint断点续跑)
 
-        工作流拓扑 (v2.8 串行):
+        工作流拓扑 (v3.1):
 
             data_preparation → technical_analysis → market_scanner
             (拉数据+算指标)    (代码计算指标+LLM解读)  (LLM市况扫描)
@@ -51,8 +80,9 @@ class AnalysisWorkflow:
             strategy_matching → backtest_verification → adversarial_debate
             (市场适配策略)       (STRATEGY_BACKTESTERS)   (逐股Bull/Bear/Judge)
                 ↓
-            synthesis → END
-            (含 stock_recommendations)
+            critic_audit → synthesis → END
+            (CriticAgent (含反思注入+
+             5维审计)    决策持久化)
         """
         workflow = StateGraph(MarketAnalysisState)
 
@@ -63,30 +93,42 @@ class AnalysisWorkflow:
         workflow.add_node("strategy_matching", self._strategy_matching_node)
         workflow.add_node("backtest_verification", self._backtest_verification_node)
         workflow.add_node("adversarial_debate", self._adversarial_debate_node)
+        workflow.add_node("critic_audit", self._critic_node)  # v3.1 新增
         workflow.add_node("synthesis", self._synthesis_node)
 
         # ---- 边定义 ----
         workflow.set_entry_point("data_preparation")
 
         # v2.8 串行执行 (避免 LangGraph 并行分支的 channel 冲突)
-        # market_scanner 和 technical_analysis 共享 ModelRouter, 无法真正并行
         workflow.add_edge("data_preparation", "technical_analysis")
         workflow.add_edge("technical_analysis", "market_scanner")
 
         # 汇聚到策略匹配
         workflow.add_edge("market_scanner", "strategy_matching")
 
-        # Phase 2→3: 串行 — 策略匹配 → 回测验证
+        # Phase 2→3: 策略匹配 → 回测验证
         workflow.add_edge("strategy_matching", "backtest_verification")
 
-        # Phase 3→4: 串行 — 回测 → 多空辩论 → 综合研判
+        # Phase 3→4: 回测 → 多空辩论 → Critic审计 → 综合研判
         workflow.add_edge("backtest_verification", "adversarial_debate")
-        workflow.add_edge("adversarial_debate", "synthesis")
+        workflow.add_edge("adversarial_debate", "critic_audit")     # v3.1 新增
+        workflow.add_edge("critic_audit", "synthesis")              # v3.1 修改
 
         # 终点
         workflow.add_edge("synthesis", END)
 
-        compiled = workflow.compile()
+        # v3.1: 尝试注册 SqliteSaver checkpoint
+        checkpointer = None
+        try:
+            from agent.orchestration.checkpoint import CheckpointManager
+            cpm = CheckpointManager()
+            checkpointer = cpm.get_saver()
+            if checkpointer:
+                logger.info("[Workflow] Checkpoint 已启用 (SqliteSaver)")
+        except Exception as e:
+            logger.debug(f"[Workflow] Checkpoint 未启用: {e}")
+
+        compiled = workflow.compile(checkpointer=checkpointer) if checkpointer else workflow.compile()
         try:
             graph_info = compiled.get_graph()
             node_count = len(graph_info.nodes) if hasattr(graph_info, 'nodes') else len(list(graph_info.nodes))
@@ -104,9 +146,10 @@ class AnalysisWorkflow:
         symbols: Optional[List[str]] = None,
         pool_name: str = "default",
     ) -> MarketAnalysisState:
-        """运行每日市场扫描"""
+        """运行每日市场扫描 (v3.1: 支持 checkpoint 恢复)"""
+        task_id = str(uuid.uuid4())[:8]
         initial_state: MarketAnalysisState = {
-            "task_id": str(uuid.uuid4())[:8],
+            "task_id": task_id,
             "task_type": "daily_scan",
             "date": date.today().isoformat(),
             "symbols": symbols or [],
@@ -114,15 +157,17 @@ class AnalysisWorkflow:
             "model_trace": [],
             "signals_archived": False,
         }
-        result = await self.graph.ainvoke(initial_state)
+        config = {"configurable": {"thread_id": task_id}}
+        result = await self.graph.ainvoke(initial_state, config=config)
         return result
 
     async def run_stock_analysis(
         self, symbol: str
     ) -> MarketAnalysisState:
-        """运行单只股票深度分析"""
+        """运行单只股票深度分析 (v3.1: 支持 checkpoint 恢复)"""
+        task_id = str(uuid.uuid4())[:8]
         initial_state: MarketAnalysisState = {
-            "task_id": str(uuid.uuid4())[:8],
+            "task_id": task_id,
             "task_type": "stock_analysis",
             "date": date.today().isoformat(),
             "symbols": [symbol],
@@ -130,8 +175,35 @@ class AnalysisWorkflow:
             "model_trace": [],
             "signals_archived": False,
         }
-        result = await self.graph.ainvoke(initial_state)
+        config = {"configurable": {"thread_id": task_id}}
+        result = await self.graph.ainvoke(initial_state, config=config)
         return result
+
+    def _load_agent_prompt(self, agent_name: str) -> Optional[str]:
+        """
+        v3.0-competition: 从知识库加载Agent提示词
+
+        如果KnowledgeManager可用,使用其加载提示词(含模板注入);
+        否则返回 None (调用方使用 fallback 默认值)
+
+        Args:
+            agent_name: Agent名称 (如 'bull_researcher', 'judge')
+
+        Returns:
+            完整提示词文本,或 None
+        """
+        if self.knowledge:
+            prompt = self.knowledge.get_system_prompt(agent_name)
+            if prompt and "Prompt文件缺失" not in prompt:
+                # 去除 YAML frontmatter (如果存在)
+                if prompt.startswith("---"):
+                    try:
+                        end = prompt.index("---", 3)
+                        prompt = prompt[end + 3:].strip()
+                    except ValueError:
+                        pass
+                return prompt
+        return None
 
     # ═══════════════════════════════════════════════════════════════
     # 节点1: 数据准备
@@ -180,13 +252,19 @@ class AnalysisWorkflow:
             symbol_tasks = [fetch_symbol(sym) for sym in symbols]
             all_tasks = [index_task] + symbol_tasks
 
-            results = await asyncio.gather(*all_tasks)
+            results = await asyncio.gather(*all_tasks, return_exceptions=True)
 
             # 第一个结果是市场状态
             regime_result = results[0]
-            state["market_regime"] = regime_result.regime.value
-            state["regime_confidence"] = regime_result.confidence
-            state["regime_params"] = get_regime_parameters(regime_result.regime)
+            if isinstance(regime_result, Exception):
+                logger.warning(f"[DataPrep] Market regime detection failed: {regime_result}")
+                state["market_regime"] = "range_bound"
+                state["regime_confidence"] = 0.5
+                state["regime_params"] = get_regime_parameters("range_bound")
+            else:
+                state["market_regime"] = regime_result.regime.value
+                state["regime_confidence"] = regime_result.confidence
+                state["regime_params"] = get_regime_parameters(regime_result.regime)
 
             # 其余是标的行情
             market_data = {}
@@ -279,6 +357,26 @@ class AnalysisWorkflow:
                     indicators[sym] = result.to_dataframe()
                     reports[sym] = ""
 
+                    # 🆕 v3.0: Code-as-Reasoning 集成 — 锁定数字,防止LLM幻觉
+                    code_as_reasoning_report = None
+                    if self.router and not result.to_dataframe().empty:
+                        try:
+                            from agent.tools.code_executor import CodeAsReasoningPipeline
+                            pipeline = CodeAsReasoningPipeline()
+                            code_report = await pipeline.run(
+                                plan=f"验证{sym}的关键技术指标计算",
+                                context={
+                                    "ohlcv_df": df.tail(60),
+                                    "indicators": result.to_dataframe().to_dict(),
+                                },
+                                router=self.router,
+                            )
+                            if code_report.num_safe and code_report.computed_numbers:
+                                code_as_reasoning_report = code_report
+                                logger.debug(f"[{sym}] Code-as-Reasoning: {len(code_report.computed_numbers)}个数值已锁定")
+                        except Exception as e:
+                            logger.debug(f"[{sym}] Code-as-Reasoning跳过: {e}")
+
                     if self.router:
                         system_prompt = (
                             self.knowledge.get_system_prompt("technical_analyst")
@@ -295,14 +393,42 @@ class AnalysisWorkflow:
                         }, ensure_ascii=False)
 
                         try:
+                            # v3.0: 增强上下文 — 包含Code-as-Reasoning锁定的数值
+                            user_content = f"标的: {sym}\n指标数据: {summary}"
+                            if code_as_reasoning_report:
+                                locked_nums = {
+                                    k: {"value": v.value, "unit": v.unit, "formula": v.formula}
+                                    for k, v in code_as_reasoning_report.computed_numbers.items()
+                                }
+                                user_content += (
+                                    f"\n\n🔒 代码验证锁定的数值 (必须引用,不可编造):\n"
+                                    f"{json.dumps(locked_nums, ensure_ascii=False, indent=2)}"
+                                )
                             result_llm = await self.router.route(
                                 messages=[
                                     {"role": "system", "content": system_prompt},
-                                    {"role": "user", "content": f"标的: {sym}\n指标数据: {summary}"},
+                                    {"role": "user", "content": user_content},
                                 ],
                                 task_type="technical_analysis",
                             )
                             reports[sym] = result_llm.response
+
+                            # 数字安全校验: 验证最终报告中的数值与Python计算的指标数据一致
+                            if reports[sym] and isinstance(last_row, dict):
+                                try:
+                                    from agent.tools.code_executor import ComputedNumber, NumericSafetyChecker
+                                    computed = {
+                                        k: ComputedNumber(name=k, value=float(v),
+                                                          source=f"computed({k})", formula=k)
+                                        for k, v in last_row.items()
+                                        if isinstance(v, (int, float)) and not (isinstance(v, float) and np.isnan(v))
+                                    }
+                                    checker = NumericSafetyChecker(computed)
+                                    safe, violations = checker.validate_report(reports[sym])
+                                    if not safe:
+                                        logger.warning(f"[{sym}] 数字校验未通过: {'; '.join(violations[:3])}")
+                                except Exception:
+                                    pass
                         except Exception:
                             reports[sym] = f"[{sym} API错误]"
                     completed += 1
@@ -310,7 +436,7 @@ class AnalysisWorkflow:
                         logger.info(f"  [技术分析] {completed}/{total} 完成")
 
             tasks = [_process_one(sym, df) for sym, df in state.get("market_data", {}).items()]
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
 
             state["technical_indicators"] = {
                 k: v.to_dict() if hasattr(v, "to_dict") else v
@@ -630,7 +756,8 @@ class AnalysisWorkflow:
         )
 
         # ---- Bull Researcher ----
-        bull_prompt = (
+        # v3.0: 优先从知识库加载提示词, fallback到默认值
+        bull_prompt = self._load_agent_prompt("bull_researcher") or (
             "你是A股多头研究员。以下是一只股票的量化数据,请基于这些数据找出看涨的理由。\n\n"
             "分析维度 (每个维度必须引用具体数据):\n"
             "1. 技术面: 均线排列/金叉死叉/RSI位置/布林带位置→有什么看涨信号?\n"
@@ -645,7 +772,7 @@ class AnalysisWorkflow:
         )
 
         # ---- Bear Researcher ----
-        bear_prompt = (
+        bear_prompt = self._load_agent_prompt("bear_researcher") or (
             "你是A股空头研究员。以下是一只股票的量化数据,请基于这些数据找出看跌的理由。\n\n"
             "分析维度 (每个维度必须引用具体数据):\n"
             "1. 技术风险: 均线空排/RSI超买/背离/布林带收窄→有什么看跌信号?\n"
@@ -678,31 +805,76 @@ class AnalysisWorkflow:
 
         bull_result, bear_result = await asyncio.gather(bull_task, bear_task)
 
-        # ---- Judge ----
-        judge_prompt = (
-            f"你是A股策略裁判。以下是 {sym} 的多空辩论,双方基于同一份量化数据:\n\n"
-            f"=== 原始数据 ===\n{data_context[:2000]}\n\n"
-            f"=== 多头论据 ===\n{bull_result.response[:1200]}\n\n"
-            f"=== 空头论据 ===\n{bear_result.response[:1200]}\n\n"
-            "请评估并输出 JSON (不要输出其他内容, 只输出 JSON):\n"
-            "{\n"
-            f'  "action": "BUY" | "HOLD" | "SELL",\n'
-            '  "conviction": 0.0-1.0,\n'
-            '  "score": 1-10 (10=强烈看多),\n'
-            '  "key_reasons": ["论据1", "论据2", "论据3"],\n'
-            '  "risks": ["风险1", "风险2"],\n'
-            '  "bull_quality": 1-5 (多头论据质量),\n'
-            '  "bear_quality": 1-5 (空头论据质量),\n'
-            '  "verdict_summary": "一句话总结裁判意见"\n'
-            "}"
-        )
-        judge_result = await self.router.route(
-            messages=[
-                {"role": "system", "content": "你是公正的策略裁判。只输出JSON,不要输出其他内容。"},
-                {"role": "user", "content": judge_prompt},
-            ],
-            task_type="adversarial_debate",
-        )
+        # ---- 多轮辩论迭代 (v3.1) ----
+        max_rounds = 2
+        for round_num in range(1, max_rounds + 1):
+            # Judge 本轮论据
+            judge_system = self._load_agent_prompt("judge") or "你是公正的策略裁判。只输出JSON。"
+            judge_prompt = (
+                f"你是A股策略裁判。以下是 {sym} 的多空辩论第{round_num}轮:\n\n"
+                f"=== 原始数据 ===\n{data_context[:2000]}\n\n"
+                f"=== 多头论据 (第{round_num}轮) ===\n{bull_result.response[:1200]}\n\n"
+                f"=== 空头论据 (第{round_num}轮) ===\n{bear_result.response[:1200]}\n\n"
+                "输出JSON: {\"action\":\"BUY|HOLD|SELL\",\"conviction\":0.0,\"score\":1-10,"
+                "\"key_reasons\":[],\"risks\":[],\"bull_quality\":1-5,\"bear_quality\":1-5,"
+                "\"improvement_needed\":true|false,\"critique_for_bull\":\"\",\"critique_for_bear\":\"\"}"
+            )
+            judge_result = await self.router.route(
+                messages=[
+                    {"role": "system", "content": judge_system},
+                    {"role": "user", "content": judge_prompt},
+                ],
+                task_type="judge_verdict",
+            )
+
+            # 解析 Judge JSON
+            judge_json = {}
+            try:
+                judge_text = judge_result.response.strip()
+                if "```json" in judge_text:
+                    judge_text = judge_text.split("```json")[1].split("```")[0]
+                elif "```" in judge_text:
+                    judge_text = judge_text.split("```")[1].split("```")[0]
+                judge_json = json.loads(judge_text)
+            except (json.JSONDecodeError, IndexError):
+                judge_json = {"action": "HOLD", "conviction": 0.3, "improvement_needed": False}
+
+            # 如果不需要改进或已是最后一轮, 结束
+            if not judge_json.get("improvement_needed", False) or round_num >= max_rounds:
+                break
+
+            # 迭代改进: 基于Judge的批评, 让Bull/Bear修改论点
+            crit_bull = judge_json.get("critique_for_bull", "")
+            crit_bear = judge_json.get("critique_for_bear", "")
+            if crit_bull or crit_bear:
+                revise_tasks = []
+                if crit_bull:
+                    revise_tasks.append(self.router.route(
+                        messages=[
+                            {"role": "system", "content": bull_prompt},
+                            {"role": "user", "content": data_context},
+                            {"role": "assistant", "content": bull_result.response},
+                            {"role": "user", "content": f"裁判批评: {crit_bull}\n请修改你的看涨论据,回应批评,改进论点质量。只输出修改后的完整论据。"},
+                        ],
+                        task_type="adversarial_debate",
+                    ))
+                if crit_bear:
+                    revise_tasks.append(self.router.route(
+                        messages=[
+                            {"role": "system", "content": bear_prompt},
+                            {"role": "user", "content": data_context},
+                            {"role": "assistant", "content": bear_result.response},
+                            {"role": "user", "content": f"裁判批评: {crit_bear}\n请修改你的看跌论据,回应批评,改进论点质量。只输出修改后的完整论据。"},
+                        ],
+                        task_type="adversarial_debate",
+                    ))
+                if revise_tasks:
+                    revised = await asyncio.gather(*revise_tasks)
+                    idx = 0
+                    if crit_bull:
+                        bull_result = revised[idx]; idx += 1
+                    if crit_bear:
+                        bear_result = revised[idx]
 
         # 解析 Judge 的 JSON
         judge_json = {}
@@ -807,12 +979,14 @@ class AnalysisWorkflow:
 
             try:
                 macd_gc = int(self._get_indicator_value(indicators_dict, "macd_golden_cross", 0))
-                if macd_gc > 0: signals.append("MACD金叉")
-            except: pass
+                if macd_gc > 0: signals.append("MACD golden cross")
+            except (ValueError, TypeError):
+                pass
             try:
                 macd_dc = int(self._get_indicator_value(indicators_dict, "macd_death_cross", 0))
-                if macd_dc > 0: signals.append("MACD死叉")
-            except: pass
+                if macd_dc > 0: signals.append("MACD death cross")
+            except (ValueError, TypeError):
+                pass
 
             trend = self._get_indicator_value(indicators_dict, "trend_score", 0)
             if trend > 0.5: signals.append("多头排列(趋势>0.5)")
@@ -847,6 +1021,33 @@ class AnalysisWorkflow:
                 )
 
         parts.append(f"\n市场参数: 仓位系数={regime_params.get('position_multiplier', 0.5):.0%}")
+
+        # 🆕 v3.0: ChromaDB RAG — 检索相似历史K线形态
+        if self.knowledge and self.knowledge.chroma_available:
+            try:
+                # 构建当前K线形态的查询向量
+                query_text = f"{sym} K线形态: "
+                if rsi := self._get_indicator_value(indicators_dict, "rsi_14", None):
+                    query_text += f"RSI={rsi:.0f} "
+                if trend := self._get_indicator_value(indicators_dict, "trend_score", None):
+                    query_text += f"趋势={trend:+.2f} "
+                if composite := self._get_indicator_value(indicators_dict, "composite_score", None):
+                    query_text += f"评分={composite:.1f}"
+
+                similar = self.knowledge.search_similar_klines(
+                    query_text, top_k=3
+                )
+                if similar and len(similar) > 0:
+                    parts.append("\n### 🔍 历史相似形态 (ChromaDB检索)")
+                    for i, match in enumerate(similar, 1):
+                        parts.append(
+                            f"{i}. {match.get('pattern', '未知形态')} "
+                            f"(相似度: {match.get('similarity', 0):.0%}) "
+                            f"— {match.get('description', '')}"
+                        )
+                    logger.debug(f"[{sym}] ChromaDB RAG: 检索到{len(similar)}个相似形态")
+            except Exception as e:
+                logger.debug(f"[{sym}] ChromaDB RAG跳过: {e}")
 
         return "\n".join(parts)
 
@@ -939,30 +1140,141 @@ class AnalysisWorkflow:
         }
 
     # ═══════════════════════════════════════════════════════════════
-    # 节点7: 综合研判 (增强版 — 含辩论摘要+交易建议)
+    # 节点7: Critic 独立审计 (v3.1 新增)
+    # ═══════════════════════════════════════════════════════════════
+
+    async def _critic_node(
+        self, state: MarketAnalysisState
+    ) -> MarketAnalysisState:
+        """
+        🆕 v3.1 CriticAgent 独立审计节点
+
+        在辩论完成后、综合研判之前,用规则引擎+LLM对每个推荐进行5维审计:
+          1. Look-Ahead Bias
+          2. Regime Cherry-Picking
+          3. Overfitting
+          4. Cost Optimism
+          5. Fragility
+
+        审计结果注入 state,供 synthesis 节点参考。
+        """
+        logger.info(f"[Critic审计] task={state['task_id']}")
+
+        critic_results = {}
+        stock_recs = state.get("stock_recommendations", {})
+        backtest_results = state.get("backtest_results", {})
+        regime = state.get("market_regime", "unknown")
+
+        if not stock_recs:
+            state["critic_results"] = {}
+            return state
+
+        try:
+            from agent.sub_agents.critic import CriticAgent, CriticResult
+
+            critic = CriticAgent(knowledge_manager=self.knowledge, model_router=self.router)
+
+            for sym, rec in stock_recs.items():
+                bt_data = backtest_results.get(sym, [])
+
+                # 构建审计输入 — 尽可能注入真实回测数据而非硬编码常量
+                bt_metrics: Dict[str, Any] = {}
+                for b in bt_data:
+                    if not isinstance(b, dict):
+                        continue
+                    for k in ("win_rate", "max_drawdown", "signals", "sharpe"):
+                        if k in b:
+                            bt_metrics.setdefault(k, b[k])
+                bt_metrics.setdefault("strategies_tested", len(bt_data) if isinstance(bt_data, list) else 0)
+
+                ctx = critic._start_context(
+                    task_id=state.get("task_id", ""),
+                    symbol=sym,
+                    backtest_results={"metrics": {
+                        "win_rate": bt_metrics.get("win_rate", rec.get("conviction", 0.5)),
+                        "max_drawdown": bt_metrics.get("max_drawdown",
+                            max((b.get("max_drawdown", 0) for b in bt_data if isinstance(b, dict) and "max_drawdown" in b), default=0)),
+                        "pbo": bt_metrics.get("pbo", 0.0),
+                        "best_sharpe": bt_metrics.get("sharpe", 0.0),
+                        "strategies_tested": bt_metrics.get("strategies_tested", 0),
+                        "signal_count": bt_metrics.get("signals", 0),
+                    }},
+                    strategy_config={
+                        "transaction_cost_pct": 0.0031,
+                        "slippage_enabled": True,
+                        "pit_enabled": True,
+                        "strategy_id": rec.get("strategy_id", rec.get("id", "")),
+                    },
+                    regime_history={
+                        "distribution": {regime: rec.get("win_rate", 0.5)},
+                        "years_covered": state.get("hist_years",
+                            len(bt_data) if isinstance(bt_data, list) else 3),
+                    },
+                    indicators=state.get("technical_indicators", {}).get(sym, {}),
+                )
+
+                audit_result = await critic.run(ctx)
+                critic_results[sym] = audit_result.data if audit_result.success else {}
+
+            state["critic_results"] = critic_results
+            total_flaws = sum(
+                c.get("flaw_count", 0)
+                for c in critic_results.values()
+            )
+            avg_robustness = (
+                sum(c.get("robustness_score", 100) for c in critic_results.values())
+                / max(len(critic_results), 1)
+            )
+            logger.info(
+                f"[Critic审计] 完成: {len(critic_results)}只标的, "
+                f"发现{total_flaws}个缺陷, 平均稳健性={avg_robustness:.0f}/100"
+            )
+
+        except Exception as e:
+            state["errors"].append({"node": "critic_audit", "error": str(e)})
+            logger.warning(f"[Critic审计] 跳过: {e}")
+            state["critic_results"] = {}
+
+        return state
+
+    # ═══════════════════════════════════════════════════════════════
+    # 节点8: 综合研判 (v3.1 增强 — 含反思注入+Critic审计+决策持久化)
     # ═══════════════════════════════════════════════════════════════
 
     async def _synthesis_node(
         self, state: MarketAnalysisState
     ) -> MarketAnalysisState:
-        """综合研判节点 — 汇总所有分析,输出最终报告"""
+        """综合研判节点 (v3.1) — 汇总所有分析 + 反思注入 + 决策持久化"""
         logger.info(f"[综合研判] 生成最终报告")
+
+        # v3.1: 加载历史记忆,注入反思上下文
+        symbols = state.get("symbols", [])
+        reflection_contexts = {}
+        for sym in symbols:
+            self._memory.load_historical(sym, days=5)
+            reflection = self._memory.get_reflection(sym, days=5)
+            if reflection:
+                reflection_contexts[sym] = reflection
 
         if self.router and self.knowledge:
             try:
                 system_prompt = self.knowledge.get_system_prompt("synthesis")
 
-                # 构建完整上下文 — v2.8: 含逐股推荐
+                # 构建完整上下文 — v3.1: 含逐股推荐 + Critic审计 + 反思
                 stock_recs = state.get("stock_recommendations", {})
-                stock_summary = {
-                    sym: {
+                critic_results = state.get("critic_results", {})
+                stock_summary = {}
+                for sym, rec in stock_recs.items():
+                    critic = critic_results.get(sym, {})
+                    stock_summary[sym] = {
                         "action": rec.get("action", "HOLD"),
                         "conviction": rec.get("conviction", 0),
                         "key_reasons": rec.get("key_reasons", [])[:2],
                         "risks": rec.get("risks", [])[:2],
+                        "critic_flaws": critic.get("flaw_count", 0),
+                        "robustness": critic.get("robustness_score", 100),
+                        "reflection": reflection_contexts.get(sym, "")[:300],
                     }
-                    for sym, rec in stock_recs.items()
-                }
 
                 context_parts = {
                     "date": state.get("date", ""),
@@ -990,7 +1302,8 @@ class AnalysisWorkflow:
                         "divergence": state.get("debate_result", {}).get("divergence", 0),
                         "summary": state.get("debate_result", {}).get("summary", ""),
                     },
-                    "stock_recommendations": stock_summary,  # 🆕 v2.8 逐股推荐
+                    "stock_recommendations": stock_summary,
+                    "reflections": reflection_contexts,  # v3.1 反思上下文
                 }
 
                 context = json.dumps(context_parts, ensure_ascii=False, default=str)[:12000]
@@ -1014,7 +1327,6 @@ class AnalysisWorkflow:
         else:
             # 生成无LLM的基本摘要
             regime = state.get("market_regime", "unknown")
-            symbols = state.get("symbols", [])
             matches = state.get("strategy_matches", {})
             debate = state.get("debate_result", {})
             stock_recs = state.get("stock_recommendations", {})
@@ -1031,7 +1343,6 @@ class AnalysisWorkflow:
                 direction = debate.get("direction", "unknown")
                 report.append(f"### 整体方向: {direction} | 置信度: {debate.get('confidence', 0):.0%}")
 
-            # 🆕 v2.8: 逐股推荐
             if stock_recs:
                 report.append(f"\n### 逐股推荐 ({len(stock_recs)}只)")
                 action_emoji = {"BUY": "🟢", "HOLD": "⚪", "SELL": "🔴"}
@@ -1062,5 +1373,55 @@ class AnalysisWorkflow:
                 report.append(f"\n### 辩论摘要\n{debate.get('summary', 'N/A')[:300]}")
 
             state["final_report"] = "\n".join(report)
+
+        # ── v3.1: Signal tracking + 决策持久化 ──
+        try:
+            from analysis.winrate import SignalTracker
+            tracker = SignalTracker()
+            for sym, rec in stock_recs.items():
+                if rec.get("action") in ("BUY", "SELL"):
+                    tracker.emit(
+                        symbol=sym,
+                        signal=rec.get("action", "HOLD"),
+                        confidence=rec.get("conviction", 0),
+                        strategy_id=rec.get("strategy_id", ""),
+                        market_regime=state.get("market_regime", "unknown"),
+                        bull_score=debate.get("bull_score", 0.5),
+                        bear_score=debate.get("bear_score", 0.5),
+                        debate_result=debate.get("direction", "neutral"),
+                        report_snippet=(rec.get("verdict_summary", "") or "")[:200],
+                    )
+            logger.debug(f"[SignalTracker] {len(stock_recs)} signals emitted for future review")
+        except Exception as e:
+            logger.debug(f"[SignalTracker] Skip: {e}")
+        # ──
+        try:
+            self._init_decision_logger()
+            debate = state.get("debate_result", {})
+            critic = state.get("critic_results", {})
+            analysis_date = state.get("date", date.today().isoformat())
+
+            for sym, rec in stock_recs.items():
+                rec_critic = critic.get(sym, {})
+                self._decision_logger.log_analysis(
+                    symbol=sym,
+                    analysis_date=analysis_date,
+                    task_id=state.get("task_id", ""),
+                    market_regime=state.get("market_regime", "unknown"),
+                    regime_confidence=state.get("regime_confidence", 0),
+                    bull_score=debate.get("bull_score", 0.5),
+                    bear_score=debate.get("bear_score", 0.5),
+                    debate_result=debate.get("direction", "neutral"),
+                    bull_key_points={"summary": rec.get("bull_summary", "")},
+                    bear_key_points={"summary": rec.get("bear_summary", "")},
+                    final_signal=rec.get("action", "HOLD"),
+                    confidence=rec.get("conviction", 0),
+                    reasoning=rec.get("verdict_summary", ""),
+                    risk_flaws=rec_critic.get("flaw_count", 0),
+                    robustness_score=rec_critic.get("robustness_score", 100),
+                )
+            logger.info(f"[综合研判] {len(stock_recs)}条决策已持久化到 DecisionLogger")
+        except Exception as e:
+            logger.warning(f"[综合研判] 决策持久化跳过: {e}")
 
         return state

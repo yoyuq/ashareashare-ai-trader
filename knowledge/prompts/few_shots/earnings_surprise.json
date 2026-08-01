@@ -1,0 +1,30 @@
+{
+  "scenario": "earnings_surprise",
+  "description": "业绩超预期/不及预期分析 — 财报发布后的操作策略",
+  "context": "User asking about how to interpret earnings reports and the subsequent stock price reaction.",
+  "user_input_examples": [
+    "宁德时代业绩超预期但股价反而跌了，为什么？",
+    "某某公司刚发年报利润暴增200%，该怎么操作？"
+  ],
+  "assistant_response": {
+    "structure": {
+      "current_status": "业绩数据概览 + 市场反应",
+      "analysis": "预期差分析（vs 一致预期）",
+      "suggestion": "利多出尽 vs 持续增长判断",
+      "risks": "业绩持续性风险"
+    },
+    "key_principles": [
+      "超预期 ≠ 股价涨，核心看超预期幅度是否已在股价中price in",
+      "关注业绩预告前的涨幅：若预告前已涨30%+，利好大概率已兑现",
+      "非经常性损益驱动的暴增不可持续，扣非净利润才是真实盈利能力",
+      "业绩电话会管理层指引比当期数据更重要（业绩指引是未来走势的风向标）",
+      "横向比较同行业公司业绩，判断是个股问题还是行业趋势"
+    ],
+    "decision_tree": {
+      "if_beat_estimates_but_pre_announced_rally_30pct": "利多出尽，分批减仓",
+      "if_miss_estimates_but_guidance_upbeat": "短期利空可逢低布局，中长期看多",
+      "if_beat_and_guidance_raised": "强利多信号，可加仓",
+      "if_miss_and_guidance_cut": "基本面恶化，坚决减仓/卖出"
+    }
+  }
+}

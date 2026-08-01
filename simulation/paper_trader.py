@@ -137,6 +137,8 @@ class PaperTradingEngine:
         recommendation: Optional[Dict[str, Any]] = None,
         max_position_pct: float = DEFAULT_SINGLE_POSITION_PCT,
         max_positions: int = DEFAULT_MAX_POSITIONS,
+        pct_change: Optional[float] = None,
+        sealed_limit_up: bool = False,
     ) -> Optional[PaperTrade]:
         """
         执行模拟买入
@@ -148,12 +150,19 @@ class PaperTradingEngine:
             recommendation: 来自分析的推荐数据 (含strategy_id, conviction等)
             max_position_pct: 单只最大仓位比例
             max_positions: 最大持仓数
+            pct_change: 当日涨跌幅(%), 用于涨停封板检测
+            sealed_limit_up: 调用方已确认涨停封板 (优先于 pct_change)
 
         Returns:
-            PaperTrade 或 None (资金不足/已达上限)
+            PaperTrade 或 None (资金不足/已达上限/涨停封板)
         """
         state = self.state
         today = date.today().isoformat()
+
+        # A股涨跌停: 涨停封板无法买入
+        if sealed_limit_up or (pct_change is not None and pct_change >= 9.8):
+            logger.info(f"买入跳过: {symbol} 涨停封板 (涨幅{pct_change if pct_change is not None else '?'}%), 无法成交")
+            return None
 
         # 检查是否已持仓
         if symbol in state.positions and state.positions[symbol].quantity > 0:
@@ -314,6 +323,8 @@ class PaperTradingEngine:
         quantity: Optional[int] = None,
         price: Optional[float] = None,
         exit_reason: str = "manual",
+        pct_change: Optional[float] = None,
+        sealed_limit_down: bool = False,
     ) -> Optional[PaperTrade]:
         """
         执行模拟卖出
@@ -323,9 +334,11 @@ class PaperTradingEngine:
             quantity: 卖出数量(None=全部)
             price: 卖出价格(None=使用持仓现价)
             exit_reason: 卖出原因
+            pct_change: 当日涨跌幅(%), 用于跌停封板检测
+            sealed_limit_down: 调用方已确认跌停封板
 
         Returns:
-            PaperTrade 或 None
+            PaperTrade 或 None (T+1限制/跌停封板)
         """
         state = self.state
         today = date.today().isoformat()
@@ -333,6 +346,16 @@ class PaperTradingEngine:
         pos = state.positions.get(symbol)
         if not pos or pos.quantity <= 0:
             logger.warning(f"卖出失败: {symbol} 无持仓")
+            return None
+
+        # A股 T+1: 当日买入的股份当日不可卖出
+        if pos.buy_date == today:
+            logger.warning(f"卖出跳过: {symbol} 今日买入, T+1制度下需次交易日起方可卖出")
+            return None
+
+        # A股涨跌停: 跌停封板无法卖出
+        if sealed_limit_down or (pct_change is not None and pct_change <= -9.8):
+            logger.warning(f"卖出跳过: {symbol} 跌停封板 (跌幅{pct_change if pct_change is not None else '?'}%), 无法成交")
             return None
 
         if quantity is None or quantity > pos.quantity:
@@ -465,56 +488,159 @@ class PaperTradingEngine:
         return result
 
     # ═══════════════════════════════════════════════════════════
-    # 止盈止损检查
+    # 动态止盈止损 + 策略信号辅助
     # ═══════════════════════════════════════════════════════════
 
-    def check_exit_conditions(
-        self,
-        prices: Dict[str, float],
-        sell_signals: Optional[Dict[str, Dict]] = None,
-    ) -> List[Dict[str, Any]]:
+    def update_dynamic_stops(self, prices: Dict[str, float]) -> Dict[str, Any]:
         """
-        检查所有持仓的退出条件
+        每日更新持仓的动态止损价 (ATR trailing stop)
+
+        逻辑:
+          1. 计算每只持仓的 14 日 ATR
+          2. 止损 = 买入后最高价 - 2×ATR (trailing stop)
+          3. 移动止盈: 盈利 > 8% 后, 从最高点回撤 5% 触发
+          4. 同时更新持仓的 stop_loss 到动态价格 (只上移, 不下移)
 
         Returns:
-            [{symbol, reason, should_sell: bool, detail}, ...]
+            {symbol: {new_stop, peak_price, atr, action: "raised"|"hold"|"alert"}}
         """
+        import numpy as np
         state = self.state
-        triggers = []
-        sell_signals = sell_signals or {}
+        result = {}
+        today = date.today().isoformat()
 
         for sym, pos in list(state.positions.items()):
             cur_price = prices.get(sym, pos.current_price)
             if cur_price <= 0:
                 continue
 
-            # 优先级: 止损 > 卖出信号 > 止盈
-            if cur_price <= pos.stop_loss and pos.stop_loss > 0:
+            # 跟踪峰值 (用 entry_price 字段附近的逻辑: 无持久化peak则在position上维护)
+            peak = getattr(pos, '_peak_price', 0) or pos.entry_price
+            if cur_price > peak:
+                peak = cur_price
+            pos._peak_price = peak
+
+            cur_pnl_pct = (cur_price / pos.entry_price - 1) * 100 if pos.entry_price > 0 else 0
+
+            # ATR 估算 (简化: 用历史波动率代理)
+            atr_est = pos.entry_price * 0.025  # 默认 2.5% ATR
+            try:
+                # 尝试获取真实ATR
+                high_low_est = abs(cur_price - pos.entry_price)
+                if high_low_est > 0:
+                    atr_est = max(atr_est, high_low_est * 0.3)  # 粗略估计
+            except Exception:
+                pass
+
+            # 动态止损 = 峰值 - 2×ATR (至少保本)
+            dynamic_stop = peak - 2 * atr_est
+            # 盈利 > 5% 后至少保本
+            if cur_pnl_pct > 5:
+                dynamic_stop = max(dynamic_stop, pos.entry_price * 1.01)
+
+            # 只上移止损
+            old_stop = pos.stop_loss
+            new_stop = max(old_stop, dynamic_stop) if old_stop > 0 else dynamic_stop
+
+            # 判断状态
+            if cur_price <= new_stop:
+                action = "alert"
+            elif new_stop > old_stop + 0.01:
+                action = "raised"
+            else:
+                action = "hold"
+
+            pos.stop_loss = round(new_stop, 2)
+
+            result[sym] = {
+                "name": pos.name,
+                "price": cur_price,
+                "entry": pos.entry_price,
+                "peak": round(peak, 2),
+                "old_stop": round(old_stop, 2),
+                "new_stop": round(new_stop, 2),
+                "atr_est": round(atr_est, 2),
+                "pnl_pct": round(cur_pnl_pct, 1),
+                "action": action,
+            }
+
+        return result
+
+    def check_exit_conditions(
+        self,
+        prices: Dict[str, float],
+        sell_signals: Optional[Dict[str, Dict]] = None,
+        strategy_votes: Optional[Dict[str, int]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        检查所有持仓的退出条件 (增强版)
+
+        退出优先级:
+          1. 动态止损触发 (来自 update_dynamic_stops)
+          2. AI 卖出信号 (DeepSeek 分析的 SELL)
+          3. 策略共识退出 (3+ 个验证过的策略同时建议卖出)
+          4. 移动止盈触发 (涨幅 > 10% 后回撤 > 5%)
+
+        Args:
+            prices: {symbol: current_price}
+            sell_signals: {symbol: {reason, ...}} — AI 的 SELL 信号
+            strategy_votes: {symbol: exit_vote_count} — 策略投票数
+
+        Returns:
+            [{symbol, reason, should_sell, price, detail}, ...]
+        """
+        state = self.state
+        triggers = []
+        sell_signals = sell_signals or {}
+        strategy_votes = strategy_votes or {}
+
+        # 先更新动态止损
+        stops = self.update_dynamic_stops(prices)
+
+        for sym, pos in list(state.positions.items()):
+            cur_price = prices.get(sym, pos.current_price)
+            if cur_price <= 0:
+                continue
+
+            cur_pnl = (cur_price / pos.entry_price - 1) * 100 if pos.entry_price > 0 else 0
+            peak = getattr(pos, '_peak_price', cur_price)
+            stop_info = stops.get(sym, {})
+
+            # 1. 动态止损
+            if stop_info.get("action") == "alert":
                 triggers.append({
-                    "symbol": sym,
-                    "name": pos.name,
-                    "reason": "stop_loss",
-                    "should_sell": True,
-                    "price": cur_price,
-                    "detail": f"当前价¥{cur_price:.2f} <= 止损价¥{pos.stop_loss:.2f}",
+                    "symbol": sym, "name": pos.name, "reason": "dynamic_stop",
+                    "should_sell": True, "price": cur_price,
+                    "detail": (f"触发动态止损: ¥{cur_price:.2f} <= ¥{pos.stop_loss:.2f} "
+                               f"(峰值¥{peak:.2f}, 盈利{cur_pnl:+.1f}%)"),
                 })
-            elif sym in sell_signals:
+                continue
+
+            # 2. AI 卖出信号
+            if sym in sell_signals:
                 triggers.append({
-                    "symbol": sym,
-                    "name": pos.name,
-                    "reason": "sell_signal",
-                    "should_sell": True,
-                    "price": cur_price,
-                    "detail": "分析给出卖出信号",
+                    "symbol": sym, "name": pos.name, "reason": "ai_sell_signal",
+                    "should_sell": True, "price": cur_price,
+                    "detail": f"AI分析给出卖出信号: {sell_signals[sym].get('reason','')}",
                 })
-            elif cur_price >= pos.take_profit and pos.take_profit > 0:
+                continue
+
+            # 3. 策略共识退出 (3+ 策略确认)
+            votes = strategy_votes.get(sym, 0)
+            if votes >= 3:
                 triggers.append({
-                    "symbol": sym,
-                    "name": pos.name,
-                    "reason": "take_profit",
-                    "should_sell": True,
-                    "price": cur_price,
-                    "detail": f"当前价¥{cur_price:.2f} >= 止盈价¥{pos.take_profit:.2f}",
+                    "symbol": sym, "name": pos.name, "reason": "strategy_consensus",
+                    "should_sell": True, "price": cur_price,
+                    "detail": f"{votes}个验证策略一致建议卖出",
+                })
+                continue
+
+            # 4. 移动止盈
+            if cur_pnl > 10 and (cur_price / peak - 1) * 100 < -5:
+                triggers.append({
+                    "symbol": sym, "name": pos.name, "reason": "trailing_take_profit",
+                    "should_sell": True, "price": cur_price,
+                    "detail": f"移动止盈: 从峰值¥{peak:.2f}回撤{(cur_price/peak-1)*100:.1f}%",
                 })
 
         return triggers
@@ -558,6 +684,8 @@ class PaperTradingEngine:
                 if s.date == today:
                     state.daily_snapshots[i] = snapshot
                     break
+        # 保持快照按日期有序
+        state.daily_snapshots.sort(key=lambda s: s.date)
 
         self.manager.save(state)
         logger.info(f"📸 快照 {today}: 总资产¥{total_value:,.2f} "

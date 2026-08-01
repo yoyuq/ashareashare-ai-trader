@@ -1,0 +1,55 @@
+{
+  "scenario": "sector_rotation",
+  "version": "1.0.0",
+  "description": "板块轮动识别 — 判断当前市场板块轮动阶段的决策示例",
+  "examples": [
+    {
+      "id": "rotation_001",
+      "query": "最近白酒板块涨得很好,现在还能追吗?",
+      "analysis": {
+        "sector": "白酒",
+        "lifecycle_stage": "高潮期",
+        "indicators": {
+          "sector_index_change_20d": "+12.5%",
+          "leading_stock": "贵州茅台 (+15%)",
+          "volume_trend": "近3日量能逐日萎缩",
+          "rotation_signal": "资金开始流向新能源板块"
+        }
+      },
+      "decision": {
+        "action": "不追,考虑分批止盈",
+        "reasoning": [
+          "板块20日涨幅12.5%已进入高位,追高风险大",
+          "龙头茅台涨15%后出现滞涨信号",
+          "量能萎缩+资金流出 → 可能进入退潮期",
+          "板块轮动规律: 高潮期之后通常进入退潮"
+        ],
+        "suggestion": "持有者考虑止盈50%,空仓者等待回调至20日均线再考虑"
+      }
+    },
+    {
+      "id": "rotation_002",
+      "query": "半导体板块跌了很久了,现在能抄底吗?",
+      "analysis": {
+        "sector": "半导体",
+        "lifecycle_stage": "冰点期→启动期过渡",
+        "indicators": {
+          "sector_index_change_60d": "-18.3%",
+          "leading_stock_volume": "中芯国际连续3日放量",
+          "northbound": "北向资金近5日净流入半导体ETF 3.2亿",
+          "policy": "大基金三期即将启动"
+        }
+      },
+      "decision": {
+        "action": "WATCH → 小仓位试探",
+        "reasoning": [
+          "冰点期尾部,下跌空间有限",
+          "龙头放量+北向资金流入 → 有资金开始布局",
+          "政策催化(大基金三期)可能引发板块行情",
+          "但趋势仍在下行,不宜重仓"
+        ],
+        "suggestion": "1-2成仓位试探性建仓龙头,等待放量突破60日线确认再加仓"
+      }
+    }
+  ]
+}

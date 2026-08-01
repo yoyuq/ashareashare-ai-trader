@@ -1,35 +1,48 @@
 """
-🆕 v2.0 Agent共享记忆
+Agent Shared Memory (v3.1, connected to DecisionLogger)
 
-问题: v1.0中每个Agent独立运行,上一个Agent的推理过程没有传递给下一个
-改进: 引入共享记忆体,关键中间结论显式传递
+Problem: In v1.0, each agent ran independently and prior reasoning was not passed downstream.
+Improvement: Shared memory object carries key intermediate conclusions across agents.
 
-支持:
-- 会话级记忆: 一次分析流水线内共享
-- 跨日记忆: 历史分析结论从DB读取
-- 向量记忆: 相似历史场景检索
+Features:
+- Session-level memory: shared within one analysis pipeline
+- Cross-day memory: historical analysis loaded from DecisionLogger (SQLite)
+- Vector memory: similar historical scenarios from ChromaDB
+- Reflection injection: reflection context injected into downstream agent prompts
+
+v3.1: load_historical() is now connected to DecisionLogger (SQLite).
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from agent.orchestration.decision_log import DecisionLogger
 
 
 @dataclass
 class AgentMemory:
-    """Agent间共享记忆体"""
+    """Agent shared memory (v3.1, connected to DecisionLogger)"""
 
-    # 会话级记忆 (一次分析流水线内)
+    # Session-level memory (within one analysis pipeline)
     session_findings: List[Dict[str, Any]] = field(default_factory=list)
 
-    # 跨日记忆 (历史分析结论,从DB读取)
+    # Cross-day memory (historical analysis from SQLite DecisionLogger)
     historical_context: Dict[str, Any] = field(default_factory=dict)
 
-    # 向量记忆 (相似历史场景的embedding)
+    # Vector memory (similar historical scenarios from ChromaDB)
     similar_scenarios: List[Dict[str, Any]] = field(default_factory=list)
 
+    # v3.1: DecisionLogger reference (lazy injection)
+    _decision_logger: Optional["DecisionLogger"] = None
+
+    def set_decision_logger(self, decision_logger: "DecisionLogger"):
+        """Inject DecisionLogger reference"""
+        self._decision_logger = decision_logger
+
     def add_finding(self, agent_name: str, finding: Dict[str, Any]):
-        """记录某个Agent的发现"""
+        """Record a sub-agent's finding"""
         self.session_findings.append({
             "agent": agent_name,
             "timestamp": datetime.now().isoformat(),
@@ -37,21 +50,21 @@ class AgentMemory:
         })
 
     def get_agent_findings(self, agent_name: str) -> List[Dict]:
-        """获取特定Agent的所有发现"""
+        """Get all findings from a specific agent"""
         return [
             f for f in self.session_findings
             if f["agent"] == agent_name
         ]
 
     def get_latest_finding(self, agent_name: str) -> Optional[Dict]:
-        """获取特定Agent的最新发现"""
+        """Get the most recent finding from a specific agent"""
         findings = self.get_agent_findings(agent_name)
         return findings[-1] if findings else None
 
     def get_findings_summary(self) -> str:
-        """生成所有发现的摘要(注入下游Agent的Prompt)"""
+        """Generate a summary of all findings (for injecting into downstream agent prompts)"""
         if not self.session_findings:
-            return "暂无前序Agent的分析结果。"
+            return "No prior agent analysis results available."
 
         lines = []
         for f in self.session_findings:
@@ -66,17 +79,55 @@ class AgentMemory:
 
     def load_historical(self, symbol: str, days: int = 5):
         """
-        从数据库加载某标的近N天分析历史
+        Load recent analysis history for a symbol from DecisionLogger (SQLite).
 
-        在实际使用中调用 SignalTracker.get_recent_analyses()
+        v3.1: Connected to DecisionLogger, reads real decision records.
         """
-        # TODO: 实现DB读取
+        if self._decision_logger is None:
+            self.historical_context[symbol] = {
+                "recent_signals": [],
+                "recent_reports": [],
+                "note": "DecisionLogger not injected",
+            }
+            return
+
+        records = self._decision_logger.get_history(symbol, days=days)
         self.historical_context[symbol] = {
-            "recent_signals": [],
-            "recent_reports": [],
+            "recent_signals": [
+                {
+                    "date": r.analysis_date,
+                    "signal": r.final_signal,
+                    "confidence": r.confidence,
+                    "realized_return": r.realized_return,
+                    "is_correct": r.is_correct,
+                }
+                for r in records
+            ],
+            "recent_reports": [
+                {
+                    "date": r.analysis_date,
+                    "reasoning": r.reasoning[:500] if r.reasoning else "",
+                    "bull_score": r.bull_score,
+                    "bear_score": r.bear_score,
+                }
+                for r in records[:3]
+            ],
+            "reflection": self.get_reflection(symbol, days),
         }
 
+    def get_reflection(self, symbol: str, days: int = 5) -> str:
+        """
+        Generate reflection context for Synthesis Agent prompt injection.
+
+        v3.1: Uses DecisionLogger for structured reflection.
+        """
+        if self._decision_logger is None:
+            return ""
+
+        return self._decision_logger.get_reflection_context(symbol, days=days)
+
     def clear_session(self):
-        """清理当前会话记忆"""
+        """Clear current session memory"""
         self.session_findings.clear()
         self.similar_scenarios.clear()
+        self.historical_context.clear()
