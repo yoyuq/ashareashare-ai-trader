@@ -92,18 +92,11 @@ def _guess_industry(symbol: str) -> str:
     return "其他"
 
 
-def _is_shanghai(symbol: str) -> bool:
-    """判断是否上交所 (收过户费)"""
-    return symbol.startswith("sh.") or (
-        symbol.replace("sh.", "").replace("sz.", "").startswith("6")
-    )
-
-
 def _calc_buy_fees(amount: float, symbol: str) -> Tuple[float, float, float]:
     """计算买入费用: (佣金, 印花税, 过户费)"""
     commission = max(amount * COMMISSION_RATE, MIN_COMMISSION)
     stamp_duty = 0.0  # 买入不收印花税
-    transfer_fee = amount * TRANSFER_FEE_RATE if _is_shanghai(symbol) else 0.0
+    transfer_fee = amount * TRANSFER_FEE_RATE  # 2015年起沪深两市均收过户费
     return commission, stamp_duty, transfer_fee
 
 
@@ -111,7 +104,7 @@ def _calc_sell_fees(amount: float, symbol: str) -> Tuple[float, float, float]:
     """计算卖出费用: (佣金, 印花税, 过户费)"""
     commission = max(amount * COMMISSION_RATE, MIN_COMMISSION)
     stamp_duty = amount * STAMP_DUTY_RATE  # 卖出收印花税
-    transfer_fee = amount * TRANSFER_FEE_RATE if _is_shanghai(symbol) else 0.0
+    transfer_fee = amount * TRANSFER_FEE_RATE  # 2015年起沪深两市均收过户费
     return commission, stamp_duty, transfer_fee
 
 

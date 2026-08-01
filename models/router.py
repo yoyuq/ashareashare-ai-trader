@@ -268,6 +268,10 @@ class ModelRouter:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+            # v3.0: 工具调用关闭思考模式 — 规避 DeepSeek 多轮工具调用必须回传
+            # reasoning_content 否则 400 的问题, 且工具执行是确定性操作无需思维链
+            # (降低延迟与成本)。来源: api-docs.deepseek.com/guides/thinking_mode/
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
 
         response = await self._deepseek_client.chat.completions.create(**kwargs)
 

@@ -138,7 +138,7 @@ class AShareBroker:
     COMMISSION_RATE = 0.0003      # 佣金费率: 万3
     MIN_COMMISSION = 5.0           # 最低佣金: ¥5
     STAMP_DUTY_RATE = 0.0005       # 印花税: 0.05% (仅卖出)
-    TRANSFER_FEE_RATE = 0.00001    # 过户费: 0.001% (仅上交所)
+    TRANSFER_FEE_RATE = 0.00001    # 过户费: 0.001% (沪深两市, 2015年起均收)
 
     def __init__(self, initial_capital: float = 100000.0):
         self.account = Account(initial_capital=initial_capital)
@@ -491,7 +491,7 @@ class AShareBroker:
         amount = qty * exec_price
         commission = max(amount * self.COMMISSION_RATE, self.MIN_COMMISSION)
         stamp_duty = amount * self.STAMP_DUTY_RATE
-        transfer_fee = amount * self.TRANSFER_FEE_RATE if self._is_shanghai(symbol) else 0.0
+        transfer_fee = amount * self.TRANSFER_FEE_RATE  # 2015年起沪深两市均收过户费
         sell_income = amount - (commission + stamp_duty + transfer_fee)
         cost_basis = pos.avg_cost * qty
         pnl = sell_income - cost_basis

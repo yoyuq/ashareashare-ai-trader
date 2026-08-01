@@ -287,7 +287,8 @@ with st.sidebar:
     def sidebar_portfolio():
         try:
             import requests
-            d = requests.get(f"{API_BASE_URL}/api/v1/portfolio/mtm", timeout=3).json()
+            d = requests.get(f"{API_BASE_URL}/api/v1/portfolio/mtm", timeout=3,
+                             headers={"X-API-Key": os.getenv("API_KEY", "")}).json()
             s = d.get("summary", {})
             if s.get("total_value"):
                 ret = s.get("total_return", 0)
@@ -779,7 +780,8 @@ def fragment_portfolio_live():
     """实时持仓 — 模拟持仓Tab顶部, 每5秒刷新价格"""
     try:
         import requests
-        d = requests.get(f"{API_BASE_URL}/api/v1/portfolio/mtm", timeout=5).json()
+        d = requests.get(f"{API_BASE_URL}/api/v1/portfolio/mtm", timeout=5,
+                         headers={"X-API-Key": os.getenv("API_KEY", "")}).json()
         s = d.get("summary", {})
         ps = d.get("positions", [])
         if not s.get("total_value"): return

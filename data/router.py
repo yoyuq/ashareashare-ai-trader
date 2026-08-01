@@ -81,7 +81,8 @@ class DataRouter:
                 continue
             try:
                 df = await provider.get_stock_list()
-                if not df.empty:
+                # v3.0: 排除错误占位 DataFrame (如 Tencent 返回 {"error": [...]} 为非空)
+                if not df.empty and "error" not in df.columns:
                     self._on_success(source)
                     return self._normalize_stock_list(df)
             except Exception as e:

@@ -58,7 +58,9 @@ app.add_middleware(
 #   - 未配置 API_KEY: 默认拒绝所有非健康检查请求 (403);
 #     仅当显式设置 API_ALLOW_INSECURE_NO_AUTH=true 时放开无认证开发模式
 _API_KEY = os.getenv("API_KEY", "")
-_AUTH_WHITELIST = {"/health", "/docs", "/openapi.json", "/redoc", "/api/v1/realtime/market", "/api/v1/portfolio/mtm", "/api/v1/bot/wecom", "/api/v1/bot/push/daily", "/api/v1/bot/push/alert"}
+# v3.0: 敏感端点(持仓/推送)移出白名单, 必须 X-API-Key 鉴权 — 此前 portfolio/mtm 与 bot/*
+# 未鉴权可读持仓/触发推送, 叠加 CORS 通配后可被任意站点窃取。仅保留健康检查/文档/公开行情。
+_AUTH_WHITELIST = {"/health", "/docs", "/openapi.json", "/redoc", "/api/v1/realtime/market"}
 _ALLOW_INSECURE_NO_AUTH = os.getenv("API_ALLOW_INSECURE_NO_AUTH", "").lower() in ("1", "true", "yes")
 
 if not _API_KEY:
