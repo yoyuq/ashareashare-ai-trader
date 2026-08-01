@@ -1,6 +1,6 @@
 [project]
 name = "ashare-ai-trader"
-version = "2.14.0"
+version = "3.0.0"
 description = "AI驱动的A股量化分析助手"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -53,6 +53,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
     "black>=24.0.0",
     "ruff>=0.5.0",
     "mypy>=1.10.0",
