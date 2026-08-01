@@ -59,6 +59,13 @@ class MarketAnalysisState(TypedDict, total=False):
     final_report: str                     # 最终研判报告
     report_provenance: Dict[str, str]     # 报告数据溯源表 (数字→来源)
 
+    # === 🆕 v3.1-deerflow 反思循环 ===
+    reflection_round: int                 # 已执行的回炉修订轮次
+    evaluation_result: Dict               # EvaluatorAgent 评估结果 {passed, score, issues, critique}
+    synthesis_revisions: List[str]        # 历次修订批评记录
+    synthesis_critique: str               # 当前待注入 synthesis 的修订批评
+    validation_results: Dict              # DecisionValidator 校验结果 {symbol: {valid, violations}}
+
     # === 元信息 ===
     model_trace: List[Dict]               # 模型调用追踪 (tier/cost/tokens)
     errors: List[Dict]                    # 各节点错误汇总

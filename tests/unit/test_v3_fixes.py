@@ -96,6 +96,6 @@ def test_kline_text_retrieval_real_vector():
     results = km.search_similar_klines("十字星", top_k=3)
     assert results, "应返回真实检索结果"
     assert results[0]["pattern"] == "doji", "十字星查询应命中 doji"
-    # 相似度应为真实余弦值, 而非硬编码 0.5
+    # 相似度应为真实余弦值 (v3.1-deerflow: hnsw:space=cosine), 而非硬编码 0.5 / 完美 1.0
     sims = {r["similarity"] for r in results}
-    assert 0.0 <= max(sims) < 0.6
+    assert 0.0 < max(sims) < 1.0

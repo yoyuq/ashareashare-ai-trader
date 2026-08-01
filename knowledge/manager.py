@@ -59,6 +59,32 @@ KLINE_PATTERN_TEXTS = {
 }
 
 
+def _cn_tokens(text: str) -> List[str]:
+    """
+    中英文检索 token 提取 (v3.1-deerflow RAG 降级修复)
+
+    中文没有空格分词, 旧的 `query.split()` 会把整句当做一个 token 导致检索永远为空。
+    这里:
+      - 拉丁词/数字: 按单词提取
+      - 中文: 提取 2/3 字 n-gram (均线/金叉/止损等金融术语多为 2-4 字)
+
+    Returns:
+        去重后的 token 列表
+    """
+    if not text:
+        return []
+    tokens = set()
+    for w in re.findall(r"[a-z][a-z0-9_]*", text.lower()):
+        tokens.add(w)
+    for chunk in re.findall(r"[一-鿿]+", text):
+        if len(chunk) < 2:
+            continue
+        for size in (2, 3):
+            for i in range(len(chunk) - size + 1):
+                tokens.add(chunk[i:i + size])
+    return list(tokens)
+
+
 class KnowledgeManager:
     """知识库管理器 (v2.0)"""
 
@@ -587,9 +613,11 @@ class KnowledgeManager:
                 return True
 
             # 创建新collection (v3.1: manual float vectors, no model download needed)
+            # v3.1-deerflow: hnsw:space=cosine — 用余弦距离, 否则默认 L2 让相似度失真
             collection = self._chroma_client.create_collection(
                 name=collection_name,
-                metadata={"description": "K-line pattern vector index (v3.1)"},
+                metadata={"description": "K-line pattern vector index (v3.1)",
+                          "hnsw:space": "cosine"},
             )
 
             # v3.1: 播种K线形态数据 (manual float embeddings)
@@ -648,7 +676,9 @@ class KnowledgeManager:
         metadatas = []
 
         for i, (name, desc) in enumerate(seed_patterns.items()):
-            vec = seed_patterns.get(name, [0.0] * 6)
+            # v3.1-deerflow 修复: 取 seed_vectors 特征向量 (旧 bug 取 seed_patterns
+            # 描述文本 → np.array(字符串) 归一化报错被静默吞掉 → 集合 0 条)
+            vec = seed_vectors.get(name, [0.0] * 6)
             vec_arr = np.array(vec, dtype=np.float32)
             norm = np.linalg.norm(vec_arr)
             if norm > 0:
@@ -684,7 +714,8 @@ class KnowledgeManager:
                 return self._chroma_client.get_collection(name)
             col = self._chroma_client.create_collection(
                 name=name,
-                metadata={"description": "K-line pattern TEXT vector index (hash_v1)"},
+                metadata={"description": "K-line pattern TEXT vector index (hash_v1)",
+                          "hnsw:space": "cosine"},  # v3.1-deerflow: 余弦距离
             )
             ids, docs, embeds, metas = [], [], [], []
             for i, (pname, desc) in enumerate(KLINE_PATTERN_TEXTS.items()):
@@ -708,7 +739,8 @@ class KnowledgeManager:
                 return self._chroma_client.get_collection(name)
             col = self._chroma_client.create_collection(
                 name=name,
-                metadata={"description": "Reference docs RAG index (hash_v1)"},
+                metadata={"description": "Reference docs RAG index (hash_v1)",
+                          "hnsw:space": "cosine"},  # v3.1-deerflow: 余弦距离
             )
             reference_dir = self.root / "reference"
             ids, docs, embeds, metas = [], [], [], []
@@ -764,7 +796,7 @@ class KnowledgeManager:
                 results = text_col.query(
                     query_embeddings=[_stable_hash_embed(query)],
                     n_results=top_k,
-                    include=["metadatas", "distances"],
+                    include=["metadatas", "distances", "documents"],  # v3.1-deerflow: 取回中文描述
                 )
             else:
                 collection = self._chroma_client.get_collection("kline_patterns")
@@ -783,7 +815,8 @@ class KnowledgeManager:
                     formatted.append({
                         "id": doc_id,
                         "pattern": meta[i].get("pattern", "unknown") if i < len(meta) else "unknown",
-                        "similarity": round(1 - dist[i], 3) if i < len(dist) else 0,
+                        # cosine 距离∈[0,2], 1-dist 即余弦相似度, 裁剪到 [0,1]
+                        "similarity": max(0.0, min(1.0, round(1 - dist[i], 3))) if i < len(dist) else 0,
                         "description": results.get("documents", [[""]])[0][i] if results.get("documents") else "",
                     })
             return formatted
@@ -792,30 +825,27 @@ class KnowledgeManager:
             return []
 
     def _keyword_match_klines(self, query: str, top_k: int = 5) -> List[Dict]:
-        """v3.1: Fallback keyword matching for K-line pattern search."""
-        patterns_map = {
-            "doji": "Cross star — open near close, upper/lower shadows similar length. Trend reversal signal.",
-            "hammer": "Hammer — long lower shadow (>=2x body), small body at top. Bullish reversal after downtrend.",
-            "shooting_star": "Shooting star — long upper shadow (>=2x body), small body at bottom. Bearish reversal after uptrend.",
-            "bullish_engulfing": "Bullish engulfing — white body fully covers prior black body. Strong bullish reversal.",
-            "bearish_engulfing": "Bearish engulfing — black body fully covers prior white body. Strong bearish reversal.",
-            "morning_star": "Morning star — three-day pattern: black->doji->white. Bottom reversal.",
-            "evening_star": "Evening star — three-day pattern: white->doji->black. Top reversal.",
-            "three_soldiers": "Three white soldiers — three consecutive white candles. Bullish continuation.",
-        }
-        query_lower = query.lower()
+        """v3.1: Fallback keyword matching for K-line pattern search.
+
+        v3.1-deerflow 修复: 支持中文查询 — 用 KLINE_PATTERN_TEXTS 的中文描述 +
+        中英文 n-gram 打分 (旧实现只有英文 patterns_map + 空格分词, 中文查询永远匹配不上)。
+        """
+        query_tokens = _cn_tokens(query)
         results = []
-        for name, desc in patterns_map.items():
-            # Simple keyword matching
-            words = set(query_lower.replace('=', ' ').replace(',', ' ').split())
+        for name, desc in KLINE_PATTERN_TEXTS.items():
             desc_lower = desc.lower()
-            if any(w in desc_lower for w in words) or name.replace('_', ' ') in query_lower:
+            score = sum(1 for t in query_tokens if t in desc_lower)
+            # 英文名匹配 (doji/hammer 等)
+            if name.replace("_", " ") in query.lower():
+                score += 2
+            if score > 0:
                 results.append({
                     "id": f"kw_{name}",
                     "pattern": name,
-                    "similarity": 0.5,
+                    "similarity": round(min(0.5 + score * 0.08, 0.95), 3),
                     "description": desc,
                 })
+        results.sort(key=lambda x: x["similarity"], reverse=True)
         return results[:top_k]
 
     def rag_query(self, query: str, top_k: int = 5) -> str:
@@ -850,21 +880,21 @@ class KnowledgeManager:
                         parts = ["相关知识库参考 (向量检索):\n"]
                         for i, (doc, meta) in enumerate(zip(docs, metas)):
                             source = meta.get("source", "unknown") if meta else "unknown"
-                            sim = round(1 - dists[i], 3) if i < len(dists) else 0
+                            sim = max(0.0, min(1.0, round(1 - dists[i], 3))) if i < len(dists) else 0
                             parts.append(f"### {source} (相似度{sim:.0%})\n{doc[:800]}\n")
                         return "\n".join(parts)
             except Exception as e:
                 logger.debug(f"向量检索降级到关键词匹配: {e}")
 
-        # Fallback: 关键词匹配
+        # Fallback: 关键词匹配 (v3.1-deerflow: 中文 n-gram 打分, 旧的空格分词对中文失效)
         reference_dir = self.root / "reference"
         if not reference_dir.exists():
             return ""
 
         snippets = []
+        query_words = _cn_tokens(query)
         for md_file in reference_dir.glob("*.md"):
             content = md_file.read_text(encoding="utf-8")
-            query_words = set(query.lower().split())
             content_lower = content.lower()
             score = sum(1 for w in query_words if w in content_lower)
 

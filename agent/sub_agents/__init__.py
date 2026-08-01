@@ -1,14 +1,17 @@
 """
-AI+金融智能体 — 子Agent模块 (v3.0-competition)
+AI+金融智能体 — 子Agent模块 (v3.1-deerflow)
 
-7个专业子Agent,每个都有独立的类+run()方法:
+注册的子Agent (均有独立类+run()方法):
   - TechnicalAnalystAgent: 技术面分析 (6维度)
   - MarketScannerAgent:    市场扫描 (4维度)
-  - BullResearcher:        多头研究员
-  - BearResearcher:        空头研究员
-  - Judge:                 策略裁判
-  - SynthesisAgent:        综合研判 (总指挥)
+  - SynthesisAgent:        综合研判
   - RiskAssessorAgent:     风控评估 (8层)
+  - CriticAgent:           策略审计 (5维)
+  - EvaluatorAgent:        报告质量评估 (驱动反思回炉)
+  - DecisionValidator:     交易计划硬约束校验
+
+v3.1-deerflow: bull_researcher/bear_researcher/judge 模块类层为死代码 (仅 __init__
+再导出, 无任何调用方; 多空辩论由 workflow 内联 + knowledge/prompts 驱动), 已删除。
 
 基类:
   - BaseAgent:   抽象基类 (统一接口)
@@ -23,27 +26,16 @@ from agent.sub_agents.base import BaseAgent, AgentContext, AgentResult  # noqa: 
 from agent.sub_agents.technical_analyst import TechnicalAnalystAgent  # noqa: F401
 from agent.sub_agents.market_scanner import MarketScannerAgent  # noqa: F401
 
-# ── 辩论类Agent ──
-from agent.sub_agents.bull_researcher import (  # noqa: F401
-    BullArgument, BullReport,
-    DEFAULT_SYSTEM_PROMPT as BULL_DEFAULT_PROMPT,
-    parse_bull_response,
-)
-from agent.sub_agents.bear_researcher import (  # noqa: F401
-    BearArgument, BearReport,
-    DEFAULT_SYSTEM_PROMPT as BEAR_DEFAULT_PROMPT,
-    parse_bear_response,
-)
-from agent.sub_agents.judge import (  # noqa: F401
-    Verdict,
-    DEFAULT_SYSTEM_PROMPT as JUDGE_DEFAULT_PROMPT,
-    build_judge_prompt, parse_judge_response,
-)
-
 # ── 综合类Agent ──
 from agent.sub_agents.synthesis import SynthesisAgent  # noqa: F401
 from agent.sub_agents.risk_assessor import RiskAssessorAgent  # noqa: F401
 from agent.sub_agents.critic import CriticAgent, CriticResult, FlawReport  # noqa: F401
+
+# ── v3.1-deerflow: 反射循环 + 决策验证 ──
+from agent.sub_agents.evaluator import EvaluatorAgent, EvaluationResult, EvaluationIssue  # noqa: F401
+from agent.sub_agents.validator import (  # noqa: F401
+    DecisionValidator, ValidationResult, ValidationViolation, limit_pct_for_symbol,
+)
 
 # ── Agent注册表 (v3.1: 优先使用可配置注册表,fallback到硬编码) ──
 # 保留硬编码 AGENT_REGISTRY 作为 fallback
@@ -53,6 +45,8 @@ AGENT_REGISTRY = {
     "synthesis": SynthesisAgent,
     "risk_assessor": RiskAssessorAgent,
     "critic": CriticAgent,
+    "evaluator": EvaluatorAgent,
+    "validator": DecisionValidator,
 }
 
 # v3.1: 可配置Agent注册表 (从 config/agents.yaml 加载)

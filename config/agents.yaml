@@ -62,6 +62,29 @@ agents:
     parallel_allowed: true
     timeout_seconds: 60
 
+  # ── v3.1-deerflow 协作Agent ──
+  evaluator:
+    name: "质量评估师"
+    class: agent.sub_agents.evaluator.EvaluatorAgent
+    icon: "🧪"
+    model: flash
+    system_prompt: ""
+    tools: []
+    description: "综合研判质量评估 (trade_params缺失/自相矛盾/幻觉数字/稳健性低) — 驱动反思回炉"
+    parallel_allowed: false
+    timeout_seconds: 60
+
+  validator:
+    name: "决策验证器"
+    class: agent.sub_agents.validator.DecisionValidator
+    icon: "🛡️"
+    model: flash
+    system_prompt: ""
+    tools: []
+    description: "交易计划硬约束校验 (涨跌停/T+1/整手/仓位/集中度) + 拒绝日志落盘"
+    parallel_allowed: true
+    timeout_seconds: 60
+
 # ── 工具配置 ──
 tools:
   # 工具发现: auto 表示自动扫描 ToolRegistry

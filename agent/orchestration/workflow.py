@@ -95,6 +95,9 @@ class AnalysisWorkflow:
         workflow.add_node("adversarial_debate", self._adversarial_debate_node)
         workflow.add_node("critic_audit", self._critic_node)  # v3.1 新增
         workflow.add_node("synthesis", self._synthesis_node)
+        # 🆕 v3.1-deerflow: 反思-修订循环 (Producer→Evaluator→Revise)
+        workflow.add_node("evaluation", self._evaluation_node)
+        workflow.add_node("synthesis_revision", self._synthesis_revision_node)
 
         # ---- 边定义 ----
         workflow.set_entry_point("data_preparation")
@@ -114,8 +117,14 @@ class AnalysisWorkflow:
         workflow.add_edge("adversarial_debate", "critic_audit")     # v3.1 新增
         workflow.add_edge("critic_audit", "synthesis")              # v3.1 修改
 
-        # 终点
-        workflow.add_edge("synthesis", END)
+        # v3.1-deerflow: synthesis → evaluation → (通过=END | 不通过=回炉修订, 最多2轮)
+        workflow.add_edge("synthesis", "evaluation")
+        workflow.add_conditional_edges(
+            "evaluation",
+            self._route_after_evaluation,
+            {"synthesis_revision": "synthesis_revision", END: END},
+        )
+        workflow.add_edge("synthesis_revision", "evaluation")
 
         # v3.1: 尝试注册 SqliteSaver checkpoint
         checkpointer = None
@@ -156,6 +165,8 @@ class AnalysisWorkflow:
             "errors": [],
             "model_trace": [],
             "signals_archived": False,
+            "reflection_round": 0,
+            "synthesis_revisions": [],
         }
         config = {"configurable": {"thread_id": task_id}}
         result = await self.graph.ainvoke(initial_state, config=config)
@@ -174,6 +185,8 @@ class AnalysisWorkflow:
             "errors": [],
             "model_trace": [],
             "signals_archived": False,
+            "reflection_round": 0,
+            "synthesis_revisions": [],
         }
         config = {"configurable": {"thread_id": task_id}}
         result = await self.graph.ainvoke(initial_state, config=config)
@@ -744,84 +757,123 @@ class AnalysisWorkflow:
             )
         return state
 
+    # 🆕 v3.1-deerflow: 多视角发散 — 3个分析视角 × 多空双阵营 = 6路并行论证
+    LENS_SPECS = {
+        "trend": {
+            "label": "技术趋势",
+            "bull_focus": ("均线排列/金叉死叉/RSI位置/布林带位置/动量指标 → 找出看涨的技术信号"
+                           "(如多头排列、RSI从超卖回升、MACD金叉)"),
+            "bear_focus": ("均线空排/RSI超买/顶背离/布林带收窄/动量衰竭 → 找出看跌的技术信号"
+                           "(如死叉、超买回落、趋势破位)"),
+        },
+        "valuation": {
+            "label": "估值与基本面",
+            "bull_focus": ("PE/PB/ROE/增速/现金流/估值分位 → 找估值洼地、盈利改善、安全边际"
+                           "(如PE处于低位、ROE持续改善)"),
+            "bear_focus": ("估值偏高/增速放缓/现金流恶化/盈利质量存疑 → 找基本面隐患"
+                           "(如高估值透支成长、ROE下滑)"),
+        },
+        "risk": {
+            "label": "风险与市场",
+            "bull_focus": ("市场状态(regime)/策略适配度/回测胜率/夏普/盈亏比 → 找顺势做多的环境支撑"
+                           "(如牛市状态+策略适配+回测胜率达标)"),
+            "bear_focus": ("市场风险/回测最大回撤/胜率不足/信号稀疏/板块集中 → 找环境与回测层面的隐患"
+                           "(如震荡市追高风险、回测回撤过大)"),
+        },
+    }
+
     async def _debate_single_stock(
         self, sym: str, regime: str, regime_params: dict,
         df, indicators_dict, backtest_list, strategy_list,
     ) -> Dict[str, Any]:
         """
-        🆕 v2.8 单只股票的完整辩论流程
+        🆕 v3.1-deerflow 单只股票的"头脑风暴式"多视角辩论
 
-        给 Bull/Bear 注入同一份量化数据,
-        让双方基于真实数字而非LLM文本进行对抗论证。
+        DeerFlow Brainstormer 协作模式移植:
+          1. 3个独立分析视角(技术/估值/风险) × 多空 = 6路并行论证, 彼此隔离上下文
+          2. Judge 对全部论据综合评估 → 输出裁决 + 指出最弱视角
+          3. 若需改进, 只定向修订最弱视角的多头/空头论据 (reflexion循环, 最多2轮)
+          4. 所有论据基于同一份量化数据, 防止LLM编造数字
         """
         # 构建数据上下文 — 真实指标, 非LLM文本
         data_context = self._build_stock_data_context(
             sym, regime, regime_params, df, indicators_dict, backtest_list, strategy_list
         )
 
-        # ---- Bull Researcher ----
-        # v3.0: 优先从知识库加载提示词, fallback到默认值
-        bull_prompt = self._load_agent_prompt("bull_researcher") or (
-            "你是A股多头研究员。以下是一只股票的量化数据,请基于这些数据找出看涨的理由。\n\n"
-            "分析维度 (每个维度必须引用具体数据):\n"
-            "1. 技术面: 均线排列/金叉死叉/RSI位置/布林带位置→有什么看涨信号?\n"
-            "2. 回测面: 策略胜率/夏普比率/盈亏比→是否支持做多?\n"
-            "3. 市场适配: 当前市场状态下的策略适配度→是否有利于该股票?\n\n"
-            "输出格式:\n"
-            "### 看涨论据\n"
-            "1. [论据] (数据支撑: 引用具体数值)\n"
-            "2. [论据] (数据支撑: ...)\n"
-            "3. [论据] (数据支撑: ...)\n"
-            "### 多头确信度: 0.0-1.0"
-        )
-
-        # ---- Bear Researcher ----
-        bear_prompt = self._load_agent_prompt("bear_researcher") or (
-            "你是A股空头研究员。以下是一只股票的量化数据,请基于这些数据找出看跌的理由。\n\n"
-            "分析维度 (每个维度必须引用具体数据):\n"
-            "1. 技术风险: 均线空排/RSI超买/背离/布林带收窄→有什么看跌信号?\n"
-            "2. 策略风险: 回测最大回撤/胜率不足/信号稀疏→有什么风险?\n"
-            "3. 市场风险: 当前市场状态对该股票的负面影响→有什么隐患?\n\n"
-            "输出格式:\n"
-            "### 看跌论据\n"
-            "1. [论据] (数据支撑: 引用具体数值)\n"
-            "2. [论据] (数据支撑: ...)\n"
-            "3. [论据] (数据支撑: ...)\n"
-            "### 空头确信度: 0.0-1.0"
-        )
-
-        # 并行调用 Bull + Bear
         import asyncio
-        bull_task = self.router.route(
-            messages=[
-                {"role": "system", "content": bull_prompt},
-                {"role": "user", "content": data_context},
-            ],
-            task_type="adversarial_debate",
-        )
-        bear_task = self.router.route(
-            messages=[
-                {"role": "system", "content": bear_prompt},
-                {"role": "user", "content": data_context},
-            ],
-            task_type="adversarial_debate",
-        )
 
-        bull_result, bear_result = await asyncio.gather(bull_task, bear_task)
+        def _lens_prompt(lens: str, side: str) -> str:
+            """按视角+阵营构造提示词 (v3.1-deerflow)"""
+            spec = self.LENS_SPECS[lens]
+            role = "多头研究员" if side == "bull" else "空头研究员"
+            camp_word = "看涨" if side == "bull" else "看跌"
+            focus = spec["bull_focus"] if side == "bull" else spec["bear_focus"]
+            return (
+                f"你是A股{role},采用【{spec['label']}】视角。以下是一只股票的量化数据,"
+                f"请只从这个视角找出{spec['label']}相关的{camp_word}理由。\n\n"
+                f"分析重点:\n{focus}\n\n"
+                f"要求 (必须引用具体数值, 不得编造数据):\n"
+                f"1. 给出 2-3 条该视角下的{'看涨' if side == 'bull' else '看跌'}论据\n"
+                f"2. 每条论据后标注其数据支撑\n"
+                f"3. 该视角{'多头' if side == 'bull' else '空头'}确信度: 0.0-1.0\n\n"
+                f"输出格式:\n### {spec['label']} {'看涨' if side == 'bull' else '看跌'}论据\n"
+                f"1. [论据] (数据支撑: 引用具体数值)\n..."
+            )
 
-        # ---- 多轮辩论迭代 (v3.1) ----
+        lenses = list(self.LENS_SPECS.keys())
+
+        # ---- 第一轮: 6路并行论证 (3视角 × 多空) ----
+        bull_results: Dict[str, Any] = {}
+        bear_results: Dict[str, Any] = {}
+        first_round_tasks = []
+        for lens in lenses:
+            first_round_tasks.append((
+                ("bull", lens), self.router.route(
+                    messages=[
+                        {"role": "system", "content": _lens_prompt(lens, "bull")},
+                        {"role": "user", "content": data_context},
+                    ],
+                    task_type="adversarial_debate",
+                )
+            ))
+            first_round_tasks.append((
+                ("bear", lens), self.router.route(
+                    messages=[
+                        {"role": "system", "content": _lens_prompt(lens, "bear")},
+                        {"role": "user", "content": data_context},
+                    ],
+                    task_type="adversarial_debate",
+                )
+            ))
+        first_results = await asyncio.gather(*[t for _, t in first_round_tasks])
+        for (side, lens), res in zip([k for k, _ in first_round_tasks], first_results):
+            (bull_results if side == "bull" else bear_results)[lens] = res
+
+        def _camp_text(camp_results: Dict[str, Any]) -> str:
+            """拼接某阵营所有视角的论据文本"""
+            parts = []
+            for lens in lenses:
+                resp = camp_results.get(lens)
+                if resp and resp.response:
+                    parts.append(f"[{self.LENS_SPECS[lens]['label']}]\n{resp.response[:600]}")
+            return "\n\n".join(parts)
+
+        # ---- 多轮辩论迭代 (reflexion, 最多2轮) ----
         max_rounds = 2
+        judge_result = None
         for round_num in range(1, max_rounds + 1):
-            # Judge 本轮论据
             judge_system = self._load_agent_prompt("judge") or "你是公正的策略裁判。只输出JSON。"
             judge_prompt = (
-                f"你是A股策略裁判。以下是 {sym} 的多空辩论第{round_num}轮:\n\n"
+                f"你是A股策略裁判。以下是 {sym} 的多视角辩论第{round_num}轮:\n\n"
                 f"=== 原始数据 ===\n{data_context[:2000]}\n\n"
-                f"=== 多头论据 (第{round_num}轮) ===\n{bull_result.response[:1200]}\n\n"
-                f"=== 空头论据 (第{round_num}轮) ===\n{bear_result.response[:1200]}\n\n"
-                "输出JSON: {\"action\":\"BUY|HOLD|SELL\",\"conviction\":0.0,\"score\":1-10,"
+                f"=== 多头论据 ({len(lenses)}视角) ===\n{_camp_text(bull_results)[:2500]}\n\n"
+                f"=== 空头论据 ({len(lenses)}视角) ===\n{_camp_text(bear_results)[:2500]}\n\n"
+                "请整合全部论据, 识别最强的论据与最弱的视角, 输出JSON:\n"
+                "{\"action\":\"BUY|HOLD|SELL\",\"conviction\":0.0,\"score\":1-10,"
                 "\"key_reasons\":[],\"risks\":[],\"bull_quality\":1-5,\"bear_quality\":1-5,"
-                "\"improvement_needed\":true|false,\"critique_for_bull\":\"\",\"critique_for_bear\":\"\"}"
+                "\"improvement_needed\":true|false,"
+                "\"weakest_bull_lens\":\"trend|valuation|risk\",\"weakest_bear_lens\":\"trend|valuation|risk\","
+                "\"critique_for_bull\":\"\",\"critique_for_bear\":\"\"}"
             )
             judge_result = await self.router.route(
                 messages=[
@@ -831,7 +883,6 @@ class AnalysisWorkflow:
                 task_type="judge_verdict",
             )
 
-            # 解析 Judge JSON
             judge_json = {}
             try:
                 judge_text = judge_result.response.strip()
@@ -843,65 +894,78 @@ class AnalysisWorkflow:
             except (json.JSONDecodeError, IndexError):
                 judge_json = {"action": "HOLD", "conviction": 0.3, "improvement_needed": False}
 
-            # 如果不需要改进或已是最后一轮, 结束
             if not judge_json.get("improvement_needed", False) or round_num >= max_rounds:
                 break
 
-            # 迭代改进: 基于Judge的批评, 让Bull/Bear修改论点
+            # 定向修订最弱视角 (DeerFlow reflexion: 不重跑全部, 只改短板)
             crit_bull = judge_json.get("critique_for_bull", "")
             crit_bear = judge_json.get("critique_for_bear", "")
-            if crit_bull or crit_bear:
-                revise_tasks = []
-                if crit_bull:
-                    revise_tasks.append(self.router.route(
-                        messages=[
-                            {"role": "system", "content": bull_prompt},
-                            {"role": "user", "content": data_context},
-                            {"role": "assistant", "content": bull_result.response},
-                            {"role": "user", "content": f"裁判批评: {crit_bull}\n请修改你的看涨论据,回应批评,改进论点质量。只输出修改后的完整论据。"},
-                        ],
-                        task_type="adversarial_debate",
-                    ))
-                if crit_bear:
-                    revise_tasks.append(self.router.route(
-                        messages=[
-                            {"role": "system", "content": bear_prompt},
-                            {"role": "user", "content": data_context},
-                            {"role": "assistant", "content": bear_result.response},
-                            {"role": "user", "content": f"裁判批评: {crit_bear}\n请修改你的看跌论据,回应批评,改进论点质量。只输出修改后的完整论据。"},
-                        ],
-                        task_type="adversarial_debate",
-                    ))
-                if revise_tasks:
-                    revised = await asyncio.gather(*revise_tasks)
-                    idx = 0
-                    if crit_bull:
-                        bull_result = revised[idx]; idx += 1
-                    if crit_bear:
-                        bear_result = revised[idx]
+            weak_bull_lens = judge_json.get("weakest_bull_lens") or "trend"
+            weak_bear_lens = judge_json.get("weakest_bear_lens") or "trend"
+            if weak_bull_lens not in lenses:
+                weak_bull_lens = "trend"
+            if weak_bear_lens not in lenses:
+                weak_bear_lens = "trend"
 
-        # 解析 Judge 的 JSON
+            revise_tasks = []
+            if crit_bull:
+                revise_tasks.append(self.router.route(
+                    messages=[
+                        {"role": "system", "content": _lens_prompt(weak_bull_lens, "bull")},
+                        {"role": "user", "content": data_context},
+                        {"role": "assistant", "content": bull_results[weak_bull_lens].response},
+                        {"role": "user", "content": f"裁判批评: {crit_bull}\n请从【{self.LENS_SPECS[weak_bull_lens]['label']}】视角修改你的看涨论据,回应批评。只输出修改后的完整论据。"},
+                    ],
+                    task_type="adversarial_debate",
+                ))
+            if crit_bear:
+                revise_tasks.append(self.router.route(
+                    messages=[
+                        {"role": "system", "content": _lens_prompt(weak_bear_lens, "bear")},
+                        {"role": "user", "content": data_context},
+                        {"role": "assistant", "content": bear_results[weak_bear_lens].response},
+                        {"role": "user", "content": f"裁判批评: {crit_bear}\n请从【{self.LENS_SPECS[weak_bear_lens]['label']}】视角修改你的看跌论据,回应批评。只输出修改后的完整论据。"},
+                    ],
+                    task_type="adversarial_debate",
+                ))
+            if revise_tasks:
+                revised = await asyncio.gather(*revise_tasks)
+                idx = 0
+                if crit_bull:
+                    bull_results[weak_bull_lens] = revised[idx]; idx += 1
+                if crit_bear:
+                    bear_results[weak_bear_lens] = revised[idx]
+
+        # 解析最终 Judge JSON
         judge_json = {}
-        try:
-            judge_text = judge_result.response.strip()
-            # 提取 JSON (可能被包裹在 ```json ... ``` 中)
-            if "```json" in judge_text:
-                judge_text = judge_text.split("```json")[1].split("```")[0]
-            elif "```" in judge_text:
-                judge_text = judge_text.split("```")[1].split("```")[0]
-            judge_json = json.loads(judge_text)
-        except (json.JSONDecodeError, IndexError):
-            # JSON 解析失败, 尝试从文本中提取关键词
-            judge_json = {
-                "action": "HOLD",
-                "conviction": 0.3,
-                "score": 5,
-                "key_reasons": ["Judge JSON解析失败, 使用默认"],
-                "risks": ["裁判结论不可用"],
-                "bull_quality": 3,
-                "bear_quality": 3,
-                "verdict_summary": judge_result.response[:200],
-            }
+        if judge_result is not None:
+            try:
+                judge_text = judge_result.response.strip()
+                if "```json" in judge_text:
+                    judge_text = judge_text.split("```json")[1].split("```")[0]
+                elif "```" in judge_text:
+                    judge_text = judge_text.split("```")[1].split("```")[0]
+                judge_json = json.loads(judge_text)
+            except (json.JSONDecodeError, IndexError):
+                judge_json = {
+                    "action": "HOLD",
+                    "conviction": 0.3,
+                    "score": 5,
+                    "key_reasons": ["Judge JSON解析失败, 使用默认"],
+                    "risks": ["裁判结论不可用"],
+                    "bull_quality": 3,
+                    "bear_quality": 3,
+                    "verdict_summary": judge_result.response[:200],
+                }
+
+        # 汇总: 多头/空头论据按视角拼接, 标注来源视角
+        def _camp_summary(camp_results: Dict[str, Any]) -> str:
+            parts = []
+            for lens in lenses:
+                resp = camp_results.get(lens)
+                if resp and resp.response:
+                    parts.append(f"[{self.LENS_SPECS[lens]['label']}] {resp.response.strip()[:200]}")
+            return " | ".join(parts)[:600]
 
         return {
             "action": judge_json.get("action", "HOLD"),
@@ -912,9 +976,10 @@ class AnalysisWorkflow:
             "bull_quality": judge_json.get("bull_quality", 3),
             "bear_quality": judge_json.get("bear_quality", 3),
             "verdict_summary": judge_json.get("verdict_summary", ""),
-            "bull_summary": (bull_result.response or "")[:600],
-            "bear_summary": (bear_result.response or "")[:600],
-            "judge_verdict": judge_result.response[:1000],
+            "bull_summary": _camp_summary(bull_results),
+            "bear_summary": _camp_summary(bear_results),
+            "judge_verdict": (judge_result.response if judge_result else "")[:1000],
+            "lenses_used": lenses,
         }
 
     @staticmethod
@@ -1285,7 +1350,10 @@ class AnalysisWorkflow:
                                 last[k] = v
                     elif not last:
                         # 回退: 直接取 market_data OHLCV 末行 (一定含 close)
-                        dfx = market_data.get(sym) or market_data.get(sym.split(".")[-1])
+                        # 注意: 不能用 `dfx = a or b` (DataFrame 的 or 触发歧义真值错误)
+                        dfx = market_data.get(sym)
+                        if dfx is None:
+                            dfx = market_data.get(sym.split(".")[-1])
                         if dfx is not None and not getattr(dfx, "empty", True):
                             last = dfx.iloc[-1].to_dict()
                     close = float(last.get("close") or 0)
@@ -1312,6 +1380,40 @@ class AnalysisWorkflow:
                         }
                     else:
                         trade_params[sym] = {}
+
+                # 🆕 v3.1-deerflow: 修复 trade_params 未写回 bug — 把代码计算的交易参数
+                # 合并进 stock_recommendations, 让下游 morning_buy/daily_runner 直接使用
+                # (此前只注入 prompt, state 里的推荐没有交易参数)
+                for _sym, _tp in trade_params.items():
+                    if stock_recs.get(_sym):
+                        stock_recs[_sym] = {**stock_recs[_sym], "trade_params": _tp}
+                state["stock_recommendations"] = stock_recs
+
+                # 🆕 v3.1-deerflow: 决策验证器 — 执行前硬约束校验 + 拒绝日志落盘
+                # 仅首轮运行 (trade_params 是代码确定值, 回炉轮次结果不变, 避免 journal 重复)
+                if state.get("reflection_round", 0) == 0:
+                    try:
+                        from agent.sub_agents.validator import DecisionValidator
+                        vd = DecisionValidator()
+                        v_result = await vd.run(vd._start_context(
+                            task_id=state.get("task_id", ""),
+                            trading_params=trade_params,
+                            stock_recommendations=stock_recs,
+                            market_data=market_data,
+                        ))
+                        state["validation_results"] = (
+                            v_result.data.get("validation_results", {}) if v_result.success else {}
+                        )
+                        _rejects = v_result.data.get("reject_count", 0) if v_result.success else 0
+                        if _rejects:
+                            logger.warning(
+                                f"[验证器] {_rejects}只标的推荐未通过硬约束校验, "
+                                f"详情见 validation_journal"
+                            )
+                    except Exception as _ve:
+                        state["errors"].append({"node": "validator", "error": str(_ve)})
+                        logger.warning(f"[验证器] 跳过: {_ve}")
+
                 stock_summary = {}
                 for sym, rec in stock_recs.items():
                     critic = critic_results.get(sym, {})
@@ -1361,6 +1463,16 @@ class AnalysisWorkflow:
 
                 # v3.0: v4-flash 支持 1M 上下文, 放宽截断 (此前 12K 会切掉尾部关键字段)
                 context = json.dumps(context_parts, ensure_ascii=False, default=str)[:30000]
+
+                # 🆕 v3.1-deerflow: 回炉修订 — 注入 Evaluator 批评
+                critique = state.get("synthesis_critique", "")
+                if critique:
+                    context = (
+                        f"【上一次报告未通过质量评估, 请按以下批评修订后重新输出完整报告】\n"
+                        f"{critique}\n\n{context}"
+                    )
+                    # 修订批评已消费, 避免下一轮重复注入
+                    state["synthesis_critique"] = ""
 
                 result = await self.router.route(
                     messages=[
@@ -1502,3 +1614,144 @@ class AnalysisWorkflow:
             logger.warning(f"[综合研判] 决策持久化跳过: {e}")
 
         return state
+
+    # ═══════════════════════════════════════════════════════════════
+    # 🆕 v3.1-deerflow: 全局反思-修订循环 (Producer→Evaluator→Revise)
+    # ═══════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _route_after_evaluation(state: MarketAnalysisState) -> str:
+        """
+        评估节点后的路由决策 (DeerFlow Reflexion 循环):
+
+          - 评估通过 → END
+          - 评估不通过 且 已达最多2轮修订 → END (防止无限回炉)
+          - 否则 → synthesis_revision (带批评回炉重写)
+        """
+        ev = state.get("evaluation_result", {}) or {}
+        if ev.get("passed"):
+            return END
+        if state.get("reflection_round", 0) >= 2:
+            logger.warning(
+                f"[评估] 达到最大修订轮次({state.get('reflection_round', 0)}轮), "
+                f"报告仍不达标 (score={ev.get('score', 0)}), 停止回炉"
+            )
+            return END
+        return "synthesis_revision"
+
+    async def _evaluation_node(
+        self, state: MarketAnalysisState
+    ) -> MarketAnalysisState:
+        """
+        🆕 v3.1-deerflow EvaluatorAgent 评估节点
+
+        对 synthesis 产出的最终报告逐项打分 (trade_params缺失/自相矛盾/幻觉数字/
+        稳健性低等), 结果存入 state, 驱动是否回炉。
+        """
+        logger.info(f"[评估] task={state['task_id']}")
+
+        if self.router is None:
+            # 无 LLM 时 synthesis 产出的是模板报告, 跳过评估
+            state["evaluation_result"] = {"passed": True, "score": 100.0,
+                                          "issues": [], "critique": ""}
+            return state
+
+        try:
+            from agent.sub_agents.evaluator import EvaluatorAgent
+
+            # 代码计算的交易参数 (synthesis 内已算好, 从 final_report 兜底逻辑复用的同款数据)
+            tech_ind = state.get("technical_indicators", {})
+            market_data = state.get("market_data", {})
+            trade_params = self._compute_trade_params(
+                state.get("stock_recommendations", {}),
+                tech_ind, market_data,
+            )
+
+            evaluator = EvaluatorAgent(knowledge_manager=self.knowledge, model_router=self.router)
+            result = await evaluator.run(evaluator._start_context(
+                task_id=state.get("task_id", ""),
+                final_report=state.get("final_report", ""),
+                trading_params=trade_params,
+                stock_recommendations=state.get("stock_recommendations", {}),
+                critic_results=state.get("critic_results", {}),
+            ))
+            state["evaluation_result"] = result.data.get("evaluation_result", {}) if result.success else {}
+            if not result.success:
+                state["evaluation_result"] = {"passed": True, "score": 100.0,
+                                              "issues": [], "critique": ""}
+            logger.info(
+                f"[评估] passed={state['evaluation_result'].get('passed')} "
+                f"score={state['evaluation_result'].get('score')} "
+                f"issues={state['evaluation_result'].get('issue_count')}"
+            )
+        except Exception as e:
+            state["errors"].append({"node": "evaluation", "error": str(e)})
+            logger.warning(f"[评估] 跳过, 按通过处理: {e}")
+            state["evaluation_result"] = {"passed": True, "score": 100.0,
+                                          "issues": [], "critique": ""}
+
+        return state
+
+    async def _synthesis_revision_node(
+        self, state: MarketAnalysisState
+    ) -> MarketAnalysisState:
+        """
+        🆕 v3.1-deerflow 回炉修订节点
+
+        将 Evaluator 的批评注入 synthesis 上下文, 重新生成报告 (重跑 synthesis),
+        然后回到评估节点进行第二轮评估。
+        """
+        round_no = state.get("reflection_round", 0) + 1
+        state["reflection_round"] = round_no
+        critique = (state.get("evaluation_result", {}) or {}).get("critique", "")
+        state["synthesis_critique"] = critique
+        state["synthesis_revisions"].append(critique)
+        logger.info(f"[回炉修订] 第{round_no}轮, 注入批评 {len(critique)}字符")
+        # 回炉 = 带着批评重跑 synthesis, 产生新报告后再评估
+        return await self._synthesis_node(state)
+
+    @staticmethod
+    def _compute_trade_params(
+        stock_recs: Dict[str, Dict],
+        tech_ind: Dict[str, Any],
+        market_data: Dict[str, Any],
+    ) -> Dict[str, Dict]:
+        """
+        代码计算交易参数 (v3.1-deerflow 抽取为独立方法)
+
+        与 synthesis 内逻辑一致: 入场=最新收盘, 止损=收盘-2×ATR,
+        止盈=收盘+1.5×ATR, 仓位=5%+15%×确信度 (封顶20%)。
+        供 Evaluator 用代码计算的 ground-truth 校验报告。
+        """
+        trade_params: Dict[str, Dict] = {}
+        for sym, rec in stock_recs.items():
+            ind = tech_ind.get(sym) or tech_ind.get(sym.split(".")[-1]) or {}
+            last = {}
+            if ind:
+                for k, v in ind.items():
+                    if isinstance(v, dict) and v:
+                        last[k] = v[max(v)]
+                    elif isinstance(v, list) and v:
+                        last[k] = v[-1]
+                    elif isinstance(v, (int, float)):
+                        last[k] = v
+            close = float(last.get("close") or 0)
+            if not close:
+                dfx = market_data.get(sym)
+                if dfx is None:
+                    dfx = market_data.get(sym.split(".")[-1])
+                if dfx is not None and not getattr(dfx, "empty", True):
+                    _lr = dfx.iloc[-1].to_dict()
+                    close = float(_lr.get("close") or 0)
+                    if not last.get("atr_14"):
+                        last["atr_14"] = float(_lr.get("atr_14") or 0) or close * 0.02
+            atr = float(last.get("atr_14") or 0) or close * 0.02
+            conv = float(rec.get("conviction", 0.5))
+            if close > 0:
+                trade_params[sym] = {
+                    "entry_price": round(close, 2),
+                    "stop_loss": round(close - 2 * atr, 2),
+                    "take_profit": round(close + 1.5 * atr, 2),
+                    "position_pct": round(min(0.20, max(0.03, 0.05 + conv * 0.15)), 3),
+                }
+        return trade_params
