@@ -13,12 +13,50 @@ KnowledgeManager — 知识库管理器 (v2.0)
     strategy = km.get_strategy("dual_ma_trend")
 """
 
+import hashlib
 import json
+import math
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 from loguru import logger
+
+
+def _stable_hash_embed(text: str, dim: int = 256) -> List[float]:
+    """无依赖确定性文本嵌入: 拉丁词元 + 中文字符/二元组 哈希 → L2归一化。
+
+    md5 保证跨进程稳定 (Python 内置 hash() 对 str 有随机种子, 不可用于持久化向量)。
+    用于 ChromaDB 的 query_embeddings, 实现真实余弦相似度检索 (替代硬编码 0.5 关键词匹配)。
+    """
+    vec = [0.0] * dim
+    s = text.lower()
+    for tok in re.findall(r"[a-z0-9_]+", s):
+        h = int.from_bytes(hashlib.md5(tok.encode()).digest()[:4], "big") % dim
+        vec[h] += 1.0
+    for seg in re.findall(r"[一-鿿]+", s):
+        for ch in seg:
+            h = int.from_bytes(hashlib.md5(f"c:{ch}".encode()).digest()[:4], "big") % dim
+            vec[h] += 1.0
+        for i in range(len(seg) - 1):
+            h = int.from_bytes(hashlib.md5(f"b:{seg[i:i+2]}".encode()).digest()[:4], "big") % dim
+            vec[h] += 1.0
+    norm = math.sqrt(sum(x * x for x in vec))
+    return [x / norm for x in vec] if norm else vec
+
+
+# K线形态描述 (中英双语) — 文本检索 collection 播种用
+KLINE_PATTERN_TEXTS = {
+    "doji": "十字星 — 开盘≈收盘,上下影线长度接近。趋势反转信号,高位为黄昏十字星,低位为早晨十字星。",
+    "hammer": "锤子线 — 长下影线(≥2倍实体),小实体在顶部。出现在下跌趋势末端为反转看涨信号。",
+    "shooting_star": "射击之星 — 长上影线(≥2倍实体),小实体在底部。出现在上涨趋势末端为反转看跌信号。",
+    "bullish_engulfing": "看涨吞没 — 阳线实体完全包住前一阴线实体。出现在下跌趋势中为强烈反转看涨信号。",
+    "bearish_engulfing": "看跌吞没 — 阴线实体完全包住前一阳线实体。出现在上涨趋势中为强烈反转看跌信号。",
+    "morning_star": "晨星 — 三日形态: 阴线→十字星→阳线,且第三日收盘超过首日。底部反转看涨信号。",
+    "evening_star": "暮星 — 三日形态: 阳线→十字星→阴线,且第三日收盘低于首日。顶部反转看跌信号。",
+    "three_soldiers": "红三兵 — 连续三根阳线,每根收盘高于前根。出现在盘整后为看涨持续信号。",
+}
 
 
 class KnowledgeManager:
@@ -637,6 +675,61 @@ class KnowledgeManager:
         except Exception as e:
             logger.debug(f"[ChromaDB] Seed skipped: {e}")
 
+    def _ensure_kline_text_collection(self) -> Optional[Any]:
+        """v3.0: 文本形态检索 collection (哈希向量) — 真实余弦相似度, 供文本查询"""
+        try:
+            name = "kline_text"
+            existing = [c.name for c in self._chroma_client.list_collections()]
+            if name in existing:
+                return self._chroma_client.get_collection(name)
+            col = self._chroma_client.create_collection(
+                name=name,
+                metadata={"description": "K-line pattern TEXT vector index (hash_v1)"},
+            )
+            ids, docs, embeds, metas = [], [], [], []
+            for i, (pname, desc) in enumerate(KLINE_PATTERN_TEXTS.items()):
+                ids.append(f"txt_{i}_{pname}")
+                docs.append(desc)
+                embeds.append(_stable_hash_embed(desc))
+                metas.append({"pattern": pname, "category": "candlestick_text", "source": "seed_v3.0"})
+            col.add(ids=ids, embeddings=embeds, documents=docs, metadatas=metas)
+            logger.info(f"[ChromaDB] Seeded kline_text ({len(ids)} patterns, hash vectors)")
+            return col
+        except Exception as e:
+            logger.warning(f"[ChromaDB] kline_text 初始化失败: {e}")
+            return None
+
+    def _ensure_knowledge_base_collection(self) -> Optional[Any]:
+        """v3.0: 参考文档 RAG collection (哈希向量) — 真实余弦相似度"""
+        try:
+            name = "knowledge_base"
+            existing = [c.name for c in self._chroma_client.list_collections()]
+            if name in existing:
+                return self._chroma_client.get_collection(name)
+            col = self._chroma_client.create_collection(
+                name=name,
+                metadata={"description": "Reference docs RAG index (hash_v1)"},
+            )
+            reference_dir = self.root / "reference"
+            ids, docs, embeds, metas = [], [], [], []
+            if reference_dir.exists():
+                for md_file in sorted(reference_dir.glob("*.md")):
+                    text = md_file.read_text(encoding="utf-8")
+                    chunks = [c.strip() for c in re.split(r"\n\n+", text) if len(c.strip()) > 30]
+                    for j, chunk in enumerate(chunks[:50]):
+                        clip = chunk[:800]
+                        ids.append(f"ref_{md_file.stem}_{j}")
+                        docs.append(clip)
+                        embeds.append(_stable_hash_embed(clip))
+                        metas.append({"source": md_file.name, "chunk": j})
+            if ids:
+                col.add(ids=ids, embeddings=embeds, documents=docs, metadatas=metas)
+                logger.info(f"[ChromaDB] Seeded knowledge_base ({len(ids)} chunks, hash vectors)")
+            return col
+        except Exception as e:
+            logger.warning(f"[ChromaDB] knowledge_base 初始化失败: {e}")
+            return None
+
     def search_similar_klines(
         self,
         query: Any = None,
@@ -662,22 +755,19 @@ class KnowledgeManager:
             return []
 
         try:
-            collection = self._chroma_client.get_collection("kline_patterns")
-
-            # v3.1: Auto-detect query type.
-            # For text queries without an embedding function, fall back to keyword matching.
+            # v3.0: 文本查询 → kline_text 集合真实余弦相似度 (哈希嵌入);
+            #       向量查询 → kline_patterns 结构向量集合 (indicators 形态搜索用)
             if isinstance(query, str):
-                # Try text query first (requires embedding function on collection)
-                try:
-                    results = collection.query(
-                        query_texts=[query],
-                        n_results=top_k,
-                        include=["metadatas", "distances"],
-                    )
-                except Exception:
-                    # Fallback: keyword match on document content
+                text_col = self._ensure_kline_text_collection()
+                if text_col is None:
                     return self._keyword_match_klines(query, top_k)
+                results = text_col.query(
+                    query_embeddings=[_stable_hash_embed(query)],
+                    n_results=top_k,
+                    include=["metadatas", "distances"],
+                )
             else:
+                collection = self._chroma_client.get_collection("kline_patterns")
                 results = collection.query(
                     query_embeddings=[query],
                     n_results=top_k,
@@ -743,29 +833,26 @@ class KnowledgeManager:
         Returns:
             拼接后的相关文本
         """
-        # 尝试向量检索 (v3.1: fixed collection name)
+        # 尝试向量检索 (v3.0: knowledge_base 集合, 哈希嵌入真实余弦相似度)
         if self.chroma_available:
             try:
-                # 优先搜索 kline_patterns (种子数据所在collection)
-                # fallback到 knowledge_base (用户自定义知识)
-                existing_collections = [c.name for c in self._chroma_client.list_collections()]
-                target = "kline_patterns" if "kline_patterns" in existing_collections else "knowledge_base"
-                if target not in existing_collections:
-                    return self._keyword_fallback(query)
-                collection = self._chroma_client.get_collection(target)
-                results = collection.query(
-                    query_texts=[query],
-                    n_results=top_k,
-                    include=["documents", "metadatas"],
-                )
-                if results and results.get("documents") and results["documents"][0]:
-                    docs = results["documents"][0]
-                    metas = results.get("metadatas", [[]])[0]
-                    parts = ["相关知识库参考 (向量检索):\n"]
-                    for i, (doc, meta) in enumerate(zip(docs, metas)):
-                        source = meta.get("source", "unknown") if meta else "unknown"
-                        parts.append(f"### {source}\n{doc[:800]}\n")
-                    return "\n".join(parts)
+                text_col = self._ensure_knowledge_base_collection()
+                if text_col is not None and text_col.count() > 0:
+                    results = text_col.query(
+                        query_embeddings=[_stable_hash_embed(query)],
+                        n_results=top_k,
+                        include=["documents", "metadatas", "distances"],
+                    )
+                    if results and results.get("documents") and results["documents"][0]:
+                        docs = results["documents"][0]
+                        metas = results.get("metadatas", [[]])[0]
+                        dists = results.get("distances", [[]])[0]
+                        parts = ["相关知识库参考 (向量检索):\n"]
+                        for i, (doc, meta) in enumerate(zip(docs, metas)):
+                            source = meta.get("source", "unknown") if meta else "unknown"
+                            sim = round(1 - dists[i], 3) if i < len(dists) else 0
+                            parts.append(f"### {source} (相似度{sim:.0%})\n{doc[:800]}\n")
+                        return "\n".join(parts)
             except Exception as e:
                 logger.debug(f"向量检索降级到关键词匹配: {e}")
 

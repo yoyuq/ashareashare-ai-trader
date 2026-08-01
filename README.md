@@ -238,8 +238,7 @@ python scripts/run_scheduler.py  # 后台常驻, 自动执行盘前/盘中/盘�
 |------|------|------|
 | `DEEPSEEK_API_KEY` | 是 | DeepSeek API Key |
 | `DEEPSEEK_BASE_URL` | 否 | API 地址 (默认 https://api.deepseek.com/v1) |
-| `OLLAMA_HOST` | 否 | Ollama 地址 (默认 localhost:11434) |
-| `OLLAMA_MODEL` | 否 | 模型名 (默认 qwen3:4b) |
+| `DEEPSEEK_FLASH_MODEL` | 否 | 模型名 (默认 deepseek-v4-flash; v3.0 起全量统一 flash) |
 | `API_KEY` | 否 | REST API 认证密码 (自定义, 经 `X-API-Key` 请求头传递; 未设置时默认拒绝访问) |
 | `API_ALLOW_INSECURE_NO_AUTH` | 否 | 未设 API_KEY 时允许无认证访问 (仅本地开发, 默认 false) |
 | `CORS_ORIGINS` | 否 | CORS 来源白名单 (逗号分隔, 默认 `*`) |
@@ -254,7 +253,7 @@ python scripts/run_scheduler.py  # 后台常驻, 自动执行盘前/盘中/盘�
 - [x] **Phase 2**: 分析引擎层 — 130+ 指标 + 6 市场状态 + 9 策略 + 板块轮动 + 北向资金
 - [x] **Phase 3**: 回测引擎层 — 事件驱动 + A股券商模拟 + 6层过拟合防控 + 冲击成本
 - [x] **Phase 3.5**: 知识库 — System Prompts + 交易规则 YAML + 策略注册表 + ChromaDB 向量检索
-- [x] **Phase 4**: AI Agent 层 — LangGraph 编排 + 多空辩论 + Chat Agent + 3层模型漏斗
+- [x] **Phase 4**: AI Agent 层 — LangGraph 编排 + 多空辩论 + Chat Agent + 统一 V4-Flash 模型
 - [x] **Phase 4.5**: 代码即推理 — Python 计算 + LLM 叙事 + 安全沙箱
 - [x] **Phase 5**: 模拟交易 — Paper Trading + 8层风控 + 每日自动化 + 定时调度
 - [ ] **Phase 6**: 生产化 — CI/CD + 性能基准 + 监控面板 (进行中)

@@ -11,6 +11,13 @@ import pandas as pd
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_portfolio(tmp_path, monkeypatch):
+    """隔离真实 simulation_data/portfolio.json: 集成测试一律写入临时目录,
+    避免 reset()/execute_buy() 污染生产持仓状态 (此前实测会清空真实账户)。"""
+    monkeypatch.setenv("PORTFOLIO_PATH", str(tmp_path / "portfolio.json"))
+
+
 # ═══════════════════════════════════════════════════════════════
 # 测试数据工厂
 # ═══════════════════════════════════════════════════════════════
@@ -252,10 +259,10 @@ class TestPaperTradingPipeline:
             },
         )
 
-        # 触发止损
+        # 触发止损 (paper_trader 输出 dynamic_stop 原因)
         triggers = engine.check_exit_conditions({"sh.600519": 90.0})
         assert len(triggers) == 1
-        assert triggers[0]["reason"] == "stop_loss"
+        assert triggers[0]["reason"] == "dynamic_stop"
 
         # 正常持有 (不触发)
         manager.reset()

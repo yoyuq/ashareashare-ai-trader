@@ -54,10 +54,9 @@ class CostMonitor:
         self._call_history: List[Dict] = []
         self._alerts: List[CostAlert] = []
 
-        # DeepSeek V4 定价 (2026-07, ¥/M tokens)
+        # DeepSeek V4 定价 (2026-07, ¥/M tokens) — v3.0 统一 flash
         self._pricing = {
             "flash": {"input": 1.0, "output": 2.0},
-            "pro": {"input": 3.0, "output": 6.0},
         }
 
     # ═══════════════════════════════════════════════════════════════

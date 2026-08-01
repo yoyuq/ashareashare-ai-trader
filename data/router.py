@@ -15,6 +15,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 from loguru import logger
 
+# 北京时区 (v3.0): 缓存 TTL / 熔断窗口按 A 股交易日边界
+from timeutil import now_cn_naive
+
 from .providers.akshare_provider import AKShareProvider
 from .providers.baostock_provider import BaostockProvider
 from .providers.eastmoney_provider import EastMoneyProvider
@@ -36,6 +39,7 @@ class DataRouter:
         self.cross_validation = cross_validation
         self._providers: Dict[DataSource, DataProvider] = {}
         self._priority: List[DataSource] = []
+        self._priorities: Dict[DataSource, int] = {}  # v3.0: 记录注册优先级 (越小越优先)
         self._failure_counts: Dict[DataSource, int] = {}
         self._downgraded_until: Dict[DataSource, datetime] = {}
         self._max_failures = 3
@@ -46,11 +50,16 @@ class DataRouter:
         self._cache_ttl = timedelta(minutes=5)  # K线缓存5分钟
 
     def register(self, provider: DataProvider, priority: int = 0):
-        """注册数据源"""
+        """注册数据源 (priority 越小越优先)
+
+        v3.0: 修复优先级排序 bug — 此前用单次调用传入的 priority 常量排序,
+        所有源得到相同 key 导致排序失效 (实际按插入序)。现按各源记录的优先级排序。
+        """
         self._providers[provider.source] = provider
+        self._priorities[provider.source] = priority
         if provider.source not in self._priority:
             self._priority.append(provider.source)
-        self._priority.sort(key=lambda s: priority)  # 按优先级排序
+        self._priority.sort(key=lambda s: self._priorities.get(s, 0))
 
     # ═══════════════════════════════════════════════════════════════
     # 公共API
@@ -65,7 +74,7 @@ class DataRouter:
         return await self._route_with_fallback("get_minute_kline", request)
 
     async def get_stock_list(self) -> pd.DataFrame:
-        """获取全市场股票列表"""
+        """获取全市场股票列表 (v3.0: 统一 schema 后返回)"""
         for source in self._active_sources():
             provider = self._providers.get(source)
             if provider is None:
@@ -74,11 +83,47 @@ class DataRouter:
                 df = await provider.get_stock_list()
                 if not df.empty:
                     self._on_success(source)
-                    return df
+                    return self._normalize_stock_list(df)
             except Exception as e:
                 logger.warning(f"{source.value} 获取股票列表失败: {e}")
                 self._on_failure(source)
         raise RuntimeError("所有数据源均无法获取股票列表")
+
+    @staticmethod
+    def _normalize_stock_list(df: pd.DataFrame) -> pd.DataFrame:
+        """统一股票列表 schema: 保证 symbol(带市场前缀)/name/status 列存在。
+
+        各数据源列不一致 (Baostock: symbol/name/status; AKShare: symbol/name/price;
+        Tushare: ts_code/name), 此前直接透传导致 quick_scan 按 Baostock 形状取列
+        (df["status"]=="1") 在 fallback 到其他源时 KeyError。保留原列, 补齐缺失列。
+        """
+        out = df.copy()
+        if "symbol" not in out.columns:
+            if "code" in out.columns:
+                out["symbol"] = out["code"]
+            elif "ts_code" in out.columns:
+                out["symbol"] = out["ts_code"]
+            else:
+                out["symbol"] = out.index.astype(str)
+
+        # 统一为带市场前缀: sh./sz./bj. (幂等: 已带前缀则原样保留)
+        def _prefix(s: str) -> str:
+            s = str(s)
+            if s.startswith(("sh.", "sz.", "bj.")):
+                return s
+            code = s.split(".")[0]
+            if code.startswith(("6", "9")):
+                return f"sh.{code}"
+            if code.startswith(("8", "4")):
+                return f"bj.{code}"
+            return f"sz.{code}"
+
+        out["symbol"] = [_prefix(x) for x in out["symbol"]]
+        if "status" not in out.columns:
+            out["status"] = "1"  # 默认视为上市
+        if "name" not in out.columns:
+            out["name"] = ""
+        return out
 
     async def get_realtime_quote(self, symbols: List[str]) -> pd.DataFrame:
         """获取实时行情(只用主源)"""
@@ -111,7 +156,7 @@ class DataRouter:
         )
         if cache_key in self._cache:
             ts, cached_result = self._cache[cache_key]
-            if datetime.now() - ts < self._cache_ttl:
+            if now_cn_naive() - ts < self._cache_ttl:
                 return cached_result
 
         errors = []
@@ -133,10 +178,11 @@ class DataRouter:
                             continue
                     self._on_success(source)
                     self.last_used_source = source.value
-                    self._cache[cache_key] = (datetime.now(), result)  # 缓存
+                    self._cache[cache_key] = (now_cn_naive(), result)  # 缓存
                     return result
                 else:
                     errors.append(f"{source.value}: 返回空数据")
+                    self._on_failure(source)  # v3.0: 空响应同样触发熔断降级
             except asyncio.TimeoutError:
                 logger.warning(f"{source.value}.{method}({request.symbol}) 超时(30s)")
                 errors.append(f"{source.value}: 超时")
@@ -153,7 +199,7 @@ class DataRouter:
 
     def _active_sources(self) -> List[DataSource]:
         """返回当前可用的数据源列表(已排除降级中的)"""
-        now = datetime.now()
+        now = now_cn_naive()
         active = []
         for source in self._priority:
             if source not in self._providers:
@@ -174,7 +220,7 @@ class DataRouter:
         count = self._failure_counts.get(source, 0) + 1
         self._failure_counts[source] = count
         if count >= self._max_failures:
-            self._downgraded_until[source] = datetime.now() + self._downgrade_duration
+            self._downgraded_until[source] = now_cn_naive() + self._downgrade_duration
             logger.warning(
                 f"数据源 {source.value} 连续失败{count}次,降级至"
                 f" {self._downgraded_until[source].strftime('%H:%M:%S')}"
@@ -304,20 +350,25 @@ def get_data_router(cross_validation: bool = True) -> DataRouter:
     """
     获取DataRouter单例(自动注册默认数据源)
 
-    v2.9 优先级 (与 config/settings.yaml 对齐):
-      1. Baostock   — 历史数据当前网络可用, K线首选
-      2. Tencent    — 实时行情免费无限制，作为实时报价首选
-      3. EastMoney  — 国内最稳定的免费源,实时行情+历史K线
-      4. AKShare    — 数据最全,补充EastMoney缺失的数据类型
+    v3.0 优先级:
+      0. Tushare   — 可靠性最高(实测99.9%), 配置 TUSHARE_TOKEN 后作为主源
+      1. Baostock  — 历史数据稳定, K线首选(无token时)
+      2. Tencent   — 实时行情免费无限制, 实时报价首选
+      3. EastMoney — 国内稳定的免费源, 实时行情+历史K线
+      4. AKShare   — 数据最全, 补充其他源缺失的数据类型
     """
     global _router_instance
     if _router_instance is None:
         _router_instance = DataRouter(cross_validation=cross_validation)
+        import os
+        # 仅当配置了 TUSHARE_TOKEN 才注册为主源, 避免未配置时反复失败重试
+        if os.getenv("TUSHARE_TOKEN"):
+            from data.providers import TushareProvider
+            _router_instance.register(TushareProvider(), priority=0)
         _router_instance.register(BaostockProvider(), priority=1)
         _router_instance.register(TencentFinanceProvider(), priority=2)
         _router_instance.register(EastMoneyProvider(), priority=3)
         _router_instance.register(AKShareProvider(), priority=4)
-        import os
-        provider_list = os.getenv("DATA_PROVIDER_ORDER", "Baostock→Tencent→EastMoney→AKShare")
+        provider_list = os.getenv("DATA_PROVIDER_ORDER", "Tushare→Baostock→Tencent→EastMoney→AKShare")
         logger.info(f"DataRouter初始化完成: {provider_list}")
     return _router_instance

@@ -192,17 +192,16 @@ async def health_check():
     except Exception as e:
         status["data_sources"] = {"error": str(e)}
 
-    # 检查Ollama
+    # 模型状态 (v3.0 统一 DeepSeek V4-Flash)
     try:
-        import ollama
-        client = ollama.Client()
-        models = client.list()
-        status["ollama"] = {
-            "available": True,
-            "models": [m.model for m in models.models] if hasattr(models, 'models') else [],
+        from models import DEEPSEEK_FLASH_MODEL
+        status["model"] = {
+            "provider": "deepseek",
+            "model": DEEPSEEK_FLASH_MODEL,
+            "configured": bool(os.getenv("DEEPSEEK_API_KEY", "")),
         }
     except Exception:
-        status["ollama"] = {"available": False}
+        status["model"] = {"configured": False}
 
     return status
 
@@ -384,11 +383,11 @@ async def run_backtest(req: BacktestRequest):
         if last != "buy" and _event_strategy._signal_idx < _event_strategy._signals:
             qty = int(broker.account.cash * 0.3 / close_val / 100) * 100
             if qty >= 100:
-                broker.buy(sym, qty, price=close_val)
+                broker.buy(sym, qty)
                 _event_strategy._last_action[sym] = "buy"
                 _event_strategy._signal_idx += 1
         elif last == "buy" and pos and pos.quantity > 0:
-            broker.sell(sym, pos.quantity, price=close_val)
+            broker.sell(sym, pos.quantity)
             _event_strategy._last_action[sym] = "sell"
 
     _event_strategy._last_action = {}
@@ -622,10 +621,23 @@ async def risk_status():
             "active": risk_state.circuit_breaker_active if risk_state else False,
             "drawdown_pct": risk_state.drawdown_pct if risk_state else 0,
         }
-        # L2-L4
-        layers["L2_atr_stop"] = {"status": "active"}
-        layers["L3_trailing_stop"] = {"status": "active"}
-        layers["L4_position_limits"] = {"max_positions": 8, "single_pct": 0.20}
+        # L2-L4 (v3.0: 真实接线状态, 不再硬编码)
+        stop_positions = sum(1 for p in state.positions.values() if p.stop_loss > 0)
+        layers["L2_atr_stop"] = {
+            "enforced": len(state.positions) > 0,
+            "positions_with_stop": stop_positions,
+            "note": "动态止损经 check_exit_conditions 执行",
+        }
+        layers["L3_trailing_stop"] = {
+            "enforced": len(state.positions) > 0,
+            "note": "trailing stop 经 update_dynamic_stops 只上移",
+        }
+        layers["L4_position_limits"] = {
+            "enforced": True,
+            "max_positions": 8,
+            "single_pct": 0.20,
+            "note": "paper_trader.execute_buy 执行持仓数/单票上限",
+        }
 
         # L5: 防踩踏
         if state.positions:
@@ -649,9 +661,15 @@ async def risk_status():
                     pass
         layers["L6_holding_days"] = {"max_days": max_days, "warning": max_days >= 20}
 
-        # L7-L8
-        layers["L7_limit_down"] = {"status": "monitoring"}
-        layers["L8_correlation"] = {"status": "monitoring"}
+        # L7-L8 (v3.0: 真实接线状态)
+        layers["L7_limit_down"] = {
+            "enforced": True,
+            "note": "paper_trader.execute_sell 跌停封板拒卖 (板块感知)",
+        }
+        layers["L8_correlation"] = {
+            "enforced": False,
+            "note": "组合相关性分析未实现",
+        }
 
         return {
             "timestamp": datetime.now().isoformat(),

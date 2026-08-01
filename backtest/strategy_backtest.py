@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Set
 
 import numpy as np
+import pandas as pd
 import yaml
 from loguru import logger
 
@@ -168,9 +169,15 @@ async def run_strategy_backtests(
                 avg_w = bt.get("avg_win", 0)
                 avg_l = bt.get("avg_loss", 0)
 
-                n_wins = int(n_trades * wr)
-                n_losses = n_trades - n_wins
-                all_trades.extend([avg_w] * n_wins + [-avg_l] * n_losses)
+                # v3.0: 优先用逐笔净收益聚合真实分布 (此前用 avg_win/avg_loss 重建2点分布)
+                raw_trades = bt.get("trades")
+                if raw_trades:
+                    all_trades.extend(raw_trades)
+                    n_wins = sum(1 for t in raw_trades if t > 0)
+                else:
+                    n_wins = int(n_trades * wr)
+                    n_losses = n_trades - n_wins
+                    all_trades.extend([avg_w] * n_wins + [-avg_l] * n_losses)
                 total_wins += n_wins
                 total_trades_count += n_trades
 
@@ -222,6 +229,9 @@ async def run_strategy_backtests(
         "lookback_days": lookback_days,
         "stocks_total": total_stocks,
         "stocks_source": "deep_analysis" if (Path(__file__).parent.parent / "reports" / "deep_analysis_top100.json").exists() else "symbols_yaml",
+        # v3.0: 明确标注幸存者偏差 — 股票池来自当前上市快照, 不含退市股,
+        # 胜率/夏普/盈亏比均系统性乐观, 仅作相对比较, 不可视为绝对预期
+        "survivorship_bias": "HIGH — 股票池为当前上市快照, 退市股被排除, 回测表现系统性高估",
         "results": strategy_results,
     }
 
@@ -279,12 +289,16 @@ async def _overfitting_check(
                     n = bt.get("signals", 0)
                     if n >= 2:
                         tested += 1
-                        # 用 avg_win/avg_loss 重建交易序列
-                        wr = bt["win_rate"]
-                        aw = bt["avg_win"]
-                        al = bt["avg_loss"]
-                        n_wins = int(n * wr)
-                        all_trades.extend([aw] * n_wins + [-al] * (n - n_wins))
+                        # v3.0: 优先用逐笔净收益 (此前用 avg_win/avg_loss 重建2点分布)
+                        raw_trades = bt.get("trades")
+                        if raw_trades:
+                            all_trades.extend(raw_trades)
+                        else:
+                            wr = bt["win_rate"]
+                            aw = bt["avg_win"]
+                            al = bt["avg_loss"]
+                            n_wins = int(n * wr)
+                            all_trades.extend([aw] * n_wins + [-al] * (n - n_wins))
                 except Exception:
                     continue
             return all_trades, tested
@@ -351,6 +365,86 @@ async def _overfitting_check(
     return results
 
 
+async def _pbo_analysis(
+    stocks: List[str],
+    backtesters: Dict,
+    lookback_days: int,
+) -> Dict[str, Any]:
+    """真实 CSCV-PBO + DSR(多重检验 K) — v3.0
+
+    变体矩阵列=各策略, 行=逐笔净收益 (trade-index 对齐, NaN 填充)。
+    用于检验"在多策略/参数中选出最优者"是否过拟合 (策略选择过拟合)。
+    此前真实 PBO 从未接线: variant_returns 从不传入 → PBO=NaN, DSR 退化为 K=1。
+    """
+    from backtest.overfitting import OverfittingGuard
+    from data.router import get_data_router
+    from data.providers.base import DataFrequency, DataRequest
+
+    router = get_data_router()
+    today = date.today()
+
+    variant_trades = {}
+    for sid, bt_func in backtesters.items():
+        trades = []
+        for sym in stocks:
+            try:
+                req = DataRequest(sym, today - timedelta(days=lookback_days),
+                                  today, DataFrequency.DAILY)
+                r = await router.get_daily_kline(req)
+                df = r.data
+                if df.empty or len(df) < 60:
+                    continue
+                bt = bt_func(df)
+                raw = bt.get("trades") or []
+                trades.extend(raw)
+            except Exception:
+                continue
+        if len(trades) >= 2:
+            variant_trades[sid] = trades
+
+    n_variants = len(variant_trades)
+    if n_variants < 2:
+        return {"method": "CSCV-PBO over strategy variants",
+                "pbo": float("nan"), "deflated_sharpe_pvalue": float("nan"),
+                "n_variants": n_variants, "defined": False}
+
+    max_trades = max(len(v) for v in variant_trades.values())
+    if max_trades < 16:
+        return {"method": "CSCV-PBO over strategy variants",
+                "pbo": float("nan"), "deflated_sharpe_pvalue": float("nan"),
+                "n_variants": n_variants, "max_trades": max_trades, "defined": False}
+
+    # 变体矩阵 (index=trade序列, columns=策略; 短序列 NaN 填充, pandas 计算自动跳过)
+    variant_matrix = pd.DataFrame(
+        {sid: pd.Series(v, index=range(len(v)))
+         for sid, v in variant_trades.items()}
+    )
+    # param_results: 每变体的整体 Sharpe → DSR 多重检验 K = 变体数
+    param_results = pd.DataFrame({
+        "variant": list(variant_trades.keys()),
+        "sharpe": [float(np.mean(v) / (np.std(v) + 1e-9))
+                   for v in variant_trades.values()],
+    })
+
+    guard = OverfittingGuard(n_simulations=100)
+    base = variant_matrix.iloc[:, 0].dropna()
+    report = guard.evaluate(
+        returns=base,
+        variant_returns=variant_matrix,
+        param_results=param_results,
+    )
+    return {
+        "method": "CSCV-PBO (Bailey 2014) over strategy variants + DSR(K)",
+        "pbo": report.pbo,
+        "deflated_sharpe": report.deflated_sharpe,
+        "deflated_sharpe_pvalue": report.deflated_sharpe_pvalue,
+        "n_variants": n_variants,
+        "max_trades": max_trades,
+        "defined": True,
+        "is_overfit": report.is_overfit,
+    }
+
+
 def _grade(win_rate: float, sharpe: float, max_dd: float, pf: float) -> str:
     score = 0
     if win_rate > 0.55: score += 1
@@ -405,10 +499,24 @@ async def main():
             if of_info.get("risk") == "high" and old_grade in ("ok", "good", "exc"):
                 result["results"][sid]["grade"] = "weak"
     result["overfitting"] = {
-        "method": "cross-sectional CV (60/20/20 stock split) + Deflated Sharpe",
+        "method": "cross-sectional CV (60/20/20 stock split) + Deflated Sharpe + CSCV-PBO",
         "stocks_used": len(stocks[:min(99, len(stocks))]),
         "results": of_result,
     }
+
+    # v3.0: 真实 CSCV-PBO + DSR 多重检验 (跨策略变体矩阵)
+    try:
+        pbo_result = await _pbo_analysis(stocks, ALL_BACKTESTERS, args.days)
+        result["overfitting"]["cscv_pbo"] = pbo_result
+        if pbo_result.get("defined"):
+            logger.info(f"  [CSCV-PBO] pbo={pbo_result['pbo']:.3f} "
+                        f"variants={pbo_result['n_variants']} "
+                        f"DSR-K pvalue={pbo_result['deflated_sharpe_pvalue']:.3f}")
+        else:
+            logger.info("  [CSCV-PBO] 变体/交易样本不足, 返回 NaN (不参与过拟合判定)")
+    except Exception as e:
+        logger.warning(f"  PBO 分析失败: {e}")
+        result["overfitting"]["cscv_pbo"] = {"error": str(e)}
 
     # 保存
     outdir = Path(__file__).parent.parent / "reports"

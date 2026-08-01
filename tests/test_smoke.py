@@ -410,24 +410,21 @@ class TestModelsLayer:
     """模型层测试"""
 
     def test_model_tier_enum(self):
-        """模型层级枚举"""
+        """模型层级枚举 — v3.0 统一 FLASH"""
         from models.router import ModelTier
-        assert ModelTier.LOCAL.value == "local"
         assert ModelTier.FLASH.value == "flash"
-        assert ModelTier.PRO.value == "pro"
 
     def test_task_routing(self):
-        """任务路由规则"""
+        """任务路由规则 — v3.0 全部路由到 flash"""
         from models.router import ModelRouter, ModelTier
-        # 简单任务走本地
-        assert ModelRouter.TASK_ROUTING["indicator_read"] == ModelTier.LOCAL
-        assert ModelRouter.TASK_ROUTING["news_summary"] == ModelTier.LOCAL
-        # 中等任务走Flash
-        assert ModelRouter.TASK_ROUTING["technical_analysis"] == ModelTier.FLASH
-        assert ModelRouter.TASK_ROUTING["strategy_match"] == ModelTier.FLASH
-        # 复杂任务走Pro
-        assert ModelRouter.TASK_ROUTING["daily_synthesis"] == ModelTier.PRO
-        assert ModelRouter.TASK_ROUTING["adversarial_debate"] == ModelTier.PRO
+        for task in [
+            "indicator_read", "news_summary", "technical_analysis",
+            "strategy_match", "daily_synthesis", "adversarial_debate",
+            "judge_verdict", "risk_assessment", "simple_qa",
+        ]:
+            assert ModelRouter.TASK_ROUTING[task] == ModelTier.FLASH
+        # 未知任务默认也走 flash
+        assert ModelRouter.TASK_ROUTING.get("unknown_task", ModelTier.FLASH) == ModelTier.FLASH
 
     def test_cost_monitor(self):
         """成本监控"""
@@ -451,8 +448,8 @@ class TestModelsLayer:
         """预算耗尽检测"""
         from models.cost_monitor import CostMonitor
         monitor = CostMonitor(daily_budget=0.01)  # 极低预算
-        monitor.record_call("pro", input_tokens=20000, output_tokens=5000)
-        # Pro: (20k/1M)*3 + (5k/1M)*6 = 0.06 + 0.03 = 0.09 >> 0.01
+        monitor.record_call("flash", input_tokens=50000, output_tokens=5000)
+        # Flash: (50k/1M)*1 + (5k/1M)*2 = 0.05 + 0.01 = 0.06 >> 0.01
         assert monitor.is_budget_exhausted()
 
 

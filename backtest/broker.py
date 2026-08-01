@@ -3,10 +3,10 @@ A股交易规则模拟器 (Broker Simulator)
 
 精确模拟A股交易机制:
   - T+1: 当日买入→次日才能卖出
-  - 涨跌停限制: 主板±10%, 创业板/科创板±20%, 北交所±30%, ST±5%
+  - 涨跌停限制: 主板±10%, 创业板/科创板±20%, 北交所±30%, 主板ST 2026-07-06前±5%后±10%
   - 印花税: 卖出时0.05% (2023年8月减半)
   - 佣金: 万3 (0.03%), 最低¥5
-  - 过户费: 万分之0.1 (仅上交所)
+  - 过户费: 万分之0.1 (沪深两市, 2015年起均收)
   - 最小交易单位: 100股 (1手), 按手取整
   - 停牌/涨跌停板: 无法成交
 """
@@ -14,7 +14,7 @@ A股交易规则模拟器 (Broker Simulator)
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -150,6 +150,11 @@ class AShareBroker:
         # T+1 延迟执行: True 时 buy/sell 只入队挂单, 由 execute_pending_orders()
         # 在次日以开盘价执行 (消除"收盘价决策+收盘价成交"的时序乐观偏差)
         self.deferred_execution: bool = False
+        # v3.0: 盘后固定价格交易模式 (2026-07-06 新规, 15:05-15:30 按收盘价成交)。
+        # 开启后, 收盘时下单立即按当日收盘价成交, 而非延迟到次日开盘。
+        self.close_fixed_session: bool = False
+        # 主板 ST 股集合 (可选; 用于 2026-07-06 前后 ±5%→±10% 的涨跌停判定)
+        self._st_symbols: set = set()
         self._pending_orders: List[Order] = []
 
     def set_date(self, dt: date):
@@ -186,7 +191,7 @@ class AShareBroker:
         qty = lots * 100
 
         # 获取执行价 (延迟执行模式保留原始委托价: None=市价, 执行时按次日开盘价)
-        exec_price = price if self.deferred_execution else self._get_execution_price(symbol, price, OrderSide.BUY)
+        exec_price = price if (self.deferred_execution and not self.close_fixed_session) else self._get_execution_price(symbol, price, OrderSide.BUY)
 
         order = Order(
             symbol=symbol,
@@ -198,15 +203,15 @@ class AShareBroker:
         )
 
         # T+1 延迟执行: 仅挂单, 次日开盘由 execute_pending_orders() 校验并成交
-        if self.deferred_execution:
+        # (v3.0: 盘后固定价格模式不挂单, 直接按当日收盘价成交)
+        if self.deferred_execution and not self.close_fixed_session:
             self._pending_orders.append(order)
             return order
 
         # 费用计算
         amount = qty * exec_price
         commission = max(amount * self.COMMISSION_RATE, self.MIN_COMMISSION)
-        transfer_fee = (amount * self.TRANSFER_FEE_RATE
-                       if self._is_shanghai(symbol) else 0)
+        transfer_fee = amount * self.TRANSFER_FEE_RATE  # 2015年起沪深两市均收过户费
 
         total_cost = amount + commission + transfer_fee
 
@@ -276,7 +281,7 @@ class AShareBroker:
         qty = lots * 100
 
         # 获取执行价 (延迟执行模式保留原始委托价: None=市价, 执行时按次日开盘价)
-        exec_price = price if self.deferred_execution else self._get_execution_price(symbol, price, OrderSide.SELL)
+        exec_price = price if (self.deferred_execution and not self.close_fixed_session) else self._get_execution_price(symbol, price, OrderSide.SELL)
 
         order = Order(
             symbol=symbol,
@@ -288,7 +293,8 @@ class AShareBroker:
         )
 
         # T+1 延迟执行: 仅挂单, 次日开盘由 execute_pending_orders() 校验并成交
-        if self.deferred_execution:
+        # (v3.0: 盘后固定价格模式不挂单, 直接按当日收盘价成交)
+        if self.deferred_execution and not self.close_fixed_session:
             self._pending_orders.append(order)
             return order
 
@@ -316,8 +322,7 @@ class AShareBroker:
         amount = qty * exec_price
         commission = max(amount * self.COMMISSION_RATE, self.MIN_COMMISSION)
         stamp_duty = amount * self.STAMP_DUTY_RATE
-        transfer_fee = (amount * self.TRANSFER_FEE_RATE
-                       if self._is_shanghai(symbol) else 0)
+        transfer_fee = amount * self.TRANSFER_FEE_RATE  # 2015年起沪深两市均收过户费
 
         total_fees = commission + stamp_duty + transfer_fee
 
@@ -401,13 +406,14 @@ class AShareBroker:
 
     def _fill_pending_buy(self, order: Order):
         symbol = order.symbol
-        exec_price = self._bar_open(symbol) if order.price is None else order.price
+        # v3.0: 延迟执行一律按 T+1 开盘价成交, 忽略下单时的显式价格(那是 T 日收盘价, 已过期)
+        exec_price = self._bar_open(symbol)
         if exec_price <= 0:  # 停牌/无数据
             order.status = OrderStatus.REJECTED
             self.orders.append(order)
             return
 
-        if self._is_limit_hit(symbol, OrderSide.BUY):  # 涨停封板买不进
+        if self._is_sealed_at_open(symbol, OrderSide.BUY):  # 开盘涨停封死买不进
             order.status = OrderStatus.REJECTED
             self.orders.append(order)
             return
@@ -418,7 +424,7 @@ class AShareBroker:
         while qty >= 100:
             amount = qty * exec_price
             commission = max(amount * self.COMMISSION_RATE, self.MIN_COMMISSION)
-            transfer_fee = amount * self.TRANSFER_FEE_RATE if self._is_shanghai(symbol) else 0.0
+            transfer_fee = amount * self.TRANSFER_FEE_RATE  # 2015年起沪深两市均收过户费
             total_cost = amount + commission + transfer_fee
             if total_cost <= self.account.cash:
                 break
@@ -470,12 +476,12 @@ class AShareBroker:
             self.orders.append(order)
             return
 
-        if self._is_limit_hit(symbol, OrderSide.SELL):  # 跌停封板卖不出
+        if self._is_sealed_at_open(symbol, OrderSide.SELL):  # 开盘跌停封死卖不出
             order.status = OrderStatus.REJECTED
             self.orders.append(order)
             return
 
-        exec_price = self._bar_open(symbol) if order.price is None else order.price
+        exec_price = self._bar_open(symbol)  # v3.0: 延迟执行一律按 T+1 开盘价成交
         if exec_price <= 0:
             order.status = OrderStatus.REJECTED
             self.orders.append(order)
@@ -551,8 +557,40 @@ class AShareBroker:
 
         raise ValueError(f"无法获取{symbol}执行价格")
 
+    def _limit_pct_for(self, symbol: str, bar: Any = None) -> float:
+        """按板块返回涨跌幅限制(%).
+
+        主板±10%, 创业板/科创板±20%, 北交所±30%。
+        主板 ST/ST*: 2026-07-06 起涨跌幅由 ±5% 调至 ±10% (2026-07-06 之前仍为 ±5%)。
+        ST 判定优先用 bar.name 字段; 无 name 时回退到 register_st 注册的集合。
+        """
+        sym_stripped = symbol.replace("sh.", "").replace("sz.", "").replace("bj.", "")
+        if sym_stripped.startswith("30") or sym_stripped.startswith("68"):
+            return 20.0  # 创业板/科创板 (ST 同为 20%)
+        if sym_stripped.startswith("8") or sym_stripped.startswith("4"):
+            return 30.0  # 北交所 (8/4 开头)
+        # 主板: ST 检测
+        is_st = symbol in self._st_symbols
+        if not is_st and bar is not None:
+            if isinstance(bar, dict):
+                name = str(bar.get("name", ""))
+            elif isinstance(bar, pd.Series) and "name" in bar.index:
+                name = str(bar.get("name", ""))
+            else:
+                name = ""
+            if "ST" in name.upper():
+                is_st = True
+        if is_st:
+            # 主板 ST 涨跌幅规则 2026-07-06 调整: 之前 ±5%, 之后 ±10%
+            st_limit_date = date(2026, 7, 6)
+            cur = self._cur_date
+            if cur and cur < st_limit_date:
+                return 5.0
+            return 10.0
+        return 10.0
+
     def _is_limit_hit(self, symbol: str, side: OrderSide) -> bool:
-        """检查是否涨跌停(涨停→买不到, 跌停→卖不掉)"""
+        """检查是否涨跌停(涨停→买不到, 跌停→卖不掉) — 收盘口径, 用于当日即时执行"""
         bar = self._cur_prices.get(symbol)
         if bar is None:
             return False
@@ -572,19 +610,55 @@ class AShareBroker:
             if pre_close and close:
                 pct_change = (close / pre_close - 1) * 100
 
-        # v2.14: 按板块区分涨跌停幅度
-        limit_pct = 10.0  # 主板默认
-        sym_stripped = symbol.replace("sh.", "").replace("sz.", "")
-        if sym_stripped.startswith("30") or sym_stripped.startswith("68"):
-            limit_pct = 20.0  # 创业板/科创板
-        elif sym_stripped.startswith("8"):
-            limit_pct = 30.0  # 北交所
+        limit_pct = self._limit_pct_for(symbol, bar)
         threshold = limit_pct - 0.2  # 小容差
 
         if side == OrderSide.BUY:
             return pct_change >= threshold
         else:
             return pct_change <= -threshold
+
+    def _is_sealed_at_open(self, symbol: str, side: OrderSide) -> bool:
+        """检查当日开盘是否封板(开盘即涨停/跌停且全天未打开) — 延迟执行成交前检查。
+
+        用 open 对 pre_close 判定开盘价是否触及涨跌停, 再结合 high/low 判断封板是否
+        全天未打开 (一字板)。比仅看收盘 pct_change 更贴近真实撮合: 开盘封死的买/卖
+        无法成交。
+        """
+        bar = self._cur_prices.get(symbol)
+        if bar is None:
+            return False
+
+        if isinstance(bar, pd.Series):
+            open_px = float(bar.get("open", 0)) if "open" in bar.index else 0.0
+            high_px = float(bar.get("high", 0)) if "high" in bar.index else 0.0
+            low_px = float(bar.get("low", 0)) if "low" in bar.index else 0.0
+            pre_close = float(bar.get("pre_close", 0)) if "pre_close" in bar.index else 0.0
+        elif isinstance(bar, dict):
+            open_px = float(bar.get("open") or 0)
+            high_px = float(bar.get("high") or 0)
+            low_px = float(bar.get("low") or 0)
+            pre_close = float(bar.get("pre_close") or 0)
+        else:
+            return False
+
+        if open_px <= 0 or pre_close <= 0:
+            return False
+
+        limit_pct = self._limit_pct_for(symbol, bar)
+        threshold = limit_pct - 0.2
+        pct = (open_px / pre_close - 1) * 100
+
+        if side == OrderSide.BUY:
+            # 开盘涨停 → 看是否全天未打开 (low >= open = 一字板/封死, 买不进)
+            if pct < threshold:
+                return False
+            return low_px >= open_px
+        else:
+            # 开盘跌停 → 看是否全天未打开 (high <= open = 一字板/封死, 卖不出)
+            if pct > -threshold:
+                return False
+            return high_px <= open_px
 
     def _is_shanghai(self, symbol: str) -> bool:
         """判断是否上交所(收过户费)"""

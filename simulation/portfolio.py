@@ -328,7 +328,12 @@ class PortfolioManager:
     """持仓状态管理器 — 原子JSON读写"""
 
     def __init__(self, filepath: Optional[Path] = None):
-        self.filepath = Path(filepath) if filepath else DEFAULT_STATE_PATH
+        if filepath is None:
+            # 支持 PORTFOLIO_PATH 环境变量覆盖 (测试隔离/多账户)
+            env_path = os.getenv("PORTFOLIO_PATH")
+            self.filepath = Path(env_path) if env_path else DEFAULT_STATE_PATH
+        else:
+            self.filepath = Path(filepath)
         self._state: Optional[PortfolioState] = None
 
     @property
@@ -353,7 +358,16 @@ class PortfolioManager:
                        f"现金¥{state.cash:,.2f}, 总资产¥{state.total_value:,.2f}")
             return state
         except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"状态文件损坏: {e}, 重建默认状态")
+            logger.error(f"状态文件损坏: {e}")
+            # v3.0: 损坏文件先备份再重建, 避免静默覆盖导致真实持仓数据无声丢失
+            try:
+                backup = self.filepath.with_name(
+                    f"{self.filepath.name}.corrupt-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                shutil.copy2(str(self.filepath), str(backup))
+                logger.warning(f"已备份损坏状态文件到: {backup}")
+            except Exception as be:
+                logger.warning(f"备份损坏文件失败: {be}")
             state = self._create_default()
             self.save(state)
             return state
@@ -369,12 +383,16 @@ class PortfolioManager:
         # 确保目录存在
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
 
-        # 原子写入
-        tmp_path = self.filepath.with_suffix(".json.tmp")
+        # 原子写入: 每次使用唯一临时文件 (pid+uuid), 避免多进程/多线程并发写
+        # 同一个 tmp 文件互相覆盖产生损坏; 完成后 os.replace 原子替换。
+        import uuid
+        tmp_path = self.filepath.with_name(
+            f".{self.filepath.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+        )
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-            shutil.move(str(tmp_path), str(self.filepath))
+            os.replace(str(tmp_path), str(self.filepath))
             self._state = state
             logger.debug(f"状态已保存: {self.filepath}")
         except Exception as e:

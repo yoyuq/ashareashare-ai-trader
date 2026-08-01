@@ -7,7 +7,7 @@ agents:
     name: "技术分析专家"
     class: agent.sub_agents.technical_analyst.TechnicalAnalystAgent
     icon: "📊"
-    model: flash              # flash | pro | ollama
+    model: flash              # v3.0 统一 flash (deepseek-v4-flash)
     system_prompt: technical_analyst.txt
     tools: [analyze_stock]
     description: "6维度技术分析 (趋势/动量/波动/量/形态/统计)"

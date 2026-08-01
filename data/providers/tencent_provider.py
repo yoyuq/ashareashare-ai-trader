@@ -89,8 +89,11 @@ class TencentFinanceProvider(DataProvider):
                 low = float(fields[34]) if len(fields) > 34 and fields[34] else 0
                 change_pct = round((price / yest_close - 1) * 100, 2) if yest_close > 0 else 0
 
-                # 还原symbol
-                prefix = "sh" if market == "1" else "sz"
+                # 还原symbol (v3.0: 北交所 8/4 开头 → bj)
+                if code.startswith(("8", "4")):
+                    prefix = "bj"
+                else:
+                    prefix = "sh" if market == "1" else "sz"
                 symbol = f"{prefix}.{code}"
 
                 results[symbol] = {

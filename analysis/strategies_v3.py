@@ -33,8 +33,10 @@ def _exec(df: pd.DataFrame):
     highs = pd.Series(df["high"].values)
     ep = opens.shift(-1).copy(); ep.iloc[-1] = closes.iloc[-1]
     xp = opens.shift(-1).copy(); xp.iloc[-1] = closes.iloc[-1]
-    lu = closes >= highs.shift(1) * 1.099
-    ld = closes <= (highs.shift(1) * 0.9 * 0.99)
+    # v3.0: 涨停基准改用 prev_close (此前误用 prev_high, 判定失真)
+    pre_close = closes.shift(1)
+    lu = closes >= np.round(pre_close * 1.10, 2) - 0.01
+    ld = closes <= np.round(pre_close * 0.90, 2) + 0.01
     ep[lu] = np.nan; xp[ld] = np.nan
     return ep, xp
 

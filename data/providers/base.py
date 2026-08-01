@@ -13,6 +13,9 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+# 北京时区 (v3.0): 数据获取时间戳/默认日期按 A 股交易日边界
+from timeutil import now_cn_naive, today_cn
+
 
 class DataSource(Enum):
     """数据源枚举"""
@@ -54,8 +57,8 @@ class DataRequest:
                frequency: DataFrequency = DataFrequency.DAILY,
                adjust: str = "qfq") -> "DataRequest":
         """工厂方法: 获取最近N天的数据请求 (消除全项目重复的date.today()-timedelta模式)"""
-        from datetime import date, timedelta
-        today = date.today()
+        from datetime import timedelta
+        today = today_cn()  # v3.0: 按北京日期
         return cls(
             symbol=symbol,
             start_date=today - timedelta(days=days),
@@ -72,7 +75,7 @@ class DataResult:
     source: DataSource
     frequency: DataFrequency
     data: pd.DataFrame
-    fetched_at: datetime = field(default_factory=datetime.now)
+    fetched_at: datetime = field(default_factory=now_cn_naive)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # 标准化列名映射 (所有数据源输出统一列名)
@@ -109,6 +112,9 @@ class DataResult:
         self.data = self.data.rename(columns={
             k: v for k, v in col_map.items() if k in self.data.columns
         })
+        # v3.0: 成交量统一为"股" — AKShare/EastMoney 返回"手"(×100), Baostock 返回股, Tushare 已×100
+        if self.source in (DataSource.AKSHARE, DataSource.EASTMONEY) and "volume" in self.data.columns:
+            self.data["volume"] = pd.to_numeric(self.data["volume"], errors="coerce") * 100
         return self
 
 

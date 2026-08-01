@@ -1,4 +1,4 @@
-"""End-to-end test: Ollama + DeepSeek + Full Pipeline
+"""End-to-end test: DeepSeek V4-Flash + Full Pipeline
 
 联网/环境依赖测试, 整文件标记为 network, 默认套件跳过 (pytest -m "not network"),
 显式运行: pytest -m network tests/test_e2e.py
@@ -14,34 +14,41 @@ from dotenv import load_dotenv; load_dotenv()
 
 pytestmark = pytest.mark.network
 
-async def test_ollama_available():
-    """Test 1: Ollama"""
-    print("\n--- Test 1: Ollama ---")
+async def test_deepseek_available():
+    """Test 1: DeepSeek V4-Flash 可用性"""
+    print("\n--- Test 1: DeepSeek V4-Flash ---")
+    from models.router import DEEPSEEK_FLASH_MODEL
+    if not os.getenv("DEEPSEEK_API_KEY"):
+        print("  DEEPSEEK_API_KEY 未配置")
+        return False
     try:
-        from ollama import AsyncClient
-        c = AsyncClient(host="http://localhost:11434")
-        r = await asyncio.wait_for(c.list(), timeout=3)
-        models = r.get("models", []) if isinstance(r, dict) else []
-        names = [m.get("name", m.get("model", "?")) for m in (models if isinstance(models, list) else [])]
-        if names:
-            print(f"  Models: {names}")
-            return True
-        else:
-            print("  Server running but no models. Run: ollama pull qwen3:4b")
-            return False
+        from openai import AsyncOpenAI
+        c = AsyncOpenAI(
+            api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+        )
+        r = await asyncio.wait_for(
+            c.chat.completions.create(
+                model=DEEPSEEK_FLASH_MODEL,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=5,
+            ),
+            timeout=15,
+        )
+        print(f"  Model {DEEPSEEK_FLASH_MODEL} 响应正常: {r.choices[0].message.content[:30]!r}")
+        return True
     except Exception as e:
         print(f"  Not available: {e}")
         return False
 
 async def test_model_router_hybrid():
-    """Test 2: ModelRouter with Ollama+DeepSeek"""
-    print("\n--- Test 2: Hybrid ModelRouter ---")
+    """Test 2: ModelRouter (v3.0 统一 V4-Flash)"""
+    print("\n--- Test 2: ModelRouter ---")
     from models.router import ModelRouter
     router = ModelRouter(daily_budget=1.0)
 
-    # Simple task -> should route to Ollama if available
-    print("  Task: kline_describe (should route LOCAL)...")
-    t0 = time.time()
+    # 所有任务统一路由到 flash
+    print("  Task: kline_describe (should route FLASH)...")
     try:
         r = await router.route(
             [{"role":"user","content":"什么是十字星K线?一句话回答"}],
@@ -51,7 +58,7 @@ async def test_model_router_hybrid():
     except Exception as e:
         print(f"  Failed: {e}")
 
-    # Medium task -> Flash
+    # 分析任务 -> Flash
     print("  Task: technical_analysis (should route FLASH)...")
     try:
         r = await router.route(
@@ -62,8 +69,8 @@ async def test_model_router_hybrid():
     except Exception as e:
         print(f"  Failed: {e}")
 
-    # Complex task -> Pro
-    print("  Task: daily_synthesis (should route PRO)...")
+    # 决策任务 -> Flash (v3.0 统一)
+    print("  Task: daily_synthesis (should route FLASH)...")
     try:
         r = await router.route(
             [{"role":"user","content":"当前市场弱牛, 请给一个简短的综合研判"}],
@@ -71,7 +78,7 @@ async def test_model_router_hybrid():
         )
         print(f"  Tier: {r.tier.value} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
     except Exception as e:
-        print(f"  Pro failed (may need account upgrade): {e}")
+        print(f"  Failed: {e}")
 
     cs = router.cost_summary()
     print(f"  Total cost: {cs['daily_cost']:.4f} | Calls: {cs['total_calls']}")
@@ -139,10 +146,10 @@ async def test_knowledge_integration():
 
 async def main():
     print("=" * 55)
-    print("E2E Test: Ollama + DeepSeek + WinRate + Knowledge")
+    print("E2E Test: DeepSeek V4-Flash + WinRate + Knowledge")
     print("=" * 55)
 
-    ollama_ok = await test_ollama_available()
+    ds_ok = await test_deepseek_available()
     await test_model_router_hybrid()
     await test_win_rate_analysis()
     await test_knowledge_integration()

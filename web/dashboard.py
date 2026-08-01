@@ -256,7 +256,6 @@ with st.sidebar:
     st.markdown("## 🏦 A股智能分析Agent")
     st.caption(f"v{VERSION}")
 
-    ollama_ok = os.path.exists(os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe"))
     ds_ok = "sk-" in os.getenv("DEEPSEEK_API_KEY", "")
     db_ok = os.getenv("POSTGRES_HOST", "")
 
@@ -274,12 +273,11 @@ with st.sidebar:
     st.markdown(f"""
     <div style="background-color:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:8px;padding:12px;margin:8px 0">
     <span style="color:var(--ds-text2,#8b949e);font-size:12px">系统状态</span><br>
-    <span style="color:{'#3fb950' if ds_ok else '#f85149'}">●</span> DeepSeek {'已连接' if ds_ok else '未配置'}<br>
-    <span style="color:{'#3fb950' if ollama_ok else 'var(--ds-text2,#8b949e)'}">●</span> Ollama {'已安装' if ollama_ok else '未安装'}<br>
+    <span style="color:{'#3fb950' if ds_ok else '#f85149'}">●</span> DeepSeek V4-Flash {'已连接' if ds_ok else '未配置'}<br>
     <span style="color:var(--ds-text2,#8b949e);font-size:12px;margin-top:8px">AI管道</span><br>
     <span style="color:var(--ds-text,#c9d1d9)">├ {agent_count} 个Agent</span><br>
     <span style="color:var(--ds-text,#c9d1d9)">├ {strat_count} 个策略</span><br>
-    <span style="color:var(--ds-text,#c9d1d9)">├ 模型分层路由</span><br>
+    <span style="color:var(--ds-text,#c9d1d9)">├ 统一模型: V4-Flash</span><br>
     <span style="color:var(--ds-text,#c9d1d9)">└ 多轮辩论迭代</span>
     </div>
     """, unsafe_allow_html=True)
@@ -1372,28 +1370,28 @@ elif tab == "📈 技术分析":
         ai_col1, ai_col2 = st.columns([3, 1])
         with ai_col2:
             do_ai = st.button("🔮 AI分析", type="primary", use_container_width=True,
-                             help="调用 DeepSeek V4-Pro 对该标的进行全面技术分析")
+                             help="调用 DeepSeek V4-Flash 对该标的进行全面技术分析")
         with ai_col1:
-            st.caption("基于实时行情、技术指标、K线形态，由 DeepSeek V4-Pro 给出多维度综合研判")
+            st.caption("基于实时行情、技术指标、K线形态，由 DeepSeek V4-Flash 给出多维度综合研判")
 
         if do_ai:
             ds_key = os.getenv("DEEPSEEK_API_KEY", "")
             if not ds_key or "sk-" not in ds_key:
                 st.error("❌ 未配置 DEEPSEEK_API_KEY，请在 .env 中设置")
             else:
-                with st.spinner("🤖 DeepSeek V4-Pro 分析中..."):
+                with st.spinner("🤖 DeepSeek V4-Flash 分析中..."):
                     try:
                         from openai import OpenAI
 
                         # 构建分析提示
-                        name = info.get("name", selected_sym)
+                        name = info.get("name", sym)
                         close = info["close"]
                         change = info.get("change", 0)
 
                         prompt = f"""你是一位资深A股技术分析师，请对以下标的进行全面的技术分析：
 
 【标的信息】
-- 代码: {selected_sym}
+- 代码: {sym}
 - 名称: {name}
 - 现价: ¥{close:.2f} ({change:+.2f}%)
 - 分析日期: {date.today().isoformat()}
@@ -1439,7 +1437,7 @@ elif tab == "📈 技术分析":
                             timeout=60.0,
                         )
                         resp = client.chat.completions.create(
-                            model="deepseek-v4-pro",
+                            model="deepseek-v4-flash",
                             messages=[
                                 {"role": "system", "content": "你是一位专业的A股技术分析师，擅长从多维度解读技术指标，给出客观、专业的技术分析意见。回答简洁有力，使用中文。"},
                                 {"role": "user", "content": prompt},
@@ -1454,8 +1452,8 @@ elif tab == "📈 技术分析":
                         <div style="background:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:12px;padding:20px 24px;margin-top:8px">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
                         <span style="font-size:20px">🤖</span>
-                        <span style="color:#58a6ff;font-weight:600;font-size:15px">DeepSeek V4-Pro 技术分析 — {name}({selected_sym})</span>
-                        <span style="color:var(--ds-text2,#8b949e);font-size:12px;margin-left:auto">模型: deepseek-v4-pro | 仅供参考，不构成投资建议</span>
+                        <span style="color:#58a6ff;font-weight:600;font-size:15px">DeepSeek V4-Flash 技术分析 — {name}({sym})</span>
+                        <span style="color:var(--ds-text2,#8b949e);font-size:12px;margin-left:auto">模型: deepseek-v4-flash | 仅供参考，不构成投资建议</span>
                         </div>
                         <div style="color:var(--ds-text,#c9d1d9);font-size:14px;line-height:1.8;white-space:pre-wrap">{ai_text}</div>
                         </div>
@@ -1509,11 +1507,11 @@ elif tab == "🧪 策略回测":
                             if not hasattr(strat,"_e"): strat._e = None
                             if strat._e is None:
                                 q = int(broker.account.cash * 0.3 / c / 100) * 100
-                                if q >= 100: broker.buy(sym, q, price=c); strat._e = today_
+                                if q >= 100: broker.buy(sym, q); strat._e = today_
                             else:
                                 p = broker.account.positions.get(sym)
                                 if p and (today_ - strat._e).days >= 10:
-                                    broker.sell(sym, p.quantity, price=c); strat._e = None
+                                    broker.sell(sym, p.quantity); strat._e = None
                         strat._e = None
                         return eng.run(strat, progress_bar=False), sbt
 

@@ -41,6 +41,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 from loguru import logger
 
+# 北京时区 (v3.0): 交易日边界按 Asia/Shanghai
+from timeutil import today_cn
+
 load_dotenv()
 
 REPORT_DIR = Path(__file__).parent.parent / "reports"
@@ -147,7 +150,7 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
     logger.info(f"DeepSeek分析完成: {len(deep_results)} 只")
 
     # 1e. 保存结果
-    today = date.today().isoformat()
+    today = today_cn().isoformat()
     out = {
         "date": today,
         "total_screened": len(df),
@@ -263,7 +266,7 @@ async def _deepseek_analyze(df_top: pd.DataFrame) -> List[Dict]:
 
     try:
         resp = await client.chat.completions.create(
-            model="deepseek-v4-pro",
+            model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
             messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
             temperature=0.3, max_tokens=4000,
         )
@@ -306,6 +309,39 @@ def _detect_regime(df: pd.DataFrame) -> Dict:
 # Phase 2: 执行交易
 # ═══════════════════════════════════════════════════════════════
 
+def _tencent_quote(symbol: str) -> Tuple[float, Optional[float]]:
+    """从腾讯实时行情获取 (现价, 涨跌幅%). 字段3=现价, 字段4=昨收。
+
+    v3.0: 统一行情入口, 供买入/卖出/MTM 复用并计算涨跌停封板标志。
+    """
+    import requests
+    try:
+        tc = symbol.replace("sh.", "sh").replace("sz.", "sz").replace("bj.", "bj")
+        resp = requests.get(f"https://qt.gtimg.cn/q={tc}", timeout=5,
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
+        resp.encoding = "gbk"
+        for line in resp.text.split("\n"):
+            if "=" in line and "~" in line:
+                fields = line.split("=", 1)[1].strip('"').split("~")
+                if len(fields) > 4:
+                    price = float(fields[3]) if fields[3] else 0.0
+                    prev_close = float(fields[4]) if fields[4] else 0.0
+                    pct = (price / prev_close - 1) * 100 if prev_close else None
+                    return price, pct
+    except Exception:
+        pass
+    return 0.0, None
+
+
+def _limit_pct_for_code(code: str) -> float:
+    """按代码返回板块涨跌幅限制(%) — 主板±10%, 创业板/科创板±20%, 北交所±30%"""
+    if code.startswith("30") or code.startswith("68"):
+        return 20.0
+    if code.startswith("8") or code.startswith("4"):
+        return 30.0
+    return 10.0
+
+
 async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
     """基于分析结果执行交易"""
     logger.info("=" * 50)
@@ -319,7 +355,7 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
     manager = PortfolioManager()
     engine = PaperTradingEngine(manager)
     state = engine.state
-    today = date.today().isoformat()
+    today = today_cn().isoformat()
 
     # 加载分析结果
     analysis_path = REPORT_DIR / "deep_analysis_top100.json"
@@ -345,13 +381,45 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
         logger.info("[DRY RUN] 仅分析, 不执行交易")
         return {"status": "dry_run", "buys": len(buys), "sells": len(sells)}
 
+    # ── v3.0 风控接线: 组合回撤断路器/危机模式 (此前从未在真实交易路径生效) ──
+    risk_state = None
+    halt_buys = False
+    risk_mult = 1.0
+    try:
+        from analysis.risk_controls import PortfolioRiskManager
+        risk_mgr = PortfolioRiskManager(initial_capital=state.initial_capital)
+        snap_returns = [s.daily_return_pct for s in state.daily_snapshots if s.daily_return_pct]
+        daily_returns = pd.Series(snap_returns, dtype=float)
+        risk_state = risk_mgr.update(
+            current_capital=state.total_value,
+            daily_returns=daily_returns,
+            market_breadth=float(regime_info.get("up_ratio", 0.5)),
+        )
+        for w in risk_state.warning_messages:
+            logger.warning(f"[风控] {w}")
+        if risk_state.circuit_breaker_active or risk_state.crisis_mode:
+            halt_buys = True
+            logger.warning(
+                f"[风控] 回撤断路器/危机模式激活 (DD={risk_state.drawdown_pct:.1f}%), "
+                f"暂停全部新买入, 仅执行卖出/减仓"
+            )
+        else:
+            risk_mult = risk_state.risk_multiplier
+    except Exception as e:
+        logger.warning(f"[风控] 风控检查异常, 跳过: {e}")
+
     # 2a. 卖出SELL信号的持仓
     sell_codes = {r.get("code","") for r in sells}
     sold = []
     for sym, pos in list(state.positions.items()):
         code_short = sym.replace("sh.","").replace("sz.","").replace("bj.","")
         if code_short in sell_codes:
-            trade = engine.execute_sell(symbol=sym, exit_reason=f"AI卖出信号")
+            # v3.0: 传入涨跌幅, 跌停封板时拒绝卖出
+            _px, _pct = _tencent_quote(sym)
+            trade = engine.execute_sell(
+                symbol=sym, exit_reason="AI卖出信号",
+                pct_change=_pct,
+            )
             if trade:
                 sold.append({"symbol": sym, "name": pos.name, "price": trade.price})
                 logger.info(f"  SELL {pos.name}({sym}) @{trade.price:.2f} pnl={trade.pnl:+.2f}")
@@ -363,6 +431,9 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
     # 2b. 买入Top BUY信号
     executed = []
     for rec in buys:
+        if halt_buys:
+            logger.info("[风控] 回撤断路器/危机模式激活, 停止买入")
+            break
         if len(state.positions) >= limits["max_positions"]:
             logger.info(f"已达最大持仓 {limits['max_positions']} 只,停止买入")
             break
@@ -378,21 +449,10 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
         if not code:
             continue
 
-        # 获取实时价格
-        price = 0
-        try:
-            prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
-            tc = f"{prefix}{code}"
-            resp = requests.get(f"https://qt.gtimg.cn/q={tc}", timeout=5,
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
-            resp.encoding = "gbk"
-            for line in resp.text.split("\n"):
-                if "=" in line and "~" in line:
-                    fields = line.split("=",1)[1].strip('"').split("~")
-                    if len(fields) > 3 and fields[2] == code:
-                        price = float(fields[3]) if fields[3] else 0
-                        break
-        except Exception: pass
+        # 获取实时价格 + 涨跌幅 (v3.0: 一次请求同时取现价与昨收, 用于封板/缺口判断)
+        prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
+        sym_full = f"{prefix}.{code}"
+        price, pct_change = _tencent_quote(sym_full)
 
         if price <= 0:
             continue
@@ -410,31 +470,15 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
                         f"(原始{original_conv:.0%} × {regime_conv_mult.get(regime,0.6)})")
             continue
 
-        # ── 次日开盘确认 (防涨停后闷杀) ──
-        prev_close = 0
-        try:
-            tc = f"sh{code}" if code.startswith("6") else (f"bj{code}" if code.startswith("9") else f"sz{code}")
-            resp2 = requests.get(f"https://qt.gtimg.cn/q={tc}", timeout=5,
-                headers={"User-Agent": "Mozilla/5.0"})
-            resp2.encoding = "gbk"
-            for line in resp2.text.split("\n"):
-                if "=" in line and "~" in line:
-                    fields = line.split("=",1)[1].strip('"').split("~")
-                    if len(fields) > 4 and fields[2] == code:
-                        prev_close = float(fields[4]) if fields[4] else 0
-                        break
-        except Exception:
-            pass
-
-        if prev_close > 0:
-            open_gap = (price / prev_close - 1) * 100
+        # ── 开盘确认 (防涨停次日闷杀/追高) — v3.0 复用已取行情, 无需二次请求 ──
+        if pct_change is not None:
             # 低开超 3% 跳过 (涨停次日闷杀典型模式)
-            if open_gap < -3:
-                logger.info(f"  跳过 {name}({code}): 低开{open_gap:.1f}%, 疑似涨停次日闷杀")
+            if pct_change < -3:
+                logger.info(f"  跳过 {name}({code}): 低开{pct_change:.1f}%, 疑似涨停次日闷杀")
                 continue
             # 震荡市/弱市高开超 5% 也跳过 (追高风险)
-            if open_gap > 5 and regime in ("range_bound", "weak_bear", "strong_bear"):
-                logger.info(f"  跳过 {name}({code}): {regime}高开{open_gap:.1f}%, 追高风险")
+            if pct_change > 5 and regime in ("range_bound", "weak_bear", "strong_bear"):
+                logger.info(f"  跳过 {name}({code}): {regime}高开{pct_change:.1f}%, 追高风险")
                 continue
 
         # 动态止损止盈
@@ -442,7 +486,9 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
         elif score >= 60: sl_pct, tp_pct = 0.07, 0.10
         else: sl_pct, tp_pct = 0.10, 0.08
 
-        sym_full = f"sh.{code}" if code.startswith("6") else (f"bj.{code}" if code.startswith("9") else f"sz.{code}")
+        # v3.0: 板块感知的涨停封板判定, 传入 execute_buy 使其真正生效
+        limit_pct = _limit_pct_for_code(code)
+        sealed_limit_up = bool(pct_change is not None and pct_change >= limit_pct - 0.2)
 
         enhanced = {
             "conviction": conv, "score": score/10, "composite_score": score,
@@ -455,8 +501,10 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
         trade = engine.execute_buy(
             symbol=sym_full, name=name, price=price,
             recommendation=enhanced,
-            max_position_pct=limits["single_pct"],
+            max_position_pct=limits["single_pct"] * risk_mult,
             max_positions=limits["max_positions"],
+            pct_change=pct_change,
+            sealed_limit_up=sealed_limit_up,
         )
 
         if trade:
@@ -468,18 +516,12 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
 
     # 2c. 持仓MTM (实时估值)
     mtm_prices = {}
+    mtm_pct = {}
     for sym in state.positions:
-        try:
-            tc = sym.replace("sh.","sh").replace("sz.","sz").replace("bj.","bj")
-            resp = requests.get(f"https://qt.gtimg.cn/q={tc}", timeout=5,
-                headers={"User-Agent": "Mozilla/5.0"})
-            resp.encoding = "gbk"
-            for line in resp.text.split("\n"):
-                if "=" in line and "~" in line:
-                    fields = line.split("=",1)[1].strip('"').split("~")
-                    if len(fields) > 3:
-                        mtm_prices[sym] = float(fields[3]) if fields[3] else 0
-        except Exception: pass
+        _px, _pct = _tencent_quote(sym)
+        if _px > 0:
+            mtm_prices[sym] = _px
+            mtm_pct[sym] = _pct
 
     if mtm_prices:
         engine.mark_to_market(mtm_prices)
@@ -501,7 +543,7 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
             data_router = get_data_router()
             for sym, pos in state.positions.items():
                 try:
-                    req = DataRequest(sym, date.today() - timedelta(days=200), date.today(), DataFrequency.DAILY)
+                    req = DataRequest(sym, today_cn() - timedelta(days=200), today_cn(), DataFrequency.DAILY)
                     r = await data_router.get_daily_kline(req)
                     df = r.data
                     if df.empty or len(df) < 30:
@@ -534,6 +576,7 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
                 sym = trigger["symbol"]
                 trade = engine.execute_sell(
                     symbol=sym, exit_reason=trigger["reason"],
+                    pct_change=mtm_pct.get(sym),
                 )
                 if trade:
                     logger.info(f"  [退出] {trigger['name']}({sym}) {trigger['reason']}: {trigger['detail']}")
@@ -567,7 +610,7 @@ def phase3_summary() -> Dict[str, Any]:
 
     # 添加每日快照
     state = engine.state
-    today = date.today().isoformat()
+    today = today_cn().isoformat()
     existing = [s for s in state.daily_snapshots if s.date == today]
     if not existing:
         from simulation.portfolio import DailySnapshot
@@ -656,7 +699,7 @@ async def run_full_day(
     skip_analyze: bool = False,
 ) -> dict:
     """全市场AI选股 — 每日自主工作流"""
-    today = date.today().isoformat()
+    today = today_cn().isoformat()
     logger.info(f"========== 全市场AI选股 Workflow: {today} ==========")
 
     if reset:
@@ -707,9 +750,20 @@ async def run_full_day(
                 track = json.load(f)
 
         # 记录当天的 BUY 推荐
+        # v3.0: 安全获取 regime (修复此前未定义 NameError; skip_analyze 路径无 analysis 变量)
+        track_regime = "unknown"
+        if not skip_analyze:
+            try:
+                track_regime = (
+                    analysis.get("regime")
+                    or analysis.get("market_regime", {}).get("regime", "unknown")
+                )
+            except Exception:
+                track_regime = "unknown"
+
         today_entry = {
             "date": today,
-            "regime": regime,
+            "regime": track_regime,
             "buys": [],
         }
         if not skip_analyze:
@@ -720,17 +774,10 @@ async def run_full_day(
                 for r in analysis.get("results", []):
                     if r.get("action") == "BUY":
                         code = r.get("code", "")
-                        # 获取当时价格
+                        # 获取当时价格 (v3.0: 复用统一行情 helper, 修复未导入 requests 的 F821)
                         try:
                             prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
-                            resp = requests.get(f"https://qt.gtimg.cn/q={prefix}{code}", timeout=3)
-                            resp.encoding = "gbk"
-                            for line in resp.text.split("\n"):
-                                if "=" in line and "~" in line:
-                                    fields = line.split("=", 1)[1].strip('"').split("~")
-                                    if len(fields) > 3 and fields[2] == code:
-                                        price = float(fields[3]) if fields[3] else 0
-                                        break
+                            price, _pct = _tencent_quote(f"{prefix}.{code}")
                         except Exception:
                             price = 0
 
@@ -749,7 +796,7 @@ async def run_full_day(
             if old_entry.get("reviewed"):
                 continue
             old_date = old_entry.get("date", "")
-            days_ago = (date.today() - date.fromisoformat(old_date)).days
+            days_ago = (today_cn() - date.fromisoformat(old_date)).days
             if days_ago < 1:
                 continue
 
@@ -757,17 +804,11 @@ async def run_full_day(
                 try:
                     code = b["code"]
                     prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
-                    resp = requests.get(f"https://qt.gtimg.cn/q={prefix}{code}", timeout=3)
-                    resp.encoding = "gbk"
-                    for line in resp.text.split("\n"):
-                        if "=" in line and "~" in line:
-                            fields = line.split("=", 1)[1].strip('"').split("~")
-                            if len(fields) > 3 and fields[2] == code:
-                                cur_price = float(fields[3]) if fields[3] else 0
-                                rec_price = b.get("price_at_rec", 0)
-                                if rec_price > 0:
-                                    b[f"return_d{days_ago}"] = round((cur_price / rec_price - 1) * 100, 2)
-                                break
+                    # v3.0: 复用统一行情 helper (修复此前未导入 requests 的 F821 NameError)
+                    cur_price, _pct = _tencent_quote(f"{prefix}.{code}")
+                    rec_price = b.get("price_at_rec", 0)
+                    if rec_price > 0 and cur_price > 0:
+                        b[f"return_d{days_ago}"] = round((cur_price / rec_price - 1) * 100, 2)
                 except Exception:
                     pass
             if days_ago >= 5:

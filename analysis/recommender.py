@@ -631,7 +631,8 @@ def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
     if not trades:
         return {"signals": 0, "win_rate": 0, "profit_factor": 1,
                 "expected_value": 0, "sharpe": 0, "max_dd": 0,
-                "avg_win": 0, "avg_loss": 0, "cost_adjusted": True}
+                "avg_win": 0, "avg_loss": 0, "cost_adjusted": True,
+                "trades": []}
 
     # 扣除交易成本
     trades_net = [t - COST_PER_RT * 100 for t in trades]  # trades 是百分比,成本也转百分比
@@ -669,6 +670,8 @@ def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
         "avg_win": avg_win,
         "avg_loss": avg_loss,
         "cost_adjusted": True,
+        # v3.0: 返回逐笔净收益, 供跨股票聚合使用真实分布 (此前用 avg_win/avg_loss 重建2点分布)
+        "trades": trades_net,
     }
 
 

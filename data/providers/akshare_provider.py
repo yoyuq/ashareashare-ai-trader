@@ -38,7 +38,7 @@ class AKShareProvider(DataProvider):
                 period="daily",
                 start_date=request.start_date.strftime("%Y%m%d"),
                 end_date=request.end_date.strftime("%Y%m%d"),
-                adjust=request.adjust or "qfq",
+                adjust=request.adjust or "",  # v3.0: 空串=不复权 (此前 None/raw 被强制成 qfq)
             )
 
             df = self._standardize_columns(df)

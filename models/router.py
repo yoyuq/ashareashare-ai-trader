@@ -1,16 +1,14 @@
 """
-模型路由器 — 三层漏斗混合调度 (v2.0+)
+模型路由 — 单模型统一调度 (v3.0)
 
-Tier 1: Ollama Qwen3-4B    — 本地免费, 处理60%日常任务
-Tier 2: DeepSeek V4-Flash  — ¥1-2/M, 处理30%中等任务
-Tier 3: DeepSeek V4-Pro    — ¥3-6/M, 处理10%复杂任务
+v3.0 (2026-08): 全量迁移 DeepSeek V4-Flash。
+删除 Ollama 本地层与 V4-Pro 层, 所有 LLM 调用统一走 deepseek-v4-flash。
 
 核心特性:
-  - 任务复杂度自动评估→自动路由
-  - 高峰时段(9:00-12:00, 14:00-18:00)自动降级
-  - 完全降级链: Pro→Flash→Local
-  - 日预算控制(默认¥1/天)
-  - 成本实时追踪
+  - 全任务统一路由 → deepseek-v4-flash
+  - 日/月预算追踪 (默认¥1/天)
+  - 成本实时计算 (含 DeepSeek 峰谷定价高峰×2)
+  - 指数退避重试
 """
 
 import asyncio
@@ -18,41 +16,43 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, time
 from enum import Enum
-
-# 模型名 — 与 models/__init__.py 保持同步, 经环境变量可覆盖
-DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
-DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", "deepseek-v4-pro")
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
+# 北京时区 (v3.0): 高峰定价/日预算按 A 股交易日边界
+from timeutil import now_cn, today_cn
+
+# 模型名 — 与 models/__init__.py 保持同步, 经环境变量可覆盖
+DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
+# 兼容别名 (v2 曾有 PRO 层; v3 统一 flash, 保留导出避免破坏既有 import)
+DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", DEEPSEEK_FLASH_MODEL)
+
 
 class ModelTier(Enum):
-    """模型层级"""
-    LOCAL = "local"      # Ollama 本地
-    FLASH = "flash"      # DeepSeek V4-Flash
-    PRO = "pro"          # DeepSeek V4-Pro
+    """模型层级 — v3.0 起统一单层 (全部 FLASH)"""
+    FLASH = "flash"
 
 
 @dataclass
 class ModelConfig:
-    """单个模型配置"""
-    tier: ModelTier
-    provider: str
-    model_name: str
+    """单个模型配置 (v3.0: 统一 flash)"""
+    tier: ModelTier = ModelTier.FLASH
+    provider: str = "deepseek"
+    model_name: str = DEEPSEEK_FLASH_MODEL
     api_key: Optional[str] = None
     base_url: Optional[str] = None
-    max_context: int = 32768
-    max_output: int = 4096
-    temperature: float = 0.1
-    request_timeout: int = 60
+    max_context: int = 131072
+    max_output: int = 16384
+    temperature: float = 0.3
+    request_timeout: int = 90
     # 定价 (¥/M tokens)
-    input_price: float = 0.0
-    output_price: float = 0.0
+    input_price: float = 1.0
+    output_price: float = 2.0
 
     @property
     def is_local(self) -> bool:
-        return self.tier == ModelTier.LOCAL
+        return False
 
 
 @dataclass
@@ -71,7 +71,7 @@ class RouteResult:
 
 class ModelRouter:
     """
-    三层模型路由器
+    单模型路由器 (v3.0: 全部调用统一走 DeepSeek V4-Flash)
 
     使用方式:
         router = ModelRouter(config)
@@ -81,39 +81,38 @@ class ModelRouter:
         )
     """
 
-    # 任务复杂度 → 默认路由层级
+    # 任务类型 → 统一路由到 FLASH
+    # (v2 曾按复杂度分 LOCAL/PRO/FLASH 三层, 2026-08 全量迁移到 V4-Flash)
     TASK_ROUTING = {
-        # === Tier 1: LOCAL (Ollama Qwen3-4B) — 便宜/快速 ===
-        "indicator_read": ModelTier.LOCAL,
-        "kline_describe": ModelTier.LOCAL,
-        "news_summary": ModelTier.LOCAL,
-        "text_classify": ModelTier.LOCAL,
-        "simple_qa": ModelTier.LOCAL,
-        "data_format": ModelTier.LOCAL,
-        "market_scan_prefilter": ModelTier.LOCAL,   # 初筛可本地做
-
-        # === Tier 2: FLASH (DeepSeek V4-Flash) — 分析/评估 ===
+        # === 常规/快速任务 ===
+        "indicator_read": ModelTier.FLASH,
+        "kline_describe": ModelTier.FLASH,
+        "news_summary": ModelTier.FLASH,
+        "text_classify": ModelTier.FLASH,
+        "simple_qa": ModelTier.FLASH,
+        "data_format": ModelTier.FLASH,
+        "market_scan_prefilter": ModelTier.FLASH,
+        # === 分析/评估 ===
         "technical_analysis": ModelTier.FLASH,
-        "fundamental_analysis": ModelTier.FLASH,     # 基本面分析: 数据驱动, Flash够用
+        "fundamental_analysis": ModelTier.FLASH,
         "strategy_match": ModelTier.FLASH,
         "signal_verify": ModelTier.FLASH,
         "multi_factor_analysis": ModelTier.FLASH,
         "backtest_interpret": ModelTier.FLASH,
         "regime_analysis": ModelTier.FLASH,
-        "macro_event_analysis": ModelTier.FLASH,     # 宏观事件分析
-
-        # === Tier 3: PRO (DeepSeek V4-Pro) — 辩论/决策/风控 ===
-        "daily_synthesis": ModelTier.PRO,
-        "adversarial_debate": ModelTier.PRO,
-        "bull_bear_research": ModelTier.PRO,          # 多空辩论需要深度推理
-        "judge_verdict": ModelTier.PRO,              # 裁判裁决需要深度推理
-        "strategy_optimize": ModelTier.PRO,
-        "market_outlook": ModelTier.PRO,
-        "risk_assessment": ModelTier.PRO,
-        "portfolio_advice": ModelTier.PRO,
+        "macro_event_analysis": ModelTier.FLASH,
+        # === 决策/辩论 ===
+        "daily_synthesis": ModelTier.FLASH,
+        "adversarial_debate": ModelTier.FLASH,
+        "bull_bear_research": ModelTier.FLASH,
+        "judge_verdict": ModelTier.FLASH,
+        "strategy_optimize": ModelTier.FLASH,
+        "market_outlook": ModelTier.FLASH,
+        "risk_assessment": ModelTier.FLASH,
+        "portfolio_advice": ModelTier.FLASH,
     }
 
-    # 高峰时段 (北京时间)
+    # 高峰时段 (北京时间) — 对应 DeepSeek 峰谷定价(高峰×2)
     PEAK_WINDOWS = [
         (time(9, 0), time(12, 0)),
         (time(14, 0), time(18, 0)),
@@ -128,52 +127,15 @@ class ModelRouter:
         self.monthly_budget = monthly_budget
         self._daily_cost = 0.0
         self._monthly_cost = 0.0
-        self._daily_reset_date = datetime.now().date()
+        self._daily_reset_date = today_cn()
 
-        # 快速健康标记
-        self._ollama_available: Optional[bool] = None  # None=未检测, True/False
-        self._ollama_model = os.getenv("OLLAMA_MODEL", "qwen3:4b")
-
-        # 初始化各层客户端
-        self._ollama_client = None
         self._deepseek_client = None
         self._init_clients()
 
         self._call_log: List[RouteResult] = []
 
-    async def _detect_ollama(self) -> bool:
-        """快速检测Ollama是否可用(仅检测一次,缓存结果)"""
-        if self._ollama_available is not None:
-            return self._ollama_available
-
-        try:
-            from ollama import AsyncClient
-            client = AsyncClient(
-                host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
-            )
-            # 快速ping + 检查模型存在
-            import asyncio as aio
-            result = await aio.wait_for(client.list(), timeout=2.0)
-            models = [m.get("model", m.get("name", "")) for m in (result.get("models", []) if isinstance(result, dict) else result)]
-            has_model = any(self._ollama_model.split(":")[0] in m for m in models)
-            if has_model:
-                self._ollama_client = client
-                self._ollama_available = True
-                logger.info(f"Ollama可用 (模型: {self._ollama_model})")
-            else:
-                self._ollama_available = False
-                logger.info(f"Ollama运行中但缺少模型{self._ollama_model}, 请运行: ollama pull {self._ollama_model}")
-            return self._ollama_available
-        except Exception:
-            self._ollama_available = False
-            logger.info("Ollama不可用,本地层跳过")
-            return False
-
     def _init_clients(self):
-        """初始化LLM客户端"""
-        self._ollama_client = None
-        self._ollama_available = None
-
+        """初始化 DeepSeek 客户端"""
         try:
             from openai import AsyncOpenAI
             self._deepseek_client = AsyncOpenAI(
@@ -196,12 +158,12 @@ class ModelRouter:
         max_retries: int = 2,
     ) -> RouteResult:
         """
-        智能路由到最合适的模型
+        统一调用 deepseek-v4-flash
 
         Args:
             messages: 对话消息列表
-            task_type: 任务类型(决定路由层级)
-            force_tier: 强制指定层级(跳过自动路由)
+            task_type: 任务类型 (v3.0 起仅用于统计, 不再影响模型选择)
+            force_tier: 兼容保留 (仅接受 ModelTier.FLASH)
             max_retries: 最大重试次数
 
         Returns:
@@ -219,50 +181,29 @@ class ModelRouter:
         max_retries: int = 2,
     ) -> RouteResult:
         """
-        🆕 v2.9 带工具调用的路由 — ChatAgent 专用
+        带工具调用的路由 — ChatAgent 专用
 
-        与 route() 的区别:
-          - 传递 tools 定义给 LLM (function calling)
-          - RouteResult.metadata 中包含 tool_calls 原始数据
-          - 自动跳过 LOCAL tier (Ollama 小模型 tool calling 不稳定)
-
-        Returns:
-            RouteResult (response 可能是 tool_call JSON)
+        v3.0 与 route() 一致, 统一走 flash (工具调用能力完整)。
         """
         tier = self._resolve_tier(task_type, force_tier)
-        # 工具调用至少需要 FLASH tier (本地模型 function calling 不稳定)
-        if tier == ModelTier.LOCAL:
-            tier = ModelTier.FLASH
         return await self._execute_with_fallback(tier, messages, max_retries, tools=tools)
 
     def _resolve_tier(self, task_type: str, force_tier: Optional[ModelTier] = None) -> ModelTier:
-        """解析目标层级 (route 和 route_with_tools 共用)"""
-        if force_tier:
-            tier = force_tier
-        else:
-            tier = self._determine_tier(task_type)
+        """解析目标层级 — v3.0 统一为 FLASH"""
+        if force_tier is not None:
+            return force_tier
+        tier = self.TASK_ROUTING.get(task_type, ModelTier.FLASH)
 
-        # 高峰降级
-        if self._is_peak_hour() and tier != ModelTier.LOCAL:
-            if tier == ModelTier.PRO:
-                tier = ModelTier.FLASH
-                logger.debug("高峰降级: PRO→FLASH")
-            elif tier == ModelTier.FLASH:
-                tier = ModelTier.LOCAL
-                logger.debug("高峰降级: FLASH→LOCAL")
-
-        # 预算检查
-        if tier != ModelTier.LOCAL and self._daily_cost >= self.daily_budget * 0.9:
+        # 预算软提醒 (硬切断由成本监控层负责, 见 /api/v1/cost 与 workflow)
+        if self._daily_cost >= self.daily_budget * 0.9:
             logger.warning(
                 f"日预算已用{self._daily_cost:.2f}/{self.daily_budget:.2f}元,"
-                "强制使用本地模型"
+                "建议关注成本"
             )
-            tier = ModelTier.LOCAL
-
         return tier
 
     # ═══════════════════════════════════════════════════════════════
-    # 执行与降级
+    # 执行与重试
     # ═══════════════════════════════════════════════════════════════
 
     async def _execute_with_fallback(
@@ -272,124 +213,56 @@ class ModelRouter:
         max_retries: int,
         tools: List[Dict] = None,
     ) -> RouteResult:
-        """执行请求,失败时沿降级链回退"""
-        errors = []
+        """执行请求,失败时按指数退避重试"""
+        last_error = None
+        for retry in range(max_retries + 1):
+            try:
+                start = datetime.now()
+                response, usage = await self._call_model(messages, tools=tools)
+                latency = (datetime.now() - start).total_seconds() * 1000
 
-        # 快速检测Ollama状态(仅首次)
-        ollama_ok = await self._detect_ollama()
+                cost = self._calculate_cost(usage)
+                self._track_cost(cost)
 
-        # 降级链: 如果Ollama不可用,从链中移除LOCAL
-        full_chain = {
-            ModelTier.PRO: [ModelTier.PRO, ModelTier.FLASH, ModelTier.LOCAL],
-            ModelTier.FLASH: [ModelTier.FLASH, ModelTier.LOCAL],
-            ModelTier.LOCAL: [ModelTier.LOCAL],
-        }
-        chain = full_chain.get(tier, [ModelTier.LOCAL])
+                result = RouteResult(
+                    tier=ModelTier.FLASH,
+                    model_name=DEEPSEEK_FLASH_MODEL,
+                    response=response,
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    cost=cost,
+                    latency_ms=round(latency, 0),
+                    used_fallback=False,
+                    metadata={"task_tier": tier.value},
+                )
 
-        # 如果Ollama不可用,移除LOCAL (跳过无意义的3次重试)
-        if not ollama_ok:
-            chain = [t for t in chain if t != ModelTier.LOCAL]
-            if not chain:
-                chain = [ModelTier.FLASH]  # 至少有一个
+                self._call_log.append(result)
+                return result
 
-        # 工具调用时跳过LOCAL
-        if tools:
-            chain = [t for t in chain if t != ModelTier.LOCAL]
-            if not chain:
-                chain = [ModelTier.FLASH]
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    f"flash 调用失败(重试{retry+1}/{max_retries}): {e}"
+                )
+                if retry < max_retries:
+                    await asyncio.sleep(1.0 * (retry + 1))  # 指数退避
 
-        for attempt_tier in chain:
-            last_error = None
-            for retry in range(max_retries + 1):
-                try:
-                    start = datetime.now()
-                    response, usage = await self._call_model(attempt_tier, messages, tools=tools)
-                    latency = (datetime.now() - start).total_seconds() * 1000
-
-                    cost = self._calculate_cost(attempt_tier, usage)
-                    self._track_cost(cost)
-
-                    result = RouteResult(
-                        tier=attempt_tier,
-                        model_name=self._get_model_name(attempt_tier),
-                        response=response,
-                        input_tokens=usage.get("input_tokens", 0),
-                        output_tokens=usage.get("output_tokens", 0),
-                        cost=cost,
-                        latency_ms=round(latency, 0),
-                        used_fallback=(attempt_tier != tier),
-                        metadata={"task_tier": tier.value},
-                    )
-
-                    self._call_log.append(result)
-                    return result
-
-                except Exception as e:
-                    last_error = e
-                    logger.warning(
-                        f"{attempt_tier.value} 调用失败(重试{retry+1}/{max_retries}): {e}"
-                    )
-                    if retry < max_retries:
-                        await asyncio.sleep(1.0 * (retry + 1))  # 指数退避
-
-            errors.append(f"{attempt_tier.value}: {last_error}")
-
-        raise RuntimeError(f"所有模型层级均失败: {'; '.join(errors)}")
+        raise RuntimeError(f"所有模型调用均失败: {last_error}")
 
     async def _call_model(
         self,
-        tier: ModelTier,
         messages: List[Dict[str, str]],
         tools: List[Dict] = None,
     ) -> tuple[str, dict]:
-        """调用具体模型"""
-        if tier == ModelTier.LOCAL:
-            return await self._call_ollama(messages)
-        else:
-            return await self._call_deepseek(tier, messages, tools=tools)
-
-    async def _call_ollama(self, messages: List[Dict[str, str]]) -> tuple[str, dict]:
-        """调用Ollama本地模型"""
-        if self._ollama_client is None:
-            raise RuntimeError("Ollama客户端未初始化")
-
-        response = await self._ollama_client.chat(
-            model=self._ollama_model,
-            messages=messages,
-            options={
-                "temperature": 0.1,
-                "num_predict": 2048,
-            },
-        )
-
-        content = response["message"]["content"]
-        usage = {
-            "input_tokens": response.get("prompt_eval_count", 0),
-            "output_tokens": response.get("eval_count", 0),
-        }
-        return content, usage
-
-    async def _call_deepseek(
-        self,
-        tier: ModelTier,
-        messages: List[Dict[str, str]],
-        tools: List[Dict] = None,
-    ) -> tuple[str, dict]:
-        """调用DeepSeek API (v2.9: 支持 tool calling)"""
+        """调用 DeepSeek V4-Flash"""
         if self._deepseek_client is None:
             raise RuntimeError("DeepSeek客户端未初始化")
 
-        model_map = {
-            ModelTier.FLASH: DEEPSEEK_FLASH_MODEL,
-            ModelTier.PRO: DEEPSEEK_PRO_MODEL,
-        }
-        model = model_map.get(tier, DEEPSEEK_FLASH_MODEL)
-
         kwargs = {
-            "model": model,
+            "model": DEEPSEEK_FLASH_MODEL,
             "messages": messages,  # type: ignore
-            "temperature": 0.3 if tier == ModelTier.FLASH else 0.6,
-            "max_tokens": 16384 if tier == ModelTier.FLASH else 32768,
+            "temperature": 0.3,
+            "max_tokens": 16384,
         }
 
         if tools:
@@ -415,7 +288,6 @@ class ModelRouter:
                 }
                 for tc in choice.message.tool_calls
             ]
-            # 把 tool_calls 作为特殊标记的 JSON 嵌入 content
             content = json.dumps({
                 "_tool_calls": tool_calls_data,
                 "content": content,
@@ -424,51 +296,43 @@ class ModelRouter:
         usage = {
             "input_tokens": response.usage.prompt_tokens if response.usage else 0,
             "output_tokens": response.usage.completion_tokens if response.usage else 0,
+            # v3.0: 捕获缓存命中 tokens, 按 1/50 计价
+            "cache_hit_tokens": (
+                getattr(response.usage, "prompt_cache_hit_tokens", 0)
+                if response.usage else 0
+            ),
         }
         return content, usage
-
-    # ═══════════════════════════════════════════════════════════════
-    # 路由逻辑
-    # ═══════════════════════════════════════════════════════════════
-
-    def _determine_tier(self, task_type: str) -> ModelTier:
-        """根据任务类型确定路由层级"""
-        return self.TASK_ROUTING.get(task_type, ModelTier.LOCAL)
-
-    def _is_peak_hour(self) -> bool:
-        """检查是否在北京时间高峰时段"""
-        # 临时跳过高峰降级 — 让所有请求直走DeepSeek
-        if os.getenv("SKIP_PEAK_HOUR", "").lower() in ("1", "true", "yes"):
-            return False
-        now = datetime.now()
-        current_time = now.time()
-
-        for start, end in self.PEAK_WINDOWS:
-            if start <= current_time <= end:
-                return True
-        return False
 
     # ═══════════════════════════════════════════════════════════════
     # 成本追踪
     # ═══════════════════════════════════════════════════════════════
 
-    def _calculate_cost(self, tier: ModelTier, usage: dict) -> float:
-        """计算本次调用成本(元)"""
-        if tier == ModelTier.LOCAL:
-            return 0.0
+    def _is_peak_hour(self) -> bool:
+        """检查是否在北京时间高峰时段 (DeepSeek 峰谷定价: 高峰×2)"""
+        if os.getenv("SKIP_PEAK_HOUR", "").lower() in ("1", "true", "yes"):
+            return False
+        now = now_cn()  # v3.0: 高峰窗口按北京时间判定
+        current_time = now.time()
+        for start, end in self.PEAK_WINDOWS:
+            if start <= current_time <= end:
+                return True
+        return False
 
-        # DeepSeek V4 定价 (2026年7月, ¥/百万tokens)
-        pricing = {
-            ModelTier.FLASH: (1.0, 2.0),   # (input, output)
-            ModelTier.PRO: (3.0, 6.0),
-        }
-        input_price, output_price = pricing.get(tier, (0, 0))
+    def _calculate_cost(self, usage: dict) -> float:
+        """计算本次调用成本(元) — DeepSeek V4-Flash 定价 (2026-07, ¥/M tokens)。
 
-        input_tokens = usage.get("input_tokens", 0) / 1_000_000
+        缓存命中输入价 ¥0.02/M (为未命中的 1/50); 高峰时段×2 (峰谷定价)。
+        """
+        input_price, output_price = 1.0, 2.0
+        cache_price = 0.02
+        total_in = usage.get("input_tokens", 0) / 1_000_000
+        cache_in = usage.get("cache_hit_tokens", 0) / 1_000_000
+        fresh_in = max(0.0, total_in - cache_in)
         output_tokens = usage.get("output_tokens", 0) / 1_000_000
-        cost = input_tokens * input_price + output_tokens * output_price
+        cost = fresh_in * input_price + cache_in * cache_price + output_tokens * output_price
 
-        # 高峰×2
+        # 高峰×2 (对应 DeepSeek 峰谷定价)
         if self._is_peak_hour():
             cost *= 2.0
 
@@ -476,7 +340,7 @@ class ModelRouter:
 
     def _track_cost(self, cost: float):
         """追踪累计成本"""
-        today = datetime.now().date()
+        today = today_cn()  # v3.0: 按北京日期跨日重置
         if today != self._daily_reset_date:
             self._daily_cost = 0.0
             self._daily_reset_date = today
@@ -519,11 +383,3 @@ class ModelRouter:
             "total_calls": len(self._call_log),
             "by_tier": tier_stats,
         }
-
-    def _get_model_name(self, tier: ModelTier) -> str:
-        names = {
-            ModelTier.LOCAL: os.getenv("OLLAMA_MODEL", "qwen3:4b"),
-            ModelTier.FLASH: DEEPSEEK_FLASH_MODEL,
-            ModelTier.PRO: DEEPSEEK_PRO_MODEL,
-        }
-        return names.get(tier, "unknown")

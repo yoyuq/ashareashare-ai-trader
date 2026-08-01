@@ -90,8 +90,9 @@ class OverfittingGuard:
         pbo = self._compute_pbo(variant_returns) if variant_returns is not None else float("nan")
 
         # L3: Deflated Sharpe Ratio
+        # v3.0: 修复 param_results 为 DataFrame 时 `or` 触发歧义真值 ValueError
         dsr, dsr_pval = self._deflated_sharpe_ratio(
-            returns, param_results or pd.DataFrame()
+            returns, param_results if param_results is not None else pd.DataFrame()
         )
 
         # L4: Walk-Forward

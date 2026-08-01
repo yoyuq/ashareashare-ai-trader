@@ -277,7 +277,9 @@ class EventDrivenBacktestEngine:
             benchmark = bm / bm.iloc[0] * self.config.initial_capital
 
         # === 收益 ===
-        total_return = (equity.iloc[-1] / equity.iloc[0] - 1) * 100
+        # v3.0: 用初始资金作基线 (此前 equity[1:] 丢弃初始资金, 首日盈亏被当基线忽略)
+        baseline_capital = self.config.initial_capital
+        total_return = (equity.iloc[-1] / baseline_capital - 1) * 100
         years = (self.config.end_date - self.config.start_date).days / 365.25
         annual_return = ((1 + total_return / 100) ** (1 / max(years, 0.1)) - 1) * 100
 
@@ -319,20 +321,31 @@ class EventDrivenBacktestEngine:
         trade_df = pd.DataFrame(self.broker.trade_log) if self.broker.trade_log else pd.DataFrame()
         total_trades = len(trade_df[trade_df["side"] == "sell"]) if not trade_df.empty else 0
 
+        # v3.0: avg_win/avg_loss/PF 从实际卖出盈亏推导 (此前硬编码 0/1)
+        win_rate = 0
+        avg_win = 0.0
+        avg_loss = 0.0
+        profit_factor = 1.0
         if total_trades > 0:
-            # 从买卖配对中计算盈亏
             win_rate = (
                 self.broker.account.win_count /
                 max(self.broker.account.win_count + self.broker.account.loss_count, 1)
             )
-            avg_win = 0
-            avg_loss = 0
-            profit_factor = 1.0
-        else:
-            win_rate = 0
-            avg_win = 0
-            avg_loss = 0
-            profit_factor = 1.0
+            sell_pnls = pd.to_numeric(
+                trade_df[trade_df["side"] == "sell"].get("pnl"),
+                errors="coerce",
+            ).dropna()
+            if len(sell_pnls) > 0:
+                wins = sell_pnls[sell_pnls > 0]
+                losses = sell_pnls[sell_pnls < 0].abs()
+                avg_win = float(wins.mean()) if len(wins) > 0 else 0.0
+                avg_loss = float(losses.mean()) if len(losses) > 0 else 0.0
+                gross_profit = float(wins.sum())
+                gross_loss = float(losses.sum())
+                if gross_loss > 0:
+                    profit_factor = gross_profit / gross_loss
+                elif gross_profit > 0:
+                    profit_factor = 99.0  # 全部盈利, 无亏损
 
         # === 月度收益 ===
         monthly = equity.resample("ME").last().pct_change().dropna() * 100

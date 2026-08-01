@@ -29,8 +29,10 @@ def _exec_prices(df: pd.DataFrame) -> tuple:
     exit_px = opens.shift(-1)
     exit_px.iloc[-1] = closes.iloc[-1]
     # 涨停买不进 / 跌停卖不出 → NaN
-    limit_up = closes >= highs.shift(1) * 1.099
-    limit_down = closes <= (highs.shift(1) * 0.9 * 0.99)
+    # v3.0: 基准改用 prev_close (此前误用 prev_high, 除权/长上影时判定失真)
+    pre_close = closes.shift(1)
+    limit_up = closes >= np.round(pre_close * 1.10, 2) - 0.01
+    limit_down = closes <= np.round(pre_close * 0.90, 2) + 0.01
     entry_px[limit_up] = np.nan
     exit_px[limit_down] = np.nan
     return entry_px, exit_px

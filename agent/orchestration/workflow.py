@@ -414,21 +414,25 @@ class AnalysisWorkflow:
                             reports[sym] = result_llm.response
 
                             # 数字安全校验: 验证最终报告中的数值与Python计算的指标数据一致
-                            if reports[sym] and isinstance(last_row, dict):
+                            # v3.0: 修复 last_row 为 pandas Series 时 isinstance(dict) 恒 False + numpy 未导入
+                            # 导致校验从不执行的问题; 校验失败不再静默吞掉。
+                            rows = last_row.to_dict() if hasattr(last_row, "to_dict") else (last_row or {})
+                            if reports[sym] and rows:
                                 try:
+                                    import numpy as np
                                     from agent.tools.code_executor import ComputedNumber, NumericSafetyChecker
                                     computed = {
                                         k: ComputedNumber(name=k, value=float(v),
                                                           source=f"computed({k})", formula=k)
-                                        for k, v in last_row.items()
+                                        for k, v in rows.items()
                                         if isinstance(v, (int, float)) and not (isinstance(v, float) and np.isnan(v))
                                     }
                                     checker = NumericSafetyChecker(computed)
                                     safe, violations = checker.validate_report(reports[sym])
                                     if not safe:
                                         logger.warning(f"[{sym}] 数字校验未通过: {'; '.join(violations[:3])}")
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    logger.debug(f"[{sym}] 数字校验异常: {e}")
                         except Exception:
                             reports[sym] = f"[{sym} API错误]"
                     completed += 1
@@ -1263,6 +1267,32 @@ class AnalysisWorkflow:
                 # 构建完整上下文 — v3.1: 含逐股推荐 + Critic审计 + 反思
                 stock_recs = state.get("stock_recommendations", {})
                 critic_results = state.get("critic_results", {})
+                # v3.0: 代码计算交易参数(入场/止损/止盈/仓位), 消除 LLM 编造价格
+                tech_ind = state.get("technical_indicators", {})
+                trade_params = {}
+                for sym in stock_recs.keys():
+                    ind = tech_ind.get(sym, {})
+                    last = {}
+                    for k, v in ind.items():
+                        if isinstance(v, dict) and v:
+                            last[k] = v[max(v)]  # DataFrame.to_dict: 取最后一行
+                        elif isinstance(v, list) and v:
+                            last[k] = v[-1]
+                        elif isinstance(v, (int, float)):
+                            last[k] = v
+                    close = float(last.get("close") or 0)
+                    atr = float(last.get("atr_14") or 0) or close * 0.02
+                    conv = float(stock_recs[sym].get("conviction", 0.5))
+                    if close > 0:
+                        trade_params[sym] = {
+                            "entry_price": round(close, 2),
+                            "stop_loss": round(close - 2 * atr, 2),
+                            "take_profit": round(close + 1.5 * atr, 2),
+                            "position_pct": round(min(0.20, max(0.03, 0.05 + conv * 0.15)), 3),
+                            "note": "代码计算: 入场=最新收盘, 止损=收盘-2×ATR, 止盈=收盘+1.5×ATR, 仓位=5%+15%×确信度",
+                        }
+                    else:
+                        trade_params[sym] = {}
                 stock_summary = {}
                 for sym, rec in stock_recs.items():
                     critic = critic_results.get(sym, {})
@@ -1274,6 +1304,7 @@ class AnalysisWorkflow:
                         "critic_flaws": critic.get("flaw_count", 0),
                         "robustness": critic.get("robustness_score", 100),
                         "reflection": reflection_contexts.get(sym, "")[:300],
+                        "trade_params": trade_params.get(sym, {}),
                     }
 
                 context_parts = {

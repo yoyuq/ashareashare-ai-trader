@@ -104,7 +104,8 @@ class BaostockProvider(DataProvider):
                 start_date=request.start_date.strftime("%Y-%m-%d"),
                 end_date=request.end_date.strftime("%Y-%m-%d"),
                 frequency="d",
-                adjustflag="2",  # 前复权
+                # v3.0: 尊重请求的复权方式 (此前硬编码前复权, hfq/raw 请求被静默返回 qfq 数据)
+                adjustflag={"qfq": "2", "hfq": "1"}.get(request.adjust, "3"),
             )
             data_list = []
             while (rs.error_code == "0") and rs.next():
@@ -160,7 +161,7 @@ class BaostockProvider(DataProvider):
                 start_date=request.start_date.strftime("%Y-%m-%d"),
                 end_date=request.end_date.strftime("%Y-%m-%d"),
                 frequency=baostock_freq,
-                adjustflag="2",
+                adjustflag={"qfq": "2", "hfq": "1"}.get(request.adjust, "3"),
             )
             data_list = []
             while (rs.error_code == "0") and rs.next():
@@ -224,15 +225,17 @@ class BaostockProvider(DataProvider):
 
     def _normalize_symbol(self, symbol: str) -> str:
         """
-        标准化 → Baostock格式: sh.600000 或 sz.000001
+        标准化 → Baostock格式: sh.600000 / sz.000001 / bj.8xxxxx
+        v3.0: 修复北交所代码 (8/4 开头) 此前被错误映射到 sz 的问题
         """
         symbol = symbol.strip()
         # 已经是bs格式
-        if symbol.startswith("sh.") or symbol.startswith("sz."):
+        if symbol.startswith(("sh.", "sz.", "bj.")):
             return symbol
         # 纯数字
-        code = symbol.replace("sh.", "").replace("sz.", "").split(".")[-1]
+        code = symbol.replace("sh.", "").replace("sz.", "").replace("bj.", "").split(".")[-1]
         if code.startswith(("6", "9")):
             return f"sh.{code}"
-        else:
-            return f"sz.{code}"
+        if code.startswith(("8", "4")):
+            return f"bj.{code}"  # 北交所 (8/4 开头)
+        return f"sz.{code}"

@@ -196,7 +196,16 @@ class EastMoneyProvider(DataProvider):
                         metadata={"raw_symbol": em_code, "adjust": request.adjust},
                     ).standardize()
 
-            # 无历史数据时,用实时价格构造当天一条记录
+            # 无历史数据时, 仅当请求覆盖今天才用实时价构造当天记录
+            # v3.0: 历史回测请求若构造"今天"假K线会污染回测数据, 直接返回空
+            if request.end_date < date.today():
+                return DataResult(
+                    symbol=request.symbol,
+                    source=self.source,
+                    frequency=DataFrequency.DAILY,
+                    data=pd.DataFrame(),
+                    metadata={"error": "no_data"},
+                )
             quotes = await self.get_realtime_quotes([request.symbol])
             if request.symbol in quotes:
                 q = quotes[request.symbol]
@@ -286,11 +295,17 @@ class EastMoneyProvider(DataProvider):
 
     @staticmethod
     def _to_em_code(symbol: str) -> Optional[str]:
-        """sh.600519 → 1.600519, sz.000858 → 0.000858"""
+        """sh.600519 → 1.600519, sz.000858 → 0.000858, bj.8xxxxx → 0.8xxxxx
+
+        v3.0: 增加北交所支持 (EastMoney secid 用 0. 前缀)。若映射失败返回 None,
+        由上层跳过该源并降级, 不再视为崩溃。
+        """
         if symbol.startswith("sh."):
             return "1." + symbol[3:]
         elif symbol.startswith("sz."):
             return "0." + symbol[3:]
+        elif symbol.startswith("bj."):
+            return "0." + symbol[3:]  # 北交所
         return None
 
     @staticmethod

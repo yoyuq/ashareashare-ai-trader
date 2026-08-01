@@ -201,7 +201,7 @@ async def scan():
 
         try:
             resp = await client.chat.completions.create(
-                model="deepseek-v4-pro",
+                model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
                 messages=[
                     {"role": "system", "content": "你是资深A股分析师。只返回JSON。"
                      "评分考虑: 技术趋势、估值合理性、市场体制适配度、流动性。"

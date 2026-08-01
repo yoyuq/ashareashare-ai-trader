@@ -35,10 +35,10 @@ async def test_direct_api():
         base_url="https://api.deepseek.com/v1",
     )
 
-    print("\n--- 测试 1: DeepSeek Chat (V4-Flash) ---")
+    print("\n--- 测试 1: DeepSeek V4-Flash ---")
     try:
         response = await client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "user", "content": "用一句话介绍A股市场的T+1制度"},
             ],
@@ -54,12 +54,12 @@ async def test_direct_api():
         print(f"  Tokens: {tokens_in} in + {tokens_out} out")
         print(f"  💰 成本: ¥{cost:.6f}")
     except Exception as e:
-        pytest.fail(f"DeepSeek Chat 调用失败: {e}")
+        pytest.fail(f"DeepSeek 调用失败: {e}")
 
-    print("\n--- 测试 2: DeepSeek Reasoner (V4-Pro) ---")
+    print("\n--- 测试 2: DeepSeek V4-Flash (综合问答) ---")
     try:
         response = await client.chat.completions.create(
-            model="deepseek-reasoner",
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "user", "content": "MACD金叉和死叉分别代表什么？用一句话回答"},
             ],
@@ -68,22 +68,14 @@ async def test_direct_api():
         content = response.choices[0].message.content
         tokens_in = response.usage.prompt_tokens
         tokens_out = response.usage.completion_tokens
-        cost = (tokens_in / 1_000_000) * 3.0 + (tokens_out / 1_000_000) * 6.0
+        cost = (tokens_in / 1_000_000) * 1.0 + (tokens_out / 1_000_000) * 2.0
 
+        assert content, "DeepSeek 返回空内容"
         print(f"  ✅ 响应: {content[:100]}...")
         print(f"  Tokens: {tokens_in} in + {tokens_out} out")
         print(f"  💰 成本: ¥{cost:.6f}")
     except Exception as e:
-        print(f"  ⚠️  Pro模型失败 (可能账户不支持reasoner,降级用chat): {e}")
-        # 降级到chat
-        response = await client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "user", "content": "MACD金叉和死叉分别代表什么？用一句话回答"},
-            ],
-            max_tokens=100,
-        )
-        print(f"  ✅ 降级到Flash: {response.choices[0].message.content[:100]}...")
+        pytest.fail(f"DeepSeek 调用失败: {e}")
 
     return True
 

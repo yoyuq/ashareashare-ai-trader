@@ -7,6 +7,7 @@ from .alternative import AlternativeDataProvider
 from .eastmoney_provider import EastMoneyProvider  # v3.1
 from .tencent_provider import TencentFinanceProvider  # v3.1
 from .fundamentals import FundamentalsProvider  # v3.1
+from .tushare_provider import TushareProvider  # v3.0: 主源 (可靠性最高, 需 TUSHARE_TOKEN)
 
 __all__ = [
     "DataSource",
@@ -20,4 +21,5 @@ __all__ = [
     "EastMoneyProvider",
     "TencentFinanceProvider",
     "FundamentalsProvider",
+    "TushareProvider",
 ]

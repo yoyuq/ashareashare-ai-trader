@@ -55,12 +55,10 @@ AKShare (live) → Tencent (realtime) → EastMoney → Baostock (historical K-l
 ### AI Model Routing (3-Tier Funnel)
 
 ```
-60% → Ollama Qwen3-4B (free, local)     — simple QA, indicator reading
-30% → DeepSeek V4-Flash (¥1-2/M tokens) — technical analysis, strategy matching
-10% → DeepSeek V4-Pro  (¥3-6/M tokens)  — adversarial debate, synthesis, judge
+100% → DeepSeek V4-Flash (¥1-2/M tokens) — 全量统一模型 (v3.0, 2026-08)
 ```
 
-`models/router.py` auto-routes by task_type; has peak-hour downgrade (8-12h, 14-18h local time) and budget cap at 90%. API keys: `DEEPSEEK_API_KEY` in `.env`. The dashboard AI analysis button uses `deepseek-v4-pro` directly via `openai.OpenAI()` client with `base_url=https://api.deepseek.com/v1`.
+`models/router.py` routes every task to `deepseek-v4-flash` (single-model, v3.0; Ollama local + V4-Pro tiers removed). Budget tracking default ¥1/day; DeepSeek peak-valley pricing (9-12h/14-18h ×2) reflected in cost model. API keys: `DEEPSEEK_API_KEY` in `.env`. The dashboard AI analysis button uses `deepseek-v4-flash` directly via `openai.OpenAI()` client with `base_url=https://api.deepseek.com/v1`.
 
 ### Analysis Pipeline (LangGraph)
 

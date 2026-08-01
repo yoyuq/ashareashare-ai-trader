@@ -129,6 +129,16 @@ class PaperTradingEngine:
     # 买入
     # ═══════════════════════════════════════════════════════════
 
+    @staticmethod
+    def _limit_pct_for(symbol: str) -> float:
+        """按板块返回涨跌幅限制(%) — 主板±10%, 创业板/科创板±20%, 北交所±30%"""
+        sym_stripped = symbol.replace("sh.", "").replace("sz.", "").replace("bj.", "")
+        if sym_stripped.startswith("30") or sym_stripped.startswith("68"):
+            return 20.0
+        if sym_stripped.startswith("8") or sym_stripped.startswith("4"):
+            return 30.0
+        return 10.0
+
     def execute_buy(
         self,
         symbol: str,
@@ -159,8 +169,9 @@ class PaperTradingEngine:
         state = self.state
         today = date.today().isoformat()
 
-        # A股涨跌停: 涨停封板无法买入
-        if sealed_limit_up or (pct_change is not None and pct_change >= 9.8):
+        # A股涨跌停: 涨停封板无法买入 (v3.0: 板块感知的涨跌幅限制)
+        limit_pct = self._limit_pct_for(symbol)
+        if sealed_limit_up or (pct_change is not None and pct_change >= limit_pct - 0.2):
             logger.info(f"买入跳过: {symbol} 涨停封板 (涨幅{pct_change if pct_change is not None else '?'}%), 无法成交")
             return None
 
@@ -353,8 +364,9 @@ class PaperTradingEngine:
             logger.warning(f"卖出跳过: {symbol} 今日买入, T+1制度下需次交易日起方可卖出")
             return None
 
-        # A股涨跌停: 跌停封板无法卖出
-        if sealed_limit_down or (pct_change is not None and pct_change <= -9.8):
+        # A股涨跌停: 跌停封板无法卖出 (v3.0: 板块感知的涨跌幅限制)
+        limit_pct = self._limit_pct_for(symbol)
+        if sealed_limit_down or (pct_change is not None and pct_change <= -(limit_pct - 0.2)):
             logger.warning(f"卖出跳过: {symbol} 跌停封板 (跌幅{pct_change if pct_change is not None else '?'}%), 无法成交")
             return None
 
