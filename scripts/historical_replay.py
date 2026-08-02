@@ -97,13 +97,36 @@ def _bs_query(symbol: str, start: str, end: str) -> pd.DataFrame:
     return df
 
 
+_NUMERIC_COLS = ["open", "high", "low", "close", "volume", "amount", "turn",
+                 "pctChg", "peTTM", "pbMRQ"]
+
+
+def _optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """高效 dtype: date→datetime64, symbol→category, 数值→float32 (内存 ~5倍↓)"""
+    if df.empty:
+        return df
+    df = df.copy()
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"])
+    if "symbol" in df.columns:
+        df["symbol"] = df["symbol"].astype("category")
+    for c in _NUMERIC_COLS:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").astype("float32")
+    return df
+
+
 def build_daily_data(universe: list, start: date, end: date,
                      force: bool = False) -> dict:
-    """构建全市场日K缓存 (baostock 全局锁, 串行). 返回 {symbol: df}"""
+    """
+    构建全市场日K缓存 (baostock 全局锁, 串行).
+    返回 {symbol: df}, 每个 df 用高效 dtype (date→datetime64, 数值→float32),
+    大幅降低内存驻留 (约 500MB→~150MB), 缓解系统内存压力下的 OOM 被杀.
+    """
     cache = REPLAY_DIR / f"daily_{start.isoformat()}_{end.isoformat()}.parquet"
     if cache.exists() and not force:
         logger.info(f"加载缓存: {cache}")
-        return {s: g.drop(columns="symbol").reset_index(drop=True)
+        return {s: _optimize_dtypes(g.drop(columns="symbol").reset_index(drop=True))
                 for s, g in pd.read_parquet(cache).groupby("symbol")}
 
     import baostock as bs
@@ -124,6 +147,7 @@ def build_daily_data(universe: list, start: date, end: date,
     finally:
         bs.logout()
     big = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
+    big = _optimize_dtypes(big)
     big.to_parquet(cache, index=False)
     logger.info(f"数据构建完成: {len(big)} 行, {len(big['symbol'].unique())} 只, 缓存 {cache}")
     return {s: g.drop(columns="symbol").reset_index(drop=True)
@@ -205,6 +229,20 @@ class ReplayPortfolio:
         self.trades = []
         self.max_positions = 10
 
+    def to_dict(self) -> dict:
+        return {"capital": self.capital, "cash": self.cash,
+                "positions": self.positions, "trades": self.trades,
+                "equity_curve": self.equity_curve}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ReplayPortfolio":
+        pf = cls(d.get("capital", 100000.0))
+        pf.cash = d.get("cash", pf.capital)
+        pf.positions = d.get("positions", {}) or {}
+        pf.trades = d.get("trades", []) or []
+        pf.equity_curve = d.get("equity_curve", []) or []
+        return pf
+
     def total_value(self, price_map):
         pos_val = sum(p["qty"] * price_map.get(sym, p["entry_price"]) for sym, p in self.positions.items())
         return self.cash + pos_val
@@ -271,6 +309,33 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
     day_logs = []
     total_llm_calls = 0
     t0 = time.time()
+
+    # ── 断点续跑: 加载已完成的日期 + 组合状态 ──
+    ckpt_path = REPLAY_DIR / f"checkpoint_{window[0]}_{window[-1]}.json" if window else None
+    completed = []
+    if ckpt_path and ckpt_path.exists():
+        try:
+            ck = json.loads(ckpt_path.read_text(encoding="utf-8"))
+            completed = ck.get("completed_dates", [])
+            if ck.get("portfolio"):
+                pf = ReplayPortfolio.from_dict(ck["portfolio"])
+            day_logs = ck.get("day_logs", [])
+            total_llm_calls = ck.get("llm_calls", 0)
+            logger.info(f"断点恢复: 已完成 {len(completed)} 天, 跳过继续")
+        except Exception as e:
+            logger.warning(f"断点加载失败: {e}")
+    window = [d for d in window if d not in completed]
+
+    def _save_ckpt():
+        if not ckpt_path:
+            return
+        try:
+            ckpt_path.write_text(json.dumps({
+                "completed_dates": completed, "portfolio": pf.to_dict(),
+                "day_logs": day_logs, "llm_calls": total_llm_calls,
+            }, ensure_ascii=False, default=str), encoding="utf-8")
+        except Exception:
+            pass
 
     for i, T in enumerate(window):
         logger.info(f"[{i+1}/{len(window)}] T={T} 回放...")
@@ -371,6 +436,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                              "sell": sum(1 for r in deep if r.get("action") == "SELL"),
                              "hold": sum(1 for r in deep if r.get("action") == "HOLD"),
                              "positions": len(pf.positions)})
+            # 断点: 每天完成后立即持久化 (被杀不丢进度)
+            completed.append(T)
+            _save_ckpt()
+            logger.info(f"  ✔ [{i+1}/{len(window)}] {T} 完成, 持仓{len(pf.positions)}")
         except Exception as e:
             logger.warning(f"[{T}] 回放异常: {e}")
 
