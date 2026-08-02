@@ -237,8 +237,17 @@ class ReplayPortfolio:
     @classmethod
     def from_dict(cls, d: dict) -> "ReplayPortfolio":
         pf = cls(d.get("capital", 100000.0))
-        pf.cash = d.get("cash", pf.capital)
+        pf.cash = float(d.get("cash", pf.capital))
         pf.positions = d.get("positions", {}) or {}
+        # v3.1.1 修复: 旧 checkpoint 用 default=str 把数值字符串化, 载入后
+        # px1<=stop 等比较会 float32<=str 崩溃. 强转持仓数值为 float.
+        for _sym, _p in pf.positions.items():
+            for _k in ("qty", "entry_price", "stop", "take"):
+                if _k in _p and not isinstance(_p[_k], (int, float)):
+                    try:
+                        _p[_k] = float(_p[_k])
+                    except (TypeError, ValueError):
+                        _p[_k] = 0.0
         pf.trades = d.get("trades", []) or []
         pf.equity_curve = d.get("equity_curve", []) or []
         return pf
