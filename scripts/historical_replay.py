@@ -378,6 +378,15 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             deep = await _deepseek_analyze(df_top.head(final_n), thinking=thinking)
             _bs = 10 if thinking else 20
             total_llm_calls += (len(df_top.head(final_n)) + _bs - 1) // _bs
+            # v3.1.1 修复: LLM JSON 偶尔把数值返成字符串 ("conviction":"0.6"),
+            # 后续比较/运算会崩 (Float32 vs Str). 归一化为 float.
+            for _r in deep:
+                for _k in ("conviction", "final_score", "score", "win_rate"):
+                    if _k in _r and not isinstance(_r[_k], (int, float)):
+                        try:
+                            _r[_k] = float(_r[_k])
+                        except (TypeError, ValueError):
+                            _r[_k] = 0.0
 
             # ── 5. 持仓规划 (T 收盘决策) ──
             # 卖出: SELL 信号 + 止损/止盈 (用 T+1 开盘价判断)

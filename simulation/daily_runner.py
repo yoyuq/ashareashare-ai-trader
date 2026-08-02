@@ -348,7 +348,13 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
         if not parsed_this_batch:
             logger.warning(f"DeepSeek batch#{batch_i}: 所有重试失败, 跳过")
 
-    results.sort(key=lambda x: x.get("final_score", x.get("score", 0)), reverse=True)
+    # v3.1.1: LLM JSON 数值可能为字符串, 排序前安全转 float
+    def _safe_score(x):
+        try:
+            return float(x.get("final_score", x.get("score", 0)))
+        except (TypeError, ValueError):
+            return 0.0
+    results.sort(key=_safe_score, reverse=True)
     return results
 
 
