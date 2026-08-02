@@ -229,20 +229,34 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
     return df
 
 
-async def _deepseek_analyze(df_top: pd.DataFrame) -> List[Dict]:
-    """DeepSeek深度分析 Top100"""
+async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False) -> List[Dict]:
+    """
+    DeepSeek深度分析 Top100
+
+    Args:
+        thinking: 是否启用 thinking 模式. 开 = 更深推理但更慢更贵 (max_tokens 16000,
+                  批处理 10 只, 让 reasoning_content 与 content 都有空间);
+                  关 = 快速 JSON (max_tokens 4000, 批处理 20).
+                  初筛 (_flash_screen) 始终禁用 thinking 保持速度.
+    """
     from openai import AsyncOpenAI
     import os
 
     client = AsyncOpenAI(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-        timeout=120.0,
+        timeout=240.0,  # v3.1: thinking 批次可到 48-110s+, 120s 会超时截断只剩首批
     )
 
+    # v3.1: thinking 开时仍用 batch 20 — 小批次 (10) 会让模型思考更深,
+    # reasoning 吃光 16000 预算导致 content 为空. batch 20 反而经济.
+    batch_size = 20
     results = []
-    for batch_i in range(0, min(100, len(df_top)), 20):
-        batch = df_top.iloc[batch_i:batch_i+20]
+    # 每批尝试序列: thinking(若请求) -> 非thinking回退 (保证 100% 覆盖)
+    attempts = [(True, 16000, None)] if thinking else []
+    attempts.append((False, 4000, {"thinking": {"type": "disabled"}}))
+    for batch_i in range(0, min(100, len(df_top)), batch_size):
+        batch = df_top.iloc[batch_i:batch_i+batch_size]
         lines = []
         for _, r in batch.iterrows():
             mv = r.get('total_mv',0)/1e8
@@ -258,38 +272,45 @@ async def _deepseek_analyze(df_top: pd.DataFrame) -> List[Dict]:
             )
 
         system_prompt = (
-        "你是资深A股分析师。对每只股票从技术面、基本面、风险三个维度评估。"
-        "评分标准: 85+强烈看多, 70-84偏多, 55-69中性, 40-54偏空, <40看空。"
-        "特别注意: 北交所(8/9/4开头)/ST/亏损股给低分; 主板蓝筹/业绩确定给高分。"
-        "只返回JSON数组, 不要markdown包裹。"
-    )
-    prompt = (
-        f"分析以下{len(lines)}只A股,给出最终评分(0-100)和操作(BUY/HOLD/SELL)。"
-        f"每只股票需包含: final_score, action, conviction(0-1), technical(技术面简述), fundamental(基本面简述), risk(风险简述)。\n"
-        + "\n".join(lines) + "\n"
-        "返回JSON:[{\"code\":\"\",\"name\":\"\",\"final_score\":0,\"action\":\"BUY\",\"conviction\":0.5,\"technical\":\"\",\"fundamental\":\"\",\"risk\":\"\"}]"
-    )
-
-    try:
-        resp = await client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
-            messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
-            temperature=0.3, max_tokens=4000,
-            # v3.1 修复: 禁用 thinking (同 _flash_screen)
-            extra_body={"thinking": {"type": "disabled"}},
+            "你是资深A股分析师。对每只股票从技术面、基本面、风险三个维度评估。"
+            "评分标准: 85+强烈看多, 70-84偏多, 55-69中性, 40-54偏空, <40看空。"
+            "特别注意: 北交所(8/9/4开头)/ST/亏损股给低分; 主板蓝筹/业绩确定给高分。"
+            "只返回JSON数组, 不要markdown包裹。"
         )
-        content = resp.choices[0].message.content.strip()
-        if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
-        items = json.loads(content)
-        if isinstance(items, list):
-            for idx, item in enumerate(items):
-                if not item.get("code") and idx < len(batch):
-                    item["code"] = str(batch.iloc[idx]["code"])
-                    item["name"] = str(batch.iloc[idx]["name"])
-            results.extend(items)
-            logger.debug(f"DeepSeek batch#{batch_i}: {len(items)} analyzed")
-    except Exception as e:
-        logger.warning(f"DeepSeek batch#{batch_i}: {e}")
+        prompt = (
+            f"分析以下{len(lines)}只A股,给出最终评分(0-100)和操作(BUY/HOLD/SELL)。"
+            f"每只股票需包含: final_score, action, conviction(0-1), technical(技术面简述), fundamental(基本面简述), risk(风险简述)。\n"
+            + "\n".join(lines) + "\n"
+            "返回JSON:[{\"code\":\"\",\"name\":\"\",\"final_score\":0,\"action\":\"BUY\",\"conviction\":0.5,\"technical\":\"\",\"fundamental\":\"\",\"risk\":\"\"}]"
+        )
+
+        # v3.1 修复: attempts 块必须在 for batch_i 循环内 (此前误缩进在循环外,
+        # 导致整批只调用 1 次 LLM 返回 20, 而非 100)
+        parsed_this_batch = False
+        for t_on, mt, eb in attempts:
+            try:
+                resp = await client.chat.completions.create(
+                    model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                    messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
+                    temperature=0.3, max_tokens=mt, extra_body=eb,
+                )
+                content = (resp.choices[0].message.content or "").strip()
+                if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
+                items = json.loads(content)
+                if isinstance(items, list) and items:
+                    for idx, item in enumerate(items):
+                        if not item.get("code") and idx < len(batch):
+                            item["code"] = str(batch.iloc[idx]["code"])
+                            item["name"] = str(batch.iloc[idx]["name"])
+                    results.extend(items)
+                    logger.debug(f"DeepSeek batch#{batch_i} thinking={t_on}: {len(items)} analyzed")
+                    parsed_this_batch = True
+                    break  # 该批成功, 不再回退
+            except Exception as e:
+                logger.warning(f"DeepSeek batch#{batch_i} thinking={t_on}: {e}")
+                continue  # 尝试下一个 (非thinking回退)
+        if not parsed_this_batch:
+            logger.warning(f"DeepSeek batch#{batch_i}: 所有尝试失败, 跳过")
 
     results.sort(key=lambda x: x.get("final_score", x.get("score", 0)), reverse=True)
     return results

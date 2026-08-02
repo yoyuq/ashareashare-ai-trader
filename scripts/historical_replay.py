@@ -283,7 +283,8 @@ def _next_trading_day(data, T: str) -> str:
 
 
 async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: int = 100,
-                     capital: float = 100000.0, force_data: bool = False) -> dict:
+                     capital: float = 100000.0, force_data: bool = False,
+                     thinking: bool = False) -> dict:
     """执行历史 PIT 回放"""
     end = date(2026, 7, 31)  # 最近完整交易日 (08-02 休市)
     # 回放只需 ~60交易日 warmup (算 60日涨跌) + 前瞻缓冲, 无需 250日
@@ -358,9 +359,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             df_top = await _flash_screen(screened, top_k=final_n)
             total_llm_calls += (len(screened) + 24) // 25
 
-            # ── 4. LLM 深度分析 ──
-            deep = await _deepseek_analyze(df_top.head(final_n))
-            total_llm_calls += (len(df_top.head(final_n)) + 19) // 20
+            # ── 4. LLM 深度分析 (thinking 可开关: 开=更深推理, 关=快速) ──
+            deep = await _deepseek_analyze(df_top.head(final_n), thinking=thinking)
+            _bs = 10 if thinking else 20
+            total_llm_calls += (len(df_top.head(final_n)) + _bs - 1) // _bs
 
             # ── 5. 持仓规划 (T 收盘决策) ──
             # 卖出: SELL 信号 + 止损/止盈 (用 T+1 开盘价判断)
@@ -491,12 +493,14 @@ def main():
     ap.add_argument("--final-n", type=int, default=100, help="LLM 精筛数量")
     ap.add_argument("--capital", type=float, default=100000.0, help="初始资金")
     ap.add_argument("--force-data", action="store_true", help="强制重建数据缓存")
+    ap.add_argument("--thinking", action="store_true",
+                    help="深度分析启用 thinking 模式 (更深推理, 更慢更贵; 初筛始终禁用)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
     asyncio.run(run_replay(days=args.days, universe=universe, top_n=args.top_n,
                            final_n=args.final_n, capital=args.capital,
-                           force_data=args.force_data))
+                           force_data=args.force_data, thinking=args.thinking))
 
 
 if __name__ == "__main__":
