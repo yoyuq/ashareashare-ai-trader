@@ -284,7 +284,11 @@ def _next_trading_day(data, T: str) -> str:
 
 async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: int = 100,
                      capital: float = 100000.0, force_data: bool = False,
-                     thinking: bool = False) -> dict:
+                     thinking: bool = False, max_days: int = 0) -> dict:
+    """
+    max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
+              (checkpoint 落盘), 避免后台任务被杀窗口浪费.
+    """
     """执行历史 PIT 回放"""
     end = date(2026, 7, 31)  # 最近完整交易日 (08-02 休市)
     # 回放只需 ~60交易日 warmup (算 60日涨跌) + 前瞻缓冲, 无需 250日
@@ -326,6 +330,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
         except Exception as e:
             logger.warning(f"断点加载失败: {e}")
     window = [d for d in window if d not in completed]
+    if max_days and len(window) > max_days:
+        window = window[:max_days]  # 分小段跑: 本次最多 max_days 天, 干净退出
 
     def _save_ckpt():
         if not ckpt_path:
@@ -495,12 +501,15 @@ def main():
     ap.add_argument("--force-data", action="store_true", help="强制重建数据缓存")
     ap.add_argument("--thinking", action="store_true",
                     help="深度分析启用 thinking 模式 (更深推理, 更慢更贵; 初筛始终禁用)")
+    ap.add_argument("--max-days", type=int, default=0,
+                    help="本次最多处理的新天数 (0=不限; 分小段跑避免后台被杀)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
     asyncio.run(run_replay(days=args.days, universe=universe, top_n=args.top_n,
                            final_n=args.final_n, capital=args.capital,
-                           force_data=args.force_data, thinking=args.thinking))
+                           force_data=args.force_data, thinking=args.thinking,
+                           max_days=args.max_days))
 
 
 if __name__ == "__main__":
