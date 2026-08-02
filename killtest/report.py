@@ -102,6 +102,45 @@ def compare(arm_outcomes: List[Outcome], baseline_outcomes: List[Outcome]) -> Di
     }
 
 
+def is_oos_split(outcomes: List[Outcome]) -> Dict:
+    """样本内/样本外切分 (2026 best practice: IS/OOS 一致才算数)
+
+    按日期排序, 前 50% 时间段 = 样本内 (IS), 后 50% = 样本外 (OOS)。
+    若 IS 与 OOS 的表现 (均值/胜率) 一致, 信号更可信; 若 IS 好 OOS 差,
+    提示过拟合。
+    """
+    if len(outcomes) < 10:
+        return {"n": len(outcomes), "note": "样本过少"}
+    ordered = sorted(outcomes, key=lambda o: o.date)
+    mid = len(ordered) // 2
+    is_part, oos_part = ordered[:mid], ordered[mid:]
+
+    def _stats(part):
+        rets = [o.fwd_return for o in part]
+        return {
+            "n": len(part),
+            "mean_return": round(float(np.mean(rets)), 4),
+            "win_rate": round(float((np.array(rets) > 0).mean()), 4),
+            "range": f"{part[0].date}~{part[-1].date}",
+        }
+
+    is_s, oos_s = _stats(is_part), _stats(oos_part)
+    is_pos = is_s["mean_return"] > 0
+    oos_pos = oos_s["mean_return"] > 0
+    if is_pos and oos_pos:
+        verdict = "一致且为正 (信号可信)"
+    elif not is_pos and not oos_pos:
+        verdict = "一致但为负 (信号无正向 edge)"
+    else:
+        verdict = "方向不一致 (信号 edge 随时间变化, 警惕不稳定)"
+    return {
+        "n": len(outcomes),
+        "is": is_s, "oos": oos_s,
+        "consistent": is_pos == oos_pos,
+        "verdict": verdict,
+    }
+
+
 def render(arms: Dict[str, List[Outcome]], baseline: Dict, title: str = "kill-test") -> str:
     """渲染 markdown 对比报告"""
     lines = [f"# {title}\n"]
