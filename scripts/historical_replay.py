@@ -467,7 +467,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             _save_ckpt()
             logger.info(f"  ✔ [{i+1}/{len(window)}] {T} 完成, 持仓{len(pf.positions)}")
         except Exception as e:
-            logger.warning(f"[{T}] 回放异常: {e}")
+            import traceback as _tb
+            logger.warning(f"[{T}] 回放异常: {e}\n{_tb.format_exc()[-1500:]}")
 
     elapsed = time.time() - t0
     logger.info(f"回放完成: {len(window)}日, {total_llm_calls}次LLM, {elapsed:.0f}s")

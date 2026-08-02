@@ -228,15 +228,22 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
 
     if all_scores:
         df = df.copy()
+        # v3.1.1: LLM JSON 的 score 可能为字符串 ("85"), 统一转 float
+        # 否则 combined 列混型, nlargest 排序 float<=str 崩溃
+        def _sc(v):
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return 50.0
         if blind:
-            # 盲测: LLM 返回 "股票N" 按位置映射
-            df["llm_score"] = [all_scores.get(f"股票{idx+1}", 50)
+            df["llm_score"] = [_sc(all_scores.get(f"股票{idx+1}", 50))
                                for idx in range(len(df))]
         else:
-            df["llm_score"] = df["code"].map(lambda c: all_scores.get(str(c), 50))
+            df["llm_score"] = df["code"].map(lambda c: _sc(all_scores.get(str(c), 50)))
         # v3.1 修复: PreScreener 输出 composite_score (非旧版 rule_score), 兼容两者
-        base_score = (df["rule_score"] if "rule_score" in df.columns
-                      else df["composite_score"])
+        base_score = pd.to_numeric(
+            df["rule_score"] if "rule_score" in df.columns else df["composite_score"],
+            errors="coerce").fillna(50.0)
         df["combined"] = base_score * 0.3 + df["llm_score"] * 0.7  # Flash权重更高
         df = df.nlargest(top_k, "combined")
     return df
