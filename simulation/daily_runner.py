@@ -205,6 +205,9 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0, max_tokens=2000,
+                # v3.1 修复: 禁用 thinking — 否则批处理输出全进 reasoning_content,
+                # content 为空, JSON 解析失败 → 静默返回空结果 (40天回放 0 交易根因)
+                extra_body={"thinking": {"type": "disabled"}},
             )
             content = resp.choices[0].message.content.strip()
             if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
@@ -218,7 +221,10 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
     if all_scores:
         df = df.copy()
         df["llm_score"] = df["code"].map(lambda c: all_scores.get(str(c), 50))
-        df["combined"] = df["rule_score"] * 0.3 + df["llm_score"] * 0.7  # Flash权重更高
+        # v3.1 修复: PreScreener 输出 composite_score (非旧版 rule_score), 兼容两者
+        base_score = (df["rule_score"] if "rule_score" in df.columns
+                      else df["composite_score"])
+        df["combined"] = base_score * 0.3 + df["llm_score"] * 0.7  # Flash权重更高
         df = df.nlargest(top_k, "combined")
     return df
 
@@ -269,6 +275,8 @@ async def _deepseek_analyze(df_top: pd.DataFrame) -> List[Dict]:
             model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
             messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
             temperature=0.3, max_tokens=4000,
+            # v3.1 修复: 禁用 thinking (同 _flash_screen)
+            extra_body={"thinking": {"type": "disabled"}},
         )
         content = resp.choices[0].message.content.strip()
         if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
