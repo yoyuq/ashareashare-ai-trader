@@ -336,13 +336,22 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
     def _save_ckpt():
         if not ckpt_path:
             return
+        def _js_default(o):
+            # numpy 标量 → Python float (避免 default=str 把数值字符串化)
+            if hasattr(o, "item"):
+                try:
+                    return o.item()
+                except Exception:
+                    pass
+            return str(o)
         try:
             ckpt_path.write_text(json.dumps({
                 "completed_dates": completed, "portfolio": pf.to_dict(),
                 "day_logs": day_logs, "llm_calls": total_llm_calls,
-            }, ensure_ascii=False, default=str), encoding="utf-8")
-        except Exception:
-            pass
+            }, ensure_ascii=False, default=_js_default), encoding="utf-8")
+            logger.debug(f"checkpoint 已保存 ({len(completed)} 天)")
+        except Exception as _e:
+            logger.error(f"checkpoint 保存失败: {_e}")
 
     for i, T in enumerate(window):
         logger.info(f"[{i+1}/{len(window)}] T={T} 回放...")
@@ -461,8 +470,9 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
 
 def _build_report(pf: ReplayPortfolio, window, elapsed, day_logs=None) -> dict:
     eq = pf.equity_curve
-    final_total = eq[-1]["total"] if eq else pf.capital
-    ret = (final_total / pf.capital - 1) * 100
+    # v3.1.1 修复: checkpoint 用 default=str 保存时 numpy float 变字符串, 加载后除法崩溃
+    final_total = float(eq[-1]["total"]) if eq else float(pf.capital)
+    ret = (final_total / float(pf.capital) - 1) * 100
     # 基准: 全窗口简单收益率 (用窗口内平均日收益近似 — 这里用持仓等权)
     report = {
         "window": [window[0], window[-1]] if window else [],
