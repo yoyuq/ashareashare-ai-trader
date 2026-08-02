@@ -169,7 +169,8 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
     return out
 
 
-async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
+async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
+                        blind: bool = False) -> pd.DataFrame:
     """DeepSeek V4-Flash 精筛 (替代 Ollama, 更快更强)"""
     from openai import AsyncOpenAI
     import os
@@ -187,13 +188,20 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
     for i in range(0, len(df), batch_size):
         batch = df.iloc[i:i+batch_size]
         lines = []
-        for _, r in batch.iterrows():
+        for idx, (_, r) in enumerate(batch.iterrows()):
             mv = r.get('total_mv', 0) / 1e8
-            lines.append(
-                f"{r['code']} {r['name']} price={r['price']:.2f} chg={r['pct_change']:+.1f}% "
-                f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
-                f"换手={r.get('turnover',0):.1f}% 量比={r.get('vol_ratio',0):.1f}"
-            )
+            if blind:
+                lines.append(
+                    f"股票{idx+1} price={r['price']:.2f} chg={r['pct_change']:+.1f}% "
+                    f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
+                    f"换手={r.get('turnover',0):.1f}% 量比={r.get('vol_ratio',0):.1f}"
+                )
+            else:
+                lines.append(
+                    f"{r['code']} {r['name']} price={r['price']:.2f} chg={r['pct_change']:+.1f}% "
+                    f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
+                    f"换手={r.get('turnover',0):.1f}% 量比={r.get('vol_ratio',0):.1f}"
+                )
 
         prompt = (
             f"评估以下{len(lines)}只A股的短期潜力(0-100分)。"
@@ -220,7 +228,12 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
 
     if all_scores:
         df = df.copy()
-        df["llm_score"] = df["code"].map(lambda c: all_scores.get(str(c), 50))
+        if blind:
+            # 盲测: LLM 返回 "股票N" 按位置映射
+            df["llm_score"] = [all_scores.get(f"股票{idx+1}", 50)
+                               for idx in range(len(df))]
+        else:
+            df["llm_score"] = df["code"].map(lambda c: all_scores.get(str(c), 50))
         # v3.1 修复: PreScreener 输出 composite_score (非旧版 rule_score), 兼容两者
         base_score = (df["rule_score"] if "rule_score" in df.columns
                       else df["composite_score"])
@@ -229,7 +242,8 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100) -> pd.DataFrame:
     return df
 
 
-async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False) -> List[Dict]:
+async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
+                            blind: bool = False) -> List[Dict]:
     """
     DeepSeek深度分析 Top100
 
@@ -238,6 +252,9 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False) -> Lis
                   批处理 10 只, 让 reasoning_content 与 content 都有空间);
                   关 = 快速 JSON (max_tokens 4000, 批处理 20).
                   初筛 (_flash_screen) 始终禁用 thinking 保持速度.
+        blind: 盲测 — 隐藏公司名称/代码, 只给量化数据 (2026 最佳实践: 防 LLM
+               用训练记忆里的品牌先验, 如"贵州茅台"知名股天然高分). 结果按
+               位置映射回 code/name.
     """
     from openai import AsyncOpenAI
     import os
@@ -258,24 +275,35 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False) -> Lis
     for batch_i in range(0, min(100, len(df_top)), batch_size):
         batch = df_top.iloc[batch_i:batch_i+batch_size]
         lines = []
-        for _, r in batch.iterrows():
+        for idx, (_, r) in enumerate(batch.iterrows()):
             mv = r.get('total_mv',0)/1e8
             board = "主板"
             code_str = str(r['code'])
             if code_str.startswith('3'): board = "创业板"
             elif code_str.startswith('688'): board = "科创板"
-            lines.append(
-                f"{code_str} {r['name']} [{board}] price={r['price']:.2f} chg={r['pct_change']:+7.1f}% "
-                f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
-                f"换手={r.get('turnover',0):.1f}% 60日涨跌={r.get('pct_60d',0):+.1f}% "
-                f"因子分={r.get('composite_score',r.get('rule_score',50)):.0f}"
-            )
+            if blind:
+                # 盲测: 隐藏名称/代码, 只给量化数据 + 中性编号 (结果按位置映射)
+                label = f"股票{idx+1}"
+                lines.append(
+                    f"{label} [{board}] price={r['price']:.2f} chg={r['pct_change']:+7.1f}% "
+                    f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
+                    f"换手={r.get('turnover',0):.1f}% 60日涨跌={r.get('pct_60d',0):+.1f}% "
+                    f"因子分={r.get('composite_score',r.get('rule_score',50)):.0f}"
+                )
+            else:
+                lines.append(
+                    f"{code_str} {r['name']} [{board}] price={r['price']:.2f} chg={r['pct_change']:+7.1f}% "
+                    f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
+                    f"换手={r.get('turnover',0):.1f}% 60日涨跌={r.get('pct_60d',0):+.1f}% "
+                    f"因子分={r.get('composite_score',r.get('rule_score',50)):.0f}"
+                )
 
         system_prompt = (
             "你是资深A股分析师。对每只股票从技术面、基本面、风险三个维度评估。"
             "评分标准: 85+强烈看多, 70-84偏多, 55-69中性, 40-54偏空, <40看空。"
             "特别注意: 北交所(8/9/4开头)/ST/亏损股给低分; 主板蓝筹/业绩确定给高分。"
             "只返回JSON数组, 不要markdown包裹。"
+            + ("只依据提供的量化数据评分, 不要依赖任何对公司身份的先验知识。" if blind else "")
         )
         prompt = (
             f"分析以下{len(lines)}只A股,给出最终评分(0-100)和操作(BUY/HOLD/SELL)。"
