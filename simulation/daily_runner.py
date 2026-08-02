@@ -287,30 +287,38 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False) -> Lis
         # v3.1 修复: attempts 块必须在 for batch_i 循环内 (此前误缩进在循环外,
         # 导致整批只调用 1 次 LLM 返回 20, 而非 100)
         parsed_this_batch = False
-        for t_on, mt, eb in attempts:
-            try:
-                resp = await client.chat.completions.create(
-                    model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
-                    messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
-                    temperature=0.3, max_tokens=mt, extra_body=eb,
-                )
-                content = (resp.choices[0].message.content or "").strip()
-                if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
-                items = json.loads(content)
-                if isinstance(items, list) and items:
-                    for idx, item in enumerate(items):
-                        if not item.get("code") and idx < len(batch):
-                            item["code"] = str(batch.iloc[idx]["code"])
-                            item["name"] = str(batch.iloc[idx]["name"])
-                    results.extend(items)
-                    logger.debug(f"DeepSeek batch#{batch_i} thinking={t_on}: {len(items)} analyzed")
-                    parsed_this_batch = True
-                    break  # 该批成功, 不再回退
-            except Exception as e:
-                logger.warning(f"DeepSeek batch#{batch_i} thinking={t_on}: {e}")
-                continue  # 尝试下一个 (非thinking回退)
+        # v3.1.1: 重试+退避 — 网络抖动/限流会整日失败 (实测 days 3-12 top=0),
+        # 加 3 次重试 (1/2/4s 退避) 让瞬时故障自动恢复
+        import time as _time
+        for retry in range(3):
+            for t_on, mt, eb in attempts:
+                try:
+                    resp = await client.chat.completions.create(
+                        model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                        messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
+                        temperature=0.3, max_tokens=mt, extra_body=eb,
+                    )
+                    content = (resp.choices[0].message.content or "").strip()
+                    if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
+                    items = json.loads(content)
+                    if isinstance(items, list) and items:
+                        for idx, item in enumerate(items):
+                            if not item.get("code") and idx < len(batch):
+                                item["code"] = str(batch.iloc[idx]["code"])
+                                item["name"] = str(batch.iloc[idx]["name"])
+                        results.extend(items)
+                        logger.debug(f"DeepSeek batch#{batch_i} thinking={t_on}: {len(items)} analyzed")
+                        parsed_this_batch = True
+                        break  # 该批成功, 跳出 attempts
+                except Exception as e:
+                    logger.warning(f"DeepSeek batch#{batch_i} thinking={t_on} retry={retry}: {e}")
+                    continue  # 尝试下一个 (非thinking回退)
+            if parsed_this_batch:
+                break  # 成功, 跳出重试
+            if retry < 2:
+                _time.sleep(2 ** retry)  # 退避 1/2s
         if not parsed_this_batch:
-            logger.warning(f"DeepSeek batch#{batch_i}: 所有尝试失败, 跳过")
+            logger.warning(f"DeepSeek batch#{batch_i}: 所有重试失败, 跳过")
 
     results.sort(key=lambda x: x.get("final_score", x.get("score", 0)), reverse=True)
     return results
