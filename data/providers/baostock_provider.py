@@ -100,7 +100,7 @@ class BaostockProvider(DataProvider):
                 bs.query_history_k_data_plus,
                 symbol_raw,
                 "date,code,open,high,low,close,preclose,volume,amount,"
-                "adjustflag,turn,tradestatus,pctChg,isST",
+                "adjustflag,turn,tradestatus,pctChg,isST,peTTM,pbMRQ",
                 start_date=request.start_date.strftime("%Y-%m-%d"),
                 end_date=request.end_date.strftime("%Y-%m-%d"),
                 frequency="d",
@@ -123,7 +123,7 @@ class BaostockProvider(DataProvider):
 
             # 类型转换
             numeric_cols = ["open", "high", "low", "close", "preclose",
-                          "volume", "amount", "turn", "pctChg"]
+                          "volume", "amount", "turn", "pctChg", "peTTM", "pbMRQ"]
             for col in numeric_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")

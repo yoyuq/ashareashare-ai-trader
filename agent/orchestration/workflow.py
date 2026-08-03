@@ -322,6 +322,21 @@ class AnalysisWorkflow:
             regime = state.get("market_regime", "unknown")
             context = f"当前市场状态: {regime}\n标的数量: {len(state.get('symbols', []))}"
 
+            # v3.1.2: 附加全市场广度快照 + v3.2 情绪温度计 (失败则降级为原提示词, 零行为变化)
+            try:
+                from analysis.market_breadth import format_snapshot, live_market_snapshot
+                snap = await live_market_snapshot()
+                snap_txt = format_snapshot(snap)
+                if snap_txt:
+                    context += f"\n市场形势快照: {snap_txt}"
+                # v3.2: 情绪温度计 (固定锚点标定, 无需历史z)
+                from factors.market_sentiment import format_live_sentiment_snapshot
+                sent_txt = format_live_sentiment_snapshot(snap)
+                if sent_txt:
+                    context += f"\n{sent_txt}"
+            except Exception as e:
+                logger.warning(f"市场快照注入失败: {e}")
+
             result = await self.router.route(
                 messages=[
                     {"role": "system", "content": system_prompt},

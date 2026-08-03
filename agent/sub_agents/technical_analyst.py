@@ -10,6 +10,7 @@ TechnicalAnalystAgent — 技术面分析子Agent (v3.0-competition)
 """
 
 import json
+import math
 from typing import Any, Dict
 
 from agent.sub_agents.base import AgentContext, AgentResult, BaseAgent
@@ -86,12 +87,21 @@ class TechnicalAnalystAgent(BaseAgent):
                 "close", "ma_5", "ma_20", "ma_60", "rsi_14",
                 "macd_dif", "macd_dea", "bb_pct_20", "atr_14",
                 "trend_score", "composite_score",
+                # v3.1.2 第二波因子 (IC 筛选后注入)
+                "ep", "bp", "pe_pct_20d", "pb_pct_20d",
+                "amihud_illiq", "sharpe_20", "reversal_1d",
+                "turn_pct_20d", "vol_regime_20",
             ]
-            summary = {
-                k: round(float(v), 2) if isinstance(v, (int, float)) else str(v)
-                for k, v in (last_row.items() if isinstance(last_row, dict) else last_row.to_dict().items())
-                if k in key_fields
-            }
+            summary = {}
+            for k, v in (last_row.items() if isinstance(last_row, dict) else last_row.to_dict().items()):
+                if k not in key_fields:
+                    continue
+                if isinstance(v, (int, float)):
+                    if not math.isfinite(v):  # NaN/inf 不注入 LLM
+                        continue
+                    summary[k] = round(float(v), 2)
+                else:
+                    summary[k] = str(v)
             return json.dumps(summary, ensure_ascii=False)
         except Exception:
             return str(indicators)[:1000]

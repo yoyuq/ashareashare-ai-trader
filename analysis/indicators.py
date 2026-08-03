@@ -132,6 +132,9 @@ class TechnicalAnalyzer:
         # ===== 衍生因子 =====
         result.indicators.update(self._compute_factors(df, result.indicators))
 
+        # ===== 第二波扩展因子 (v3.1.2: 估值/流动性/反转/波动体制) =====
+        result.indicators.update(self._compute_extended_indicators(df))
+
         return result
 
     # ═══════════════════════════════════════════════════════════════
@@ -611,6 +614,78 @@ class TechnicalAnalyzer:
         ).astype(int)
 
         return patterns
+
+    # ═══════════════════════════════════════════════════════════════
+    # 7.5 第二波扩展因子 (v3.1.2) — 估值/流动性/反转/波动体制
+    #     全部列存在性守卫: 估值列仅当输入含 peTTM/pbMRQ(或 pe_ttm/pb) 时生成
+    # ═══════════════════════════════════════════════════════════════
+
+    def _compute_extended_indicators(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
+        """第二波因子 (与 factors/ 研究模块同口径), 注入 AI 指标摘要。
+
+        基于 IC 筛选 (见 reports/factor_comparison.md): ep/bp 估值、reversal_1d
+        反转、sharpe_20 风险调整动量、amihud 流动性、turn 活跃度、波动体制。
+        """
+        result: Dict[str, pd.Series] = {}
+        close = df["close"]
+        ret = close.pct_change()
+
+        # ---- 短期反转 ----
+        result["reversal_1d"] = -ret.fillna(0.0)
+
+        # ---- 风险调整动量 (5日收益 / 20日波动) ----
+        std20 = ret.rolling(20, min_periods=10).std(ddof=0)
+        result["sharpe_20"] = close.pct_change(5) / (std20 * np.sqrt(5) + 1e-9)
+
+        # ---- Amihud 非流动性 + 成交额活跃 (需 amount) ----
+        if "amount" in df.columns:
+            amt = pd.to_numeric(df["amount"], errors="coerce")
+            ill = ret.abs() / amt.replace(0, np.nan)
+            result["amihud_illiq"] = ill.rolling(5, min_periods=3).mean()
+            result["amount_ratio_5d"] = amt / amt.shift(1).rolling(5).mean() - 1
+
+        # ---- 换手活跃度分位 (turn 或 turnover 均可) ----
+        turn = df["turn"] if "turn" in df.columns else (
+            df["turnover"] if "turnover" in df.columns else None)
+        if turn is not None:
+            t = pd.to_numeric(turn, errors="coerce").fillna(0.0)
+            result["turn_pct_20d"] = self._pctile_20(t).fillna(0.5)
+
+        # ---- 波动体制切换 (5日ATR/20日ATR - 1) ----
+        high, low = df["high"], df["low"]
+        pc = close.shift(1)
+        tr = pd.concat([high - low, (high - pc).abs(), (low - pc).abs()], axis=1).max(axis=1)
+        result["vol_regime_20"] = tr.rolling(5).mean() / tr.rolling(20).mean() - 1
+
+        # ---- 估值 (仅当输入含估值列) ----
+        pe = df.get("peTTM", df.get("pe_ttm"))
+        pb = df.get("pbMRQ", df.get("pb"))
+        if pe is not None:
+            pe = pd.to_numeric(pe, errors="coerce")
+            clipped = np.clip(pe, 0.1, 200)
+            ep = 1.0 / clipped
+            ep[pe <= 0] = 0.0
+            result["ep"] = ep
+            result["pe_pct_20d"] = self._pctile_20(pe).fillna(0.5)
+        if pb is not None:
+            pb = pd.to_numeric(pb, errors="coerce")
+            clipped = np.clip(pb, 0.05, 50)
+            bp = 1.0 / clipped
+            bp[pb <= 0] = 0.0
+            result["bp"] = bp
+            result["pb_pct_20d"] = self._pctile_20(pb).fillna(0.5)
+
+        # 防御: 去除 inf, 避免污染下游
+        for k, s in result.items():
+            result[k] = s.replace([np.inf, -np.inf], np.nan)
+        return result
+
+    @staticmethod
+    def _pctile_20(series: pd.Series) -> pd.Series:
+        """当日值在自身前20日中的分位数 (0=自身最便宜/低)"""
+        return series.rolling(21, min_periods=11).apply(
+            lambda w: (w[:-1] < w[-1]).mean(), raw=True
+        )
 
     # ═══════════════════════════════════════════════════════════════
     # 8. 衍生因子
