@@ -452,12 +452,32 @@ def render_dataframe(df: pd.DataFrame, max_rows: int = 500, height: int = 400,
 
 @st.cache_data(ttl=60, show_spinner=False)
 def get_portfolio_state():
+    """持仓快照 (60s 缓存) — 本地结构 + API MTM 实时价覆盖, 静态渲染不随 fragment 刷"""
     try:
         from simulation.portfolio import PortfolioManager
         from simulation.paper_trader import PaperTradingEngine
         m = PortfolioManager()
         e = PaperTradingEngine(m)
-        return e.get_summary()
+        s = e.get_summary()
+        # 用 API MTM 实时价覆盖 (否则 current_price=成本, 盈亏0)
+        try:
+            import requests
+            d = requests.get(f"{API_BASE_URL}/api/v1/portfolio/mtm", timeout=5,
+                             headers={"X-API-Key": os.getenv("API_KEY", "")}).json()
+            live_pos = {p.get("symbol"): p for p in d.get("positions", [])}
+            for p in s.get("positions", []):
+                lp = live_pos.get(p.get("symbol"))
+                if lp:
+                    p["current_price"] = lp.get("current_price", p.get("current_price"))
+                    p["market_value"] = lp.get("market_value", p.get("market_value"))
+                    p["unrealized_pnl"] = lp.get("unrealized_pnl", 0)
+                    p["unrealized_pnl_pct"] = lp.get("unrealized_pnl_pct", 0)
+            s["total_value"] = d.get("summary", {}).get("total_value", s.get("total_value"))
+            s["total_return"] = d.get("summary", {}).get("total_return", s.get("total_return"))
+            s["total_return_pct"] = d.get("summary", {}).get("total_return_pct", s.get("total_return_pct"))
+        except Exception:
+            pass
+        return s
     except: return None
 
 @st.cache_data(ttl=300, show_spinner="正在加载全市场数据...")
@@ -709,7 +729,7 @@ def fragment_live_indices():
     """实时指数条 — 嵌入市场总览顶部, 含市场状态"""
     import requests, json, os
     try:
-        r = requests.get(f"{API_BASE_URL}/api/v1/realtime/market", timeout=5)
+        r = requests.get(f"{API_BASE_URL}/api/v1/realtime/market", timeout=15)
         data = r.json()
         indices = data.get("indices", {})
         ms = data.get("market_status", {})
@@ -743,7 +763,7 @@ def fragment_live_watchlist(symbols: list = None):
     """实时自选列表 — 市场总览中的精选池"""
     import requests
     try:
-        r = requests.get(f"{API_BASE_URL}/api/v1/realtime/market", timeout=5)
+        r = requests.get(f"{API_BASE_URL}/api/v1/realtime/market", timeout=15)
         data = r.json()
         quotes_list = data.get("watchlist", [])
         quotes = {}
@@ -775,9 +795,9 @@ def fragment_live_watchlist(symbols: list = None):
         <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:right">涨跌</th>
     </tr></thead><tbody>{rows}</tbody></table></div>""", unsafe_allow_html=True)
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=30)
 def fragment_portfolio_live():
-    """实时持仓 — 模拟持仓Tab顶部, 每5秒刷新价格"""
+    """实时持仓 — 只刷实时价格字段 (紧凑), 完整表静态渲染, 避免整页刷新"""
     try:
         import requests
         d = requests.get(f"{API_BASE_URL}/api/v1/portfolio/mtm", timeout=5,
@@ -786,42 +806,26 @@ def fragment_portfolio_live():
         ps = d.get("positions", [])
         if not s.get("total_value"): return
 
+        # 只刷实时变化值: 总资产 + 每只现价/盈亏 (紧凑一行, 原地更新)
         ret_clr = "#f85149" if (s.get("total_return",0)) >= 0 else "#3fb950"
-        c1,c2,c3,c4,c5,c6 = st.columns(6)
-        c1.metric("总资产", f"¥{s['total_value']:,.0f}")
-        c2.metric("总收益", f"{s['total_return_pct']:+.2f}%", f"¥{s['total_return']:+,.0f}")
-        c3.metric("现金", f"¥{s['cash']:,.0f}")
-        c4.metric("持仓市值", f"¥{s['position_value']:,.0f}")
-        c5.metric("持仓数", f"{s['position_count']}只", f"{s.get('win_count',0)}W/{s.get('loss_count',0)}L")
-        c6.metric("总成本", f"¥{s.get('total_cost',0):,.0f}")
-
+        st.markdown(
+            f"<span style='color:var(--ds-text2,#8b949e);font-size:11px'>实时总资产 </span>"
+            f"<span style='color:var(--ds-text-h,#f0f6fc);font-weight:700'>¥{s['total_value']:,.0f}</span> "
+            f"<span style='color:{ret_clr}'>{(s.get('total_return_pct',0)):+.2f}%</span>"
+            f"<span style='color:var(--ds-text2,#8b949e);font-size:10px'> · 实时刷新中</span>",
+            unsafe_allow_html=True,
+        )
         if ps:
-            rows = ""
+            cells = ""
             for p in ps:
                 pnl_clr = "#f85149" if p["unrealized_pnl"]>0 else ("#3fb950" if p["unrealized_pnl"]<0 else "var(--ds-text2,#8b949e)")
-                rows += f'<tr><td style="color:var(--ds-text,#c9d1d9)">{p["name"]}</td>' \
-                    f'<td style="color:var(--ds-text2,#8b949e);font-size:10px">{p["symbol"]}</td>' \
-                    f'<td style="color:var(--ds-text-h,#f0f6fc)">{p["quantity"]}</td>' \
-                    f'<td style="color:var(--ds-text2,#8b949e)">¥{p["avg_cost"]:.2f}</td>' \
-                    f'<td style="color:var(--ds-text-h,#f0f6fc);font-weight:600">¥{p["current_price"]:.2f}</td>' \
-                    f'<td style="color:var(--ds-text-h,#f0f6fc)">¥{p["market_value"]:,.0f}</td>' \
-                    f'<td style="color:{pnl_clr};font-weight:600">¥{p["unrealized_pnl"]:+,.0f} ({p["unrealized_pnl_pct"]:+.1f}%)</td>' \
-                    f'<td style="color:#f85149;font-size:10px">¥{p.get("stop_loss",0):.2f}</td>' \
-                    f'<td style="color:#3fb950;font-size:10px">¥{p.get("take_profit",0):.2f}</td></tr>'
-            st.markdown(f"""
-            <div style="background:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:6px;padding:6px;margin-top:8px">
-            <table style="width:100%;border-collapse:collapse">
-            <thead><tr style="border-bottom:2px solid var(--ds-border,#30363d)">
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">名称</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">代码</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">数量</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">成本</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">现价</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">市值</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">盈亏</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">止损</th>
-                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">止盈</th>
-            </tr></thead><tbody>{rows}</tbody></table></div>""", unsafe_allow_html=True)
+                cells += (f"<span style='font-size:11px;color:var(--ds-text,#c9d1d9);margin-right:10px'>"
+                          f"{p['name']} <b style='color:var(--ds-text-h,#f0f6fc)'>¥{p['current_price']:.2f}</b> "
+                          f"<span style='color:{pnl_clr}'>{p['unrealized_pnl']:+.0f}</span></span>")
+            st.markdown(
+                f"<div style='font-size:11px;padding:4px 0'>{cells}</div>",
+                unsafe_allow_html=True,
+            )
     except Exception:
         pass
 
@@ -856,7 +860,7 @@ if tab == "📊 市场总览":
     # --- 精选池 (API实时数据) ---
     import requests
     try:
-        rt = requests.get(f"{API_BASE_URL}/api/v1/realtime/market", timeout=5).json()
+        rt = requests.get(f"{API_BASE_URL}/api/v1/realtime/market", timeout=15).json()
         wl = rt.get("watchlist", [])
         if wl:
             df_watch = pd.DataFrame(wl)
@@ -1606,8 +1610,38 @@ elif tab == "💰 模拟持仓":
 
         from web.viz_components import make_radar_chart, make_equity_curve, make_heatmap
 
-        # ── 实时持仓表 ──
+        # ── 实时价格 (紧凑 fragment, 只刷该字段) ──
         fragment_portfolio_live()
+
+        # ── 完整持仓表 (静态, 快照渲染一次, 不随 fragment 刷新) ──
+        if positions:
+            rows = ""
+            for p in positions:
+                pnl = float(p.get("unrealized_pnl", 0))
+                pnl_clr = "#f85149" if pnl > 0 else ("#3fb950" if pnl < 0 else "var(--ds-text2,#8b949e)")
+                rows += (f'<tr><td style="color:var(--ds-text,#c9d1d9)">{p.get("name","")}</td>'
+                         f'<td style="color:var(--ds-text2,#8b949e);font-size:10px">{p.get("symbol","")}</td>'
+                         f'<td style="color:var(--ds-text-h,#f0f6fc)">{p.get("quantity",0)}</td>'
+                         f'<td style="color:var(--ds-text2,#8b949e)">¥{float(p.get("avg_cost",0)):.2f}</td>'
+                         f'<td style="color:var(--ds-text-h,#f0f6fc);font-weight:600">¥{float(p.get("current_price",0)):.2f}</td>'
+                         f'<td style="color:var(--ds-text-h,#f0f6fc)">¥{float(p.get("market_value",0)):,.0f}</td>'
+                         f'<td style="color:{pnl_clr};font-weight:600">¥{pnl:+,.0f} ({float(p.get("unrealized_pnl_pct",0)):+.1f}%)</td>'
+                         f'<td style="color:#f85149;font-size:10px">¥{float(p.get("stop_loss",0) or 0):.2f}</td>'
+                         f'<td style="color:#3fb950;font-size:10px">¥{float(p.get("take_profit",0) or 0):.2f}</td></tr>')
+            st.markdown(f"""
+            <div style="background:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:6px;padding:6px;margin-top:4px">
+            <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="border-bottom:2px solid var(--ds-border,#30363d)">
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">名称</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">代码</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">数量</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">成本</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">现价</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">市值</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">盈亏</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">止损</th>
+                <th style="font-size:10px;color:var(--ds-text2,#8b949e);text-align:left">止盈</th>
+            </tr></thead><tbody>{rows}</tbody></table></div>""", unsafe_allow_html=True)
 
         # ── v3.1: Multi-dimension score radar chart ──
         if positions:
