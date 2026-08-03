@@ -1132,16 +1132,35 @@ async def realtime_market():
 
     async def _fetch_movers(fid):
         out = []
+        # 1. Sina 优先 (免代理, 稳定快) — v3.1.2: EastMoney 依赖不稳代理
+        try:
+            asc = "0" if fid == "f3" else "1"  # f3=涨幅榜(降序), f32=跌幅榜(升序)
+            url = (f"https://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
+                   f"Market_Center.getHQNodeData?page=1&num=5&sort=changepercent&asc={asc}"
+                   f"&node=hs_a&_s_r_a=init")
+            resp = await asyncio.to_thread(requests.get, url, timeout=4,
+                headers={"User-Agent": "Mozilla/5.0"})
+            import json as _json
+            data = _json.loads(resp.text)
+            if data:
+                return [{"code": str(i.get("code", "")), "name": i.get("name", ""),
+                         "price": float(i.get("trade", 0) or 0), "pct": float(i.get("changepercent", 0) or 0)}
+                        for i in data[:5]]
+        except Exception:
+            pass
+        # 2. EastMoney 兜底 (经代理)
         try:
             url = (f"https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1"
                    f"&fltt=2&invt=2&fid={fid}&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"
                    f"&fields=f2,f3,f12,f14")
             resp = await asyncio.to_thread(requests.get, url, timeout=3,
                 headers={"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"})
-            for item in (resp.json().get("data", {}).get("diff") or [])[:5]:
-                out.append({"code": item.get("f12", ""), "name": item.get("f14", ""),
-                            "price": item.get("f2", 0), "pct": item.get("f3", 0)})
-        except Exception: pass
+            items = (resp.json().get("data", {}).get("diff") or [])
+            if items:
+                return [{"code": i.get("f12", ""), "name": i.get("f14", ""),
+                         "price": i.get("f2", 0), "pct": i.get("f3", 0)} for i in items[:5]]
+        except Exception:
+            pass
         return out
 
     async def _fetch_watch():
