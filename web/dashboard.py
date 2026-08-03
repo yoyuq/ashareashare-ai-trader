@@ -304,7 +304,7 @@ with st.sidebar:
     sidebar_portfolio()
 
     st.markdown("**导航**")
-    tab = st.radio("", ["⚡ 实时行情", "📊 市场总览", "📋 全市场行情", "🔍 机会扫描", "📈 技术分析", "🧪 策略回测",
+    tab = st.radio("tab_nav", ["⚡ 实时行情", "📊 市场总览", "📋 全市场行情", "🔍 机会扫描", "📈 技术分析", "🧪 策略回测",
                         "📋 AI信号", "💰 模拟持仓", "🛡️ 风控中心", "📚 知识库管理"], label_visibility="collapsed")
 
     st.divider()
