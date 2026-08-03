@@ -1453,17 +1453,18 @@ elif tab == "📈 技术分析":
                         )
                         ai_text = resp.choices[0].message.content
 
-                        # 渲染AI分析结果
+                        # 渲染AI分析结果 (v3.1.2 修复: markdown 不能嵌 HTML, 否则表格/内容丢失)
+                        # 标题用 HTML 框, 正文用 st.markdown 真正解析 markdown
                         st.markdown(f"""
-                        <div style="background:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:12px;padding:20px 24px;margin-top:8px">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                        <div style="background:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:12px;padding:16px 24px;margin-top:8px">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                         <span style="font-size:20px">🤖</span>
                         <span style="color:#58a6ff;font-weight:600;font-size:15px">DeepSeek V4-Flash 技术分析 — {name}({sym})</span>
                         <span style="color:var(--ds-text2,#8b949e);font-size:12px;margin-left:auto">模型: deepseek-v4-flash | 仅供参考，不构成投资建议</span>
                         </div>
-                        <div style="color:var(--ds-text,#c9d1d9);font-size:14px;line-height:1.8;white-space:pre-wrap">{ai_text}</div>
-                        </div>
                         """, unsafe_allow_html=True)
+                        st.markdown(ai_text)  # 真正解析 markdown (标题/表格/加粗)
+                        st.markdown("</div>", unsafe_allow_html=True)
 
                     except Exception as e:
                         st.error(f"AI分析请求失败: {e}")
