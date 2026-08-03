@@ -24,25 +24,28 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from analysis.regime import MarketRegimeDetector  # noqa: E402
+from analysis.regime import MarketRegimeDetector  # noqa: E402  (resolve_names 保留参考)
 from backtest.broker import AShareBroker  # noqa: E402
 from factors.market_situation import build_market_close_series  # noqa: E402
 from factors.panels import compute_factor_panels  # noqa: E402
-from factors.regime_analysis import BUCKET, build_synthetic_index  # noqa: E402
+from factors.regime_analysis import BUCKET  # noqa: E402  (resolve_names 保留参考)
 
 # 策略 → 因子组合
+# NOTE (v3.2 实测): "regime_adaptive" 动态切因子集策略已弃用 —
+# 回测证明它不如纯估值 (长窗口 -8.8% vs value -6.9%; 全窗口 -14.0% vs -3.7%),
+# 复杂度是负债。见 reports/factor_v32_assessment.md。代码保留供参考, 不再默认运行。
 STRATEGIES = {
     "baseline": ["momentum_5", "bias_ma20"],
     "extended": ["momentum_5", "bias_ma20", "ep", "bp", "rel_strength_5d", "sharpe_20"],
     "value": ["ep", "bp"],
     "rec": ["ep", "bp", "rel_strength_5d"],  # 报告推荐的去相关注入集
-    "regime_adaptive": "REGIME",  # 特殊值: 调仓日按检测到的 regime 选因子集
 }
 
-# v3.2 regime 自适应因子集 (来自 regime_factor_analysis.md 的方向稳定性):
+# [弃用] v3.2 regime 自适应因子集 (来自 regime_factor_analysis.md 的方向稳定性):
 #   牛: 估值 + 长周期动量 (momentum_20 牛 +0.020) + 跳空
 #   震荡: 纯估值 + 跳空 (ep/bp 震荡最强 +0.093/+0.055)
 #   熊: 估值 + 反转 + 超卖 (reversal_1d 熊 +0.025, rsi_extreme 熊 +0.043)
+# 回测证明动态切换不优于静态估值核心, 保留代码仅作参考。
 REGIME_FACTOR_SETS = {
     "牛": ["ep", "bp", "momentum_20", "gap_strength"],
     "震荡": ["ep", "bp", "gap_strength"],
@@ -244,14 +247,8 @@ def run(
     for sym, g in data.items():
         g["mkt_close"] = mkt.reindex(g.index)
 
-    # regime 自适应策略需要合成指数 (等权 OHLCV) 用于调仓日判定 regime
-    regime_index = build_synthetic_index(full)
-
-    # 计算所需因子面板 (排除 "REGIME" 哨兵值, 并入各 regime 因子集)
-    all_factors = sorted(
-        {f for names in STRATEGIES.values() for f in names if names != "REGIME"}
-        | {f for fs in REGIME_FACTOR_SETS.values() for f in fs}
-    )
+    # 计算所需因子面板
+    all_factors = sorted({f for names in STRATEGIES.values() for f in names})
     print(f"计算因子面板 ({len(all_factors)}因子)...")
     panels = compute_factor_panels(data, all_factors)
 
@@ -262,7 +259,6 @@ def run(
         eq, broker = run_strategy(
             data, day_closes, panels, dates, names,
             topk, rebalance_every, warmup, initial,
-            regime_index=regime_index if name == "regime_adaptive" else None,
         )
         m = equity_metrics(eq)
         perf = broker.get_performance()
@@ -302,7 +298,6 @@ def run(
              "|---|---|---|---|---|---|---|---|---|"]
         combos = {"baseline": "momentum_5+bias_ma20", "extended": "基线+ep+bp+rel_strength_5d+sharpe_20",
                   "value": "ep+bp", "rec": "ep+bp+rel_strength_5d",
-                  "regime_adaptive": "动态: 牛=ep+bp+动量20+跳空 / 震荡=ep+bp+跳空 / 熊=ep+bp+反转+超卖",
                   "market": "等权买入持有(无成本)"}
         for name, m in results.items():
             L.append(f"| {name} | {combos[name]} | {m['total_return']:.1%} | {m['annual_return']:.1%} | "

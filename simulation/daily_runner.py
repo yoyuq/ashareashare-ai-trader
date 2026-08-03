@@ -251,7 +251,9 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
 
 async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
                             blind: bool = False,
-                            macro_context: Optional[str] = None) -> List[Dict]:
+                            macro_context: Optional[str] = None,
+                            variant: str = "baseline",
+                            regime_ctx: Optional[str] = None) -> List[Dict]:
     """
     DeepSeek深度分析 Top100
 
@@ -294,19 +296,25 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
             if blind:
                 # 盲测: 隐藏名称/代码, 只给量化数据 + 中性编号 (结果按位置映射)
                 label = f"股票{idx+1}"
-                lines.append(
+                line = (
                     f"{label} [{board}] price={r['price']:.2f} chg={r['pct_change']:+7.1f}% "
                     f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
                     f"换手={r.get('turnover',0):.1f}% 60日涨跌={r.get('pct_60d',0):+.1f}% "
                     f"因子分={r.get('composite_score',r.get('rule_score',50)):.0f}"
                 )
             else:
-                lines.append(
+                line = (
                     f"{code_str} {r['name']} [{board}] price={r['price']:.2f} chg={r['pct_change']:+7.1f}% "
                     f"PE={r.get('pe_ttm',0):.0f} PB={r.get('pb',0):.1f} MV={mv:.0f}亿 "
                     f"换手={r.get('turnover',0):.1f}% 60日涨跌={r.get('pct_60d',0):+.1f}% "
                     f"因子分={r.get('composite_score',r.get('rule_score',50)):.0f}"
                 )
+            if variant == "v32":
+                # v3.2 因子: 相对自身20日历史的估值分位 + 风险调整动量 + 反转
+                line += (f" 估值ep={r.get('ep',0):.2f} bp={r.get('bp',0):.2f}"
+                         f" PE20d分位={r.get('pe_pct_20d',0.5):.0%} PB20d分位={r.get('pb_pct_20d',0.5):.0%}"
+                         f" 动Sharpe={r.get('sharpe_20',0):.2f} 昨反={r.get('reversal_1d',0):+.2f}")
+            lines.append(line)
 
         system_prompt = (
             "你是资深A股分析师。对每只股票从技术面、基本面、风险三个维度评估。"
@@ -316,6 +324,8 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
             + ("只依据提供的量化数据评分, 不要依赖任何对公司身份的先验知识。" if blind else "")
             # v3.1.2: 宏观/政策/国际上下文注入 — 让选股显式结合宏观环境
             + (f"\n【当前宏观背景】\n{macro_context}" if macro_context else "")
+            # v3.2: 市场状态/情绪/操作原则 — 按 regime 门控动量、强调相对估值
+            + (f"\n【市场状态/操作原则】\n{regime_ctx}" if regime_ctx else "")
         )
         prompt = (
             f"分析以下{len(lines)}只A股,给出最终评分(0-100)和操作(BUY/HOLD/SELL)。"

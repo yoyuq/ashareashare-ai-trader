@@ -201,6 +201,30 @@ def reconstruct_cross_section(data: dict, basic: dict, T: str) -> pd.DataFrame:
         if close_now and close_now > 0:
             total_mv = bi.get("total_mv_now", 0) * close / close_now  # PIT 市值近似
 
+        # v3.2 因子注入 (供 --variant v32 的 LLM prompt 使用):
+        #   ep/bp 估值, pe_pct_20d/pb_pct_20d 相对自身20日历史, sharpe_20 风险调整动量, reversal_1d
+        pe = row["peTTM"] if pd.notna(row["peTTM"]) else np.nan
+        pb = row["pbMRQ"] if pd.notna(row["pbMRQ"]) else np.nan
+        ep = float(1.0 / np.clip(pe, 0.1, 200)) if pe > 0 else 0.0
+        bp = float(1.0 / np.clip(pb, 0.05, 50)) if pb > 0 else 0.0
+        pe_pct_20d, pb_pct_20d = 0.5, 0.5
+        if idx >= 10:
+            pe_hist = pd.to_numeric(df["peTTM"].iloc[max(0, idx - 20):idx], errors="coerce")
+            pe_hist = pe_hist[(pe_hist > 0) & pe_hist.notna()]
+            if len(pe_hist) >= 5 and pe > 0:
+                pe_pct_20d = float((pe_hist < pe).mean())
+            pb_hist = pd.to_numeric(df["pbMRQ"].iloc[max(0, idx - 20):idx], errors="coerce")
+            pb_hist = pb_hist[(pb_hist > 0) & pb_hist.notna()]
+            if len(pb_hist) >= 5 and pb > 0:
+                pb_pct_20d = float((pb_hist < pb).mean())
+        sharpe_20 = np.nan
+        if idx >= 20:
+            rets = df["close"].iloc[max(0, idx - 20):idx + 1].pct_change().dropna()
+            r5 = (close / df["close"].iloc[idx - 5] - 1) if (idx >= 5 and df["close"].iloc[idx - 5] > 0) else 0.0
+            std = rets.tail(20).std()
+            sharpe_20 = float(r5 / (std * np.sqrt(5))) if std and std > 0 else np.nan
+        reversal_1d = float(-(row["pctChg"] / 100.0)) if pd.notna(row["pctChg"]) else 0.0
+
         rows.append({
             "code": sym.split(".")[-1], "symbol": sym, "name": bi.get("name", sym),
             "price": close, "pct_change": row["pctChg"] if pd.notna(row["pctChg"]) else 0,
@@ -211,6 +235,8 @@ def reconstruct_cross_section(data: dict, basic: dict, T: str) -> pd.DataFrame:
             "total_mv": total_mv,
             "pct_60d": pct_60d, "vol_ratio": vol_ratio, "amplitude": amplitude,
             "isST": row["isST"], "is_trade": 1,
+            "ep": ep, "bp": bp, "pe_pct_20d": pe_pct_20d, "pb_pct_20d": pb_pct_20d,
+            "sharpe_20": sharpe_20, "reversal_1d": reversal_1d,
         })
     return pd.DataFrame(rows)
 
@@ -280,6 +306,33 @@ class ReplayPortfolio:
         return True
 
 
+def _build_market_ctx(df_cs: pd.DataFrame, regime: str) -> str:
+    """v32 变体: 从当日截面构建"市场状态/情绪/操作原则"上下文 (注入 LLM 系统提示)。
+
+    情绪温度: 简化恐慌/贪婪分 (0-100, 越高越贪婪), 成分 = 上涨广度 + 涨跌幅 + 涨跌停占比。
+    操作原则: 按 regime 门控 — 牛市信动量, 熊市/震荡把动量打折、优先相对低估+防御。
+    """
+    n = max(len(df_cs), 1)
+    up = float((df_cs["pct_change"] > 0).mean()) if "pct_change" in df_cs.columns else 0.5
+    avg = float(df_cs["pct_change"].mean()) if "pct_change" in df_cs.columns else 0.0
+    lu = int((df_cs["pct_change"] >= 9.5).sum()) if "pct_change" in df_cs.columns else 0
+    ld = int((df_cs["pct_change"] <= -9.5).sum()) if "pct_change" in df_cs.columns else 0
+    sent = float(np.clip(
+        up * 100 * 0.5 + np.clip(avg / 3, -1, 1) * 50 * 0.3
+        + (lu / n) * 200 * 0.2 - (ld / n) * 200 * 0.2, 0, 100))
+    label = ("极度恐慌" if sent <= 20 else "恐慌" if sent <= 40 else
+             "中性" if sent <= 60 else "贪婪" if sent <= 80 else "极度贪婪")
+    if regime in ("strong_bull", "weak_bull"):
+        gate = "牛市: 动量/趋势信号可信, 强势优先, 估值次之; 可积极参与。"
+    elif regime == "range_bound":
+        gate = "震荡市: 动量信号打折, 低估值+超跌反弹优先, 追高谨慎。"
+    else:
+        gate = "熊市/危机: 动量按反向信号处理(勿追涨), 低估值(相对自身20日历史PE/PB分位)与防御优先, 严控仓位。"
+    return (f"今日市场状态: {regime}; 情绪温度 {sent:.0f}/100 ({label}); "
+            f"上涨广度 {up:.0%}, 平均涨跌 {avg:+.2f}%, 涨停 {lu}家/跌停 {ld}家。"
+            f"操作原则: {gate}")
+
+
 def _next_trading_day(data, T: str) -> str:
     """T 之后第一个交易日 (用于 T+1 开盘成交)"""
     dates = sorted({str(pd.Timestamp(d).date()) for df in data.values()
@@ -293,10 +346,13 @@ def _next_trading_day(data, T: str) -> str:
 
 async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: int = 100,
                      capital: float = 100000.0, force_data: bool = False,
-                     thinking: bool = False, max_days: int = 0) -> dict:
+                     thinking: bool = False, max_days: int = 0,
+                     variant: str = "baseline") -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
+    variant: "baseline" (原版) 或 "v32" (v3.2 因子注入: 相对估值分位/风险调整
+             动量/反转 + regime 门控市场上下文).
     """
     """执行历史 PIT 回放"""
     end = date(2026, 7, 31)  # 最近完整交易日 (08-02 休市)
@@ -371,6 +427,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 continue
             df_cs = df_cs[df_cs["isST"] != 1]  # 剔除 ST
             regime = _detect_regime(df_cs).get("regime", "range_bound")
+            # v3.2: 构建市场状态/情绪/操作原则上下文 (仅 v32 变体注入)
+            regime_ctx = _build_market_ctx(df_cs, regime) if variant == "v32" else None
 
             # ── 2. 规则初筛 → 300 ──
             from analysis.pre_screener import PreScreener
@@ -384,7 +442,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             total_llm_calls += (len(screened) + 24) // 25
 
             # ── 4. LLM 深度分析 (thinking 可开关: 开=更深推理, 关=快速) ──
-            deep = await _deepseek_analyze(df_top.head(final_n), thinking=thinking)
+            deep = await _deepseek_analyze(df_top.head(final_n), thinking=thinking,
+                                           variant=variant, regime_ctx=regime_ctx)
             _bs = 10 if thinking else 20
             total_llm_calls += (len(df_top.head(final_n)) + _bs - 1) // _bs
             # v3.1.1 修复: LLM JSON 偶尔把数值返成字符串 ("conviction":"0.6"),
@@ -532,13 +591,16 @@ def main():
                     help="深度分析启用 thinking 模式 (更深推理, 更慢更贵; 初筛始终禁用)")
     ap.add_argument("--max-days", type=int, default=0,
                     help="本次最多处理的新天数 (0=不限; 分小段跑避免后台被杀)")
+    ap.add_argument("--variant", type=str, default="baseline",
+                    choices=["baseline", "v32"],
+                    help="baseline=原版; v32=注入 v3.2 因子(相对估值分位/风险调整动量/反转) + regime 门控市场上下文")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
     asyncio.run(run_replay(days=args.days, universe=universe, top_n=args.top_n,
                            final_n=args.final_n, capital=args.capital,
                            force_data=args.force_data, thinking=args.thinking,
-                           max_days=args.max_days))
+                           max_days=args.max_days, variant=args.variant))
 
 
 if __name__ == "__main__":
