@@ -1093,82 +1093,84 @@ async def realtime_market():
         "market_status": market_status,
     }
 
-    try:
-        # 大盘指数 (腾讯)
-        idx_codes = {
-            "上证指数": "sh000001", "深证成指": "sz399001", "创业板指": "sz399006",
-            "科创50": "sh000688", "沪深300": "sh000300",
-        }
-        tc_str = ",".join(idx_codes.values())
-        resp = await asyncio.to_thread(
-            requests.get,
-            f"https://qt.gtimg.cn/q={tc_str}",
-            timeout=5,
-            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"},
-        )
-        resp.encoding = "gbk"
-        for line in resp.text.strip().split("\n"):
-            if "=" not in line or "~" not in line: continue
-            try:
-                code = line.split("=", 1)[0].replace("v_", "").strip()
-                fields = line.split("=", 1)[1].strip('"').split("~")
-                if len(fields) < 10: continue
-                name = {v: k for k, v in idx_codes.items()}.get(code, code)
-                result["indices"][name] = {
-                    "price": round(float(fields[3]), 2) if fields[3] else 0,
-                    "pct": round(float(fields[32]), 2) if len(fields) > 32 and fields[32] else 0,
-                }
-            except (ValueError, IndexError): continue
-    except Exception: pass
+    idx_codes = {
+        "上证指数": "sh000001", "深证成指": "sz399001", "创业板指": "sz399006",
+        "科创50": "sh000688", "沪深300": "sh000300",
+    }
+    watch = [
+        "sh600519","sz000858","sh601318","sz300750","sh600036","sz000333","sz000651",
+        "sh601088","sh600900","sh601899","sh600031","sz002594","sz002415","sh600276",
+        "sz300760","sh601012","sh600030","sz002714","sh600009","sh688111",
+    ]
 
-    try:
-        # 涨跌Top5 (东方财富)
-        for fid, key in [("f3", "top_up"), ("f32", "top_down")]:
-            url = (
-                f"https://push2.eastmoney.com/api/qt/clist/get?"
-                f"pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid={fid}"
-                f"&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"
-                f"&fields=f2,f3,f12,f14"
-            )
-            resp = await asyncio.to_thread(
-                requests.get, url, timeout=5,
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"},
-            )
+    # v3.1.2: 4 个请求并行 (was sequential ~10s → ~3s)
+    # 腾讯直连 (trust_env=False, 免代理快); EastMoney 走代理 (HTTP_PROXY)
+    _direct = requests.Session()
+    _direct.trust_env = False
+
+    async def _fetch_indices():
+        out = {}
+        try:
+            resp = await asyncio.to_thread(_direct.get,
+                f"https://qt.gtimg.cn/q={','.join(idx_codes.values())}", timeout=5,
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
+            resp.encoding = "gbk"
+            for line in resp.text.strip().split("\n"):
+                if "=" not in line or "~" not in line: continue
+                try:
+                    code = line.split("=", 1)[0].replace("v_", "").strip()
+                    fields = line.split("=", 1)[1].strip('"').split("~")
+                    if len(fields) < 10: continue
+                    name = {v: k for k, v in idx_codes.items()}.get(code, code)
+                    out[name] = {
+                        "price": round(float(fields[3]), 2) if fields[3] else 0,
+                        "pct": round(float(fields[32]), 2) if len(fields) > 32 and fields[32] else 0,
+                    }
+                except (ValueError, IndexError): continue
+        except Exception: pass
+        return out
+
+    async def _fetch_movers(fid):
+        out = []
+        try:
+            url = (f"https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1"
+                   f"&fltt=2&invt=2&fid={fid}&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"
+                   f"&fields=f2,f3,f12,f14")
+            resp = await asyncio.to_thread(requests.get, url, timeout=3,
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"})
             for item in (resp.json().get("data", {}).get("diff") or [])[:5]:
-                result[key].append({
-                    "code": item.get("f12", ""), "name": item.get("f14", ""),
-                    "price": item.get("f2", 0), "pct": item.get("f3", 0),
-                })
-    except Exception: pass
+                out.append({"code": item.get("f12", ""), "name": item.get("f14", ""),
+                            "price": item.get("f2", 0), "pct": item.get("f3", 0)})
+        except Exception: pass
+        return out
 
-    try:
-        # 重点股票 (腾讯)
-        watch = [
-            "sh600519","sz000858","sh601318","sz300750","sh600036","sz000333","sz000651",
-            "sh601088","sh600900","sh601899","sh600031","sz002594","sz002415","sh600276",
-            "sz300760","sh601012","sh600030","sz002714","sh600009","sh688111",
-        ]
-        resp2 = await asyncio.to_thread(
-            requests.get,
-            f"https://qt.gtimg.cn/q={','.join(watch)}",
-            timeout=5,
-            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"},
-        )
-        resp2.encoding = "gbk"
-        for line in resp2.text.strip().split("\n"):
-            if "=" not in line or "~" not in line: continue
-            try:
-                fields = line.split("=", 1)[1].strip('"').split("~")
-                if len(fields) < 10: continue
-                result["watchlist"].append({
-                    "name": fields[1], "code": fields[2],
-                    "price": round(float(fields[3]), 2) if fields[3] else 0,
-                    "pct": round(float(fields[32]), 2) if len(fields) > 32 and fields[32] else 0,
-                    "volume": int(fields[6]) if fields[6] else 0,
-                })
-            except (ValueError, IndexError): continue
-    except Exception: pass
+    async def _fetch_watch():
+        out = []
+        try:
+            resp = await asyncio.to_thread(_direct.get,
+                f"https://qt.gtimg.cn/q={','.join(watch)}", timeout=5,
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
+            resp.encoding = "gbk"
+            for line in resp.text.strip().split("\n"):
+                if "=" not in line or "~" not in line: continue
+                try:
+                    fields = line.split("=", 1)[1].strip('"').split("~")
+                    if len(fields) < 10: continue
+                    out.append({"name": fields[1], "code": fields[2],
+                        "price": round(float(fields[3]), 2) if fields[3] else 0,
+                        "pct": round(float(fields[32]), 2) if len(fields) > 32 and fields[32] else 0,
+                        "volume": int(fields[6]) if fields[6] else 0})
+                except (ValueError, IndexError): continue
+        except Exception: pass
+        return out
 
+    indices, top_up, top_down, watchlist = await asyncio.gather(
+        _fetch_indices(), _fetch_movers("f3"), _fetch_movers("f32"), _fetch_watch(),
+    )
+    result["indices"] = indices
+    result["top_up"] = top_up
+    result["top_down"] = top_down
+    result["watchlist"] = watchlist
     return result
 
 
