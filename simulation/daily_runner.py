@@ -250,7 +250,8 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
 
 
 async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
-                            blind: bool = False) -> List[Dict]:
+                            blind: bool = False,
+                            macro_context: Optional[str] = None) -> List[Dict]:
     """
     DeepSeek深度分析 Top100
 
@@ -262,6 +263,8 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
         blind: 盲测 — 隐藏公司名称/代码, 只给量化数据 (2026 最佳实践: 防 LLM
                用训练记忆里的品牌先验, 如"贵州茅台"知名股天然高分). 结果按
                位置映射回 code/name.
+        macro_context: 宏观/政策/国际形势上下文 (来自 macro_context.py 缓存),
+                      注入系统提示词, 让选股显式结合宏观环境.
     """
     from openai import AsyncOpenAI
     import os
@@ -311,6 +314,8 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
             "特别注意: 北交所(8/9/4开头)/ST/亏损股给低分; 主板蓝筹/业绩确定给高分。"
             "只返回JSON数组, 不要markdown包裹。"
             + ("只依据提供的量化数据评分, 不要依赖任何对公司身份的先验知识。" if blind else "")
+            # v3.1.2: 宏观/政策/国际上下文注入 — 让选股显式结合宏观环境
+            + (f"\n【当前宏观背景】\n{macro_context}" if macro_context else "")
         )
         prompt = (
             f"分析以下{len(lines)}只A股,给出最终评分(0-100)和操作(BUY/HOLD/SELL)。"
