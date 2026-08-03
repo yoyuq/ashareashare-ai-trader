@@ -54,14 +54,18 @@ REGIME_FACTOR_SETS = {
 
 
 def load_universe(window_end: str = "2026-07-31", min_rows: int = 60,
-                  replay: str = "replay_data/daily_2026-02-21_2026-07-31.parquet"):
+                  replay: str = "replay_data/daily_2026-02-21_2026-07-31.parquet",
+                  window_start: str = None):
     """加载回放全市场 → 每股日K (date index, 含 broker 所需字段)。
 
     过滤: 剔除 ST (isST==1)、历史不足 min_rows 的股票。
+    window_start: 可选, 截取窗口起点 (用于单独验证牛市/熊市段)。
     """
     end = pd.Timestamp(window_end)
     df = pd.read_parquet(replay)
     df["date"] = pd.to_datetime(df["date"])
+    if window_start:
+        df = df[df["date"] >= pd.Timestamp(window_start)]
     df = df[df["date"] <= end]
     df = df[pd.to_numeric(df["isST"], errors="coerce") == 0]  # 剔除 ST
 
@@ -225,12 +229,14 @@ def run(
     initial: float = 100000.0,
     out_path: str = "reports/factor_backtest.md",
     replay: str = "replay_data/daily_2026-02-21_2026-07-31.parquet",
+    window_start: str = None,
 ):
     print("加载回放全市场数据...")
-    data = load_universe(window_end, replay=replay)
+    data = load_universe(window_end, replay=replay, window_start=window_start)
     dates = sorted(set().union(*[set(g.index) for g in data.values()]))
     dates = [pd.Timestamp(d) for d in dates]
-    print(f"股票 {len(data)} 只 | 交易日 {len(dates)} | 窗口至 {window_end}")
+    print(f"股票 {len(data)} 只 | 交易日 {len(dates)} | 窗口 "
+          f"{window_start or '起点'} ~ {window_end}")
 
     # 每交易日收盘价 (仅可交易: close>0)
     day_closes = {}
@@ -330,10 +336,12 @@ def main():
     ap.add_argument("--replay", type=str,
                     default="replay_data/daily_2026-02-21_2026-07-31.parquet",
                     help="回放文件 (可用长窗口多regime)")
+    ap.add_argument("--window-start", type=str, default=None,
+                    help="可选窗口起点 (验证牛市/熊市单段)")
     args = ap.parse_args()
     run(topk=args.topk, rebalance_every=args.rebalance, warmup=args.warmup,
         window_end=args.window_end, initial=args.capital, out_path=args.output,
-        replay=args.replay)
+        replay=args.replay, window_start=args.window_start)
 
 
 if __name__ == "__main__":

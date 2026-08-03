@@ -40,7 +40,7 @@ REPLAY_DIR.mkdir(exist_ok=True)
 
 # 复用 daily_runner 的 LLM 函数 (忠实复现分析逻辑)
 from simulation.daily_runner import (  # noqa: E402
-    _flash_screen, _deepseek_analyze, _detect_regime,
+    _flash_screen, _deepseek_analyze, _detect_regime, build_market_ctx,
 )
 
 
@@ -306,33 +306,6 @@ class ReplayPortfolio:
         return True
 
 
-def _build_market_ctx(df_cs: pd.DataFrame, regime: str) -> str:
-    """v32 变体: 从当日截面构建"市场状态/情绪/操作原则"上下文 (注入 LLM 系统提示)。
-
-    情绪温度: 简化恐慌/贪婪分 (0-100, 越高越贪婪), 成分 = 上涨广度 + 涨跌幅 + 涨跌停占比。
-    操作原则: 按 regime 门控 — 牛市信动量, 熊市/震荡把动量打折、优先相对低估+防御。
-    """
-    n = max(len(df_cs), 1)
-    up = float((df_cs["pct_change"] > 0).mean()) if "pct_change" in df_cs.columns else 0.5
-    avg = float(df_cs["pct_change"].mean()) if "pct_change" in df_cs.columns else 0.0
-    lu = int((df_cs["pct_change"] >= 9.5).sum()) if "pct_change" in df_cs.columns else 0
-    ld = int((df_cs["pct_change"] <= -9.5).sum()) if "pct_change" in df_cs.columns else 0
-    sent = float(np.clip(
-        up * 100 * 0.5 + np.clip(avg / 3, -1, 1) * 50 * 0.3
-        + (lu / n) * 200 * 0.2 - (ld / n) * 200 * 0.2, 0, 100))
-    label = ("极度恐慌" if sent <= 20 else "恐慌" if sent <= 40 else
-             "中性" if sent <= 60 else "贪婪" if sent <= 80 else "极度贪婪")
-    if regime in ("strong_bull", "weak_bull"):
-        gate = "牛市: 动量/趋势信号可信, 强势优先, 估值次之; 可积极参与。"
-    elif regime == "range_bound":
-        gate = "震荡市: 动量信号打折, 低估值+超跌反弹优先, 追高谨慎。"
-    else:
-        gate = "熊市/危机: 动量按反向信号处理(勿追涨), 低估值(相对自身20日历史PE/PB分位)与防御优先, 严控仓位。"
-    return (f"今日市场状态: {regime}; 情绪温度 {sent:.0f}/100 ({label}); "
-            f"上涨广度 {up:.0%}, 平均涨跌 {avg:+.2f}%, 涨停 {lu}家/跌停 {ld}家。"
-            f"操作原则: {gate}")
-
-
 def _next_trading_day(data, T: str) -> str:
     """T 之后第一个交易日 (用于 T+1 开盘成交)"""
     dates = sorted({str(pd.Timestamp(d).date()) for df in data.values()
@@ -428,7 +401,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             df_cs = df_cs[df_cs["isST"] != 1]  # 剔除 ST
             regime = _detect_regime(df_cs).get("regime", "range_bound")
             # v3.2: 构建市场状态/情绪/操作原则上下文 (仅 v32 变体注入)
-            regime_ctx = _build_market_ctx(df_cs, regime) if variant == "v32" else None
+            regime_ctx = build_market_ctx(df_cs, regime) if variant == "v32" else None
 
             # ── 2. 规则初筛 → 300 ──
             from analysis.pre_screener import PreScreener

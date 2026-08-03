@@ -113,18 +113,67 @@ class TencentFinanceProvider(DataProvider):
         return results
 
     # ═══════════════════════════════════════════════════════════════
-    # 日K线 (腾讯不支持K线, 返回空)
+    # 日K线 (web.ifzq.gtimg.cn — v3.2 数据源韧性兜底)
     # ═══════════════════════════════════════════════════════════════
 
+    KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+
     async def get_daily_kline(self, request: DataRequest) -> DataResult:
-        """腾讯不支持历史K线, 返回空DataResult触发降级"""
+        """腾讯历史日K线 (免代理可靠) — Baostock 被封 / EastMoney 不通时的日K兜底。
+
+        返回价量 (date/open/high/low/close/volume), 无 PE/PB (估值指标由
+        Baostock 主源提供)。standardize() 统一列名 + clean_ohlcv 清洗。
+        """
+        code = self._to_tencent_code(request.symbol)
+        fq = {"qfq": "qfq", "hfq": "hfq"}.get(request.adjust, "")
+        start = request.start_date.strftime("%Y-%m-%d") if request.start_date else ""
+        end = request.end_date.strftime("%Y-%m-%d") if request.end_date else ""
+        # count 取范围所需 (封顶 3200), 空范围时默认 640 根
+        if start and end:
+            span = (request.end_date - request.start_date).days
+            count = min(max(span + 30, 320), 3200)
+        else:
+            count = 640
+        url = f"{self.KLINE_URL}?param={code},day,{start},{end},{count},{fq}"
+        try:
+            resp = await asyncio.to_thread(self._session.get, url, timeout=15)
+            payload = resp.json()
+        except Exception as e:
+            self._healthy = False
+            raise RuntimeError(f"Tencent日K请求失败({code}): {e}") from e
+
+        data = payload.get("data", {}).get(code, {})
+        # 键名随复权方式: qfqday / hfqday / day
+        bars = data.get("qfqday") or data.get("hfqday") or data.get("day") or []
+        if not bars:
+            return DataResult(symbol=request.symbol, source=self.source,
+                              frequency=DataFrequency.DAILY, data=pd.DataFrame(),
+                              metadata={"note": "Tencent日K无数据"})
+        rows = []
+        for b in bars:
+            try:
+                rows.append({
+                    "date": pd.Timestamp(b[0]),
+                    "open": float(b[1]),
+                    "close": float(b[2]),
+                    "high": float(b[3]),
+                    "low": float(b[4]),
+                    "volume": float(b[5]),
+                })
+            except (IndexError, ValueError):
+                continue
+        df = pd.DataFrame(rows).sort_values("date").drop_duplicates("date", keep="last")
+        if request.start_date:
+            df = df[df["date"] >= pd.Timestamp(request.start_date)]
+        if request.end_date:
+            df = df[df["date"] <= pd.Timestamp(request.end_date)]
+        df = df.reset_index(drop=True)
+        self._healthy = True
         return DataResult(
-            symbol=request.symbol,
-            source=DataSource.TENCENT,
-            frequency=request.frequency,
-            data=pd.DataFrame(),
-            metadata={"note": "Tencent不支持K线, 请使用Baostock"},
-        )
+            symbol=request.symbol, source=self.source,
+            frequency=DataFrequency.DAILY, data=df,
+            metadata={"note": "Tencent日K (价量, 无PE/PB)"},
+        ).standardize()
 
     async def get_minute_kline(self, request: DataRequest) -> DataResult:
         return DataResult(

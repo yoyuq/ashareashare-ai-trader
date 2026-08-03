@@ -71,15 +71,37 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
     logger.info("=" * 50)
 
     # 1a. 加载数据
+    # v3.2 韧性: 实时快照失败(如 EastMoney 代理不通)时回退全市场缓存快照, 不中断每日流程
     logger.info("加载全市场数据...")
-    import akshare as ak
-    df = ak.stock_zh_a_spot_em()
     col_map = {
         '代码':'code','名称':'name','最新价':'price','涨跌幅':'pct_change','成交量':'volume',
         '成交额':'amount','换手率':'turnover','市盈率-动态':'pe_ttm','市净率':'pb',
         '总市值':'total_mv','量比':'vol_ratio','60日涨跌幅':'pct_60d','振幅':'amplitude'
     }
+    df = pd.DataFrame()
+    try:
+        import akshare as ak
+        _raw = ak.stock_zh_a_spot_em()
+        if _raw is not None and not _raw.empty:
+            df = _raw
+    except Exception as e:
+        logger.warning(f"实时快照失败 ({e}), 尝试回退缓存")
+    if df.empty:
+        _cache = Path(__file__).parent.parent / "simulation_data" / "full_market_cache.json"
+        if _cache.exists():
+            try:
+                _d = json.loads(_cache.read_text(encoding="utf-8"))
+                df = pd.DataFrame(_d.get("data", []))
+                logger.warning(f"使用全市场缓存快照 {_d.get('date', '?')} ({len(df)} 只)")
+            except Exception as e:
+                logger.error(f"缓存快照加载失败: {e}")
+    if df.empty:
+        raise RuntimeError("全市场数据不可用: 实时快照与缓存均失败")
     df = df.rename(columns={k:v for k,v in col_map.items() if k in df.columns})
+    # 数值列兜底转换 (缓存快照字段已是英文名)
+    for _c in ("pct_change", "price", "volume", "amount", "turnover", "pe_ttm", "pb", "total_mv"):
+        if _c in df.columns:
+            df[_c] = pd.to_numeric(df[_c], errors="coerce")
     logger.info(f"全市场: {len(df)} 只")
 
     # 1b. 体制自适应多因子初筛 (v3.1 PreScreener)
@@ -146,7 +168,13 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
             logger.warning(f"LLM精筛跳过 (Ollama不可用): {e}")
 
     # 1d. DeepSeek深度分析
-    deep_results = await _deepseek_analyze(df_top.head(100))
+    # v3.2: 注入 regime 门控 + 情绪上下文 (动量按体制打折, 估值/防御优先) — 主循环生效
+    try:
+        _regime_info = _detect_regime(df)
+        regime_ctx = build_market_ctx(df, _regime_info.get("regime", "range_bound"))
+    except Exception:
+        regime_ctx = None
+    deep_results = await _deepseek_analyze(df_top.head(100), regime_ctx=regime_ctx)
     logger.info(f"DeepSeek分析完成: {len(deep_results)} 只")
 
     # 1e. 保存结果
@@ -396,6 +424,33 @@ def _detect_regime(df: pd.DataFrame) -> Dict:
     else: regime, label = "strong_bull", "强牛"
 
     return {"regime": regime, "label": label, "avg_pct": round(float(avg_pct), 2), "up_ratio": round(float(up_pct), 2)}
+
+
+def build_market_ctx(df: pd.DataFrame, regime: str) -> str:
+    """从当日截面构建"市场状态/情绪/操作原则"上下文 (v3.2, 注入 _deepseek_analyze)。
+
+    让 AI 判断按 regime 门控: 牛市信动量, 熊市/震荡把动量打折、优先相对低估+防御。
+    无需历史数据 (单日快照即可算), 可直接用于 daily_runner 主循环。
+    """
+    n = max(len(df), 1)
+    up = float((df["pct_change"] > 0).mean()) if "pct_change" in df.columns else 0.5
+    avg = float(df["pct_change"].mean()) if "pct_change" in df.columns else 0.0
+    lu = int((df["pct_change"] >= 9.5).sum()) if "pct_change" in df.columns else 0
+    ld = int((df["pct_change"] <= -9.5).sum()) if "pct_change" in df.columns else 0
+    sent = float(np.clip(
+        up * 100 * 0.5 + np.clip(avg / 3, -1, 1) * 50 * 0.3
+        + (lu / n) * 200 * 0.2 - (ld / n) * 200 * 0.2, 0, 100))
+    label = ("极度恐慌" if sent <= 20 else "恐慌" if sent <= 40 else
+             "中性" if sent <= 60 else "贪婪" if sent <= 80 else "极度贪婪")
+    if regime in ("strong_bull", "weak_bull"):
+        gate = "牛市: 动量/趋势信号可信, 强势优先, 估值次之; 可积极参与。"
+    elif regime == "range_bound":
+        gate = "震荡市: 动量信号打折, 低估值+超跌反弹优先, 追高谨慎。"
+    else:
+        gate = "熊市/危机: 动量按反向信号处理(勿追涨), 低估值(相对历史PE/PB)与防御优先, 严控仓位。"
+    return (f"今日市场状态: {regime}; 情绪温度 {sent:.0f}/100 ({label}); "
+            f"上涨广度 {up:.0%}, 平均涨跌 {avg:+.2f}%, 涨停 {lu}家/跌停 {ld}家。"
+            f"操作原则: {gate}")
 
 
 # ═══════════════════════════════════════════════════════════════
