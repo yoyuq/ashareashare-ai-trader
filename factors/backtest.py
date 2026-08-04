@@ -310,6 +310,24 @@ def run(
     results["market"] = mkt_m
     curves["market"] = bench
 
+    # v3.3 指数级择时 Overlay (研究: 双动量 — 指数绝对动量做市场过滤器):
+    #   指数 > MA → 持市场 proxy (吃满牛市); 指数 < MA → 现金 (避熊)
+    #   这是"适应大多数市场"的机制所在 (选股层无法解决牛市跑输, 见 bull_participation_test.md)
+    mkt_ret = mkt.pct_change().fillna(0.0)
+    for ma_win, tag in [(20, "mkt_timing_20"), (60, "mkt_timing_60")]:
+        ma = mkt.rolling(ma_win).mean()
+        invested = mkt > ma
+        t_ret = mkt_ret.where(invested, 0.0).reindex(dates[warmup:]).fillna(0.0)
+        timing_eq = (1 + t_ret).cumprod() * initial
+        m = equity_metrics(timing_eq)
+        m["win_rate"] = 0
+        m["total_trades"] = 0
+        m["total_fees"] = 0
+        results[tag] = m
+        curves[tag] = timing_eq
+        print(f"回测 [{tag}] 指数择时: 市场>{ma_win}日均线持, 否则现金...")
+        print(f"   总收益 {m['total_return']:.1%} | 夏普 {m['sharpe']:.2f} | 回撤 {m['max_drawdown']:.1%}")
+
     # ── 输出 ──
     print("\n" + "=" * 66)
     print(f"{'策略':<10}{'总收益':>9}{'年化':>9}{'夏普':>7}{'回撤':>8}{'胜率':>7}{'交易':>6}{'费用':>8}")
@@ -332,6 +350,8 @@ def run(
         combos = {"baseline": "momentum_5+bias_ma20", "extended": "基线+ep+bp+rel_strength_5d+sharpe_20",
                   "value": "ep+bp", "rec": "ep+bp+rel_strength_5d",
                   "mkt_filter": "市场>MA20: 动量+估值 / <MA20: 纯估值 (双动量)",
+                  "mkt_timing_20": "指数>MA20 持市场 / <MA20 现金",
+                  "mkt_timing_60": "指数>MA60 持市场 / <MA60 现金",
                   "market": "等权买入持有(无成本)"}
         for name, m in results.items():
             L.append(f"| {name} | {combos[name]} | {m['total_return']:.1%} | {m['annual_return']:.1%} | "
