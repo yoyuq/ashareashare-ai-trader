@@ -364,7 +364,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      data_file: str = None,
                      tag: str = None,
                      timing_overlay: bool = False,
-                     hybrid_pct: float = 0.0) -> dict:
+                     hybrid_pct: float = 0.0,
+                     offensive: bool = False) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -469,7 +470,14 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             df_cs = df_cs[df_cs["isST"] != 1]  # 剔除 ST
             regime = _detect_regime(df_cs).get("regime", "range_bound")
             # v3.2: 构建市场状态/情绪/操作原则上下文 (仅 v32 变体注入)
-            regime_ctx = build_market_ctx(df_cs, regime) if variant == "v32" else None
+            if offensive:
+                # v3.3 强制进攻: 抱团/窄幅动量市 — 广度失真, 指令忽略 regime 判熊
+                regime_ctx = ("今日为抱团/动量市: 强势龙头持续走强, 普通股票普跌。"
+                              "操作原则: 优先选择动量最强/相对强度最高/放量突破的龙头强势股, "
+                              "回避低估值但趋势下跌的防御股。"
+                              f" (regime检测={regime} 但强制进攻模式)")
+            else:
+                regime_ctx = build_market_ctx(df_cs, regime) if variant == "v32" else None
 
             # ── 2. 规则初筛 → 300 ──
             from analysis.pre_screener import PreScreener
@@ -479,7 +487,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 continue
 
             # ── 3. LLM Flash 精筛 → 100 ──
-            df_top = await _flash_screen(screened, top_k=final_n, regime=regime)
+            df_top = await _flash_screen(screened, top_k=final_n, regime=regime,
+                                         offensive=offensive)
             total_llm_calls += (len(screened) + 24) // 25
 
             # ── 4. LLM 深度分析 (thinking 可开关: 开=更深推理, 关=快速) ──
@@ -714,6 +723,8 @@ def main():
                     help="启用市场择时 Overlay (指数<MA20 时防御仓位, 验证双动量)")
     ap.add_argument("--hybrid", type=float, default=0.0,
                     help="混合结构: risk_on 时把该比例资金投入市场指数书 (0~1, 如 0.5=一半持指数)")
+    ap.add_argument("--offensive", action="store_true",
+                    help="强制进攻模式: 初筛/深析优先强势龙头动量 (抱团/窄幅动量牛, 广度失真时用)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -722,7 +733,8 @@ def main():
                            force_data=args.force_data, thinking=args.thinking,
                            max_days=args.max_days, variant=args.variant,
                            end_date=args.end, data_file=args.data_file, tag=args.tag,
-                           timing_overlay=args.timing, hybrid_pct=args.hybrid))
+                           timing_overlay=args.timing, hybrid_pct=args.hybrid,
+                           offensive=args.offensive))
 
 
 if __name__ == "__main__":

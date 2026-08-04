@@ -226,13 +226,15 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
 
 async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
                         blind: bool = False,
-                        regime: str = "range_bound") -> pd.DataFrame:
+                        regime: str = "range_bound",
+                        offensive: bool = False) -> pd.DataFrame:
     """DeepSeek V4-Flash 精筛 (替代 Ollama, 更快更强)
 
     v3.3: 注入市场语境 — 决定初筛选股倾向 (进攻/防御/均衡), 避免 100 只候选永远防御。
       bull  → 优先强势/动量/放量突破 (进攻)
       bear  → 优先低估值/防御 (防守)
       range → 均衡
+      offensive=True → 强制进攻 (无视 regime, 用于抱团/窄幅动量牛等广度失真场景)
     """
     from openai import AsyncOpenAI
     import os
@@ -266,7 +268,11 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
                 )
 
         # v3.3 市场语境选股指令: 避免初筛永远防御
-        if regime in ("strong_bull", "weak_bull"):
+        if offensive:
+            sel_guide = ("当前为抱团/动量市: 强势股/龙头持续走强, 普通股票普跌。"
+                         "优先选择动量最强、相对强度最高、放量突破的龙头/强势股; "
+                         "回避低估值但下跌的防御股。")
+        elif regime in ("strong_bull", "weak_bull"):
             sel_guide = ("当前市场偏强(牛市), 优先选择动量强、相对强度高、放量突破的"
                          "强势股/龙头; 不要过分偏好低估值防御股。")
         elif regime in ("weak_bear", "strong_bear", "crisis"):
