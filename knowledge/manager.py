@@ -938,6 +938,112 @@ class KnowledgeManager:
             logger.debug(f"向量检索失败: {e}")
             return []
 
+    def _bm25_style_score(self, query_tokens: List[str], doc: str) -> float:
+        """简化 BM25 风格打分: 查询 token 在文档中的词频 (对数归一)。
+
+        与哈希向量互补 — 哈希抓语义(近似), 关键词抓精确术语 (金融文档必须混合检索)。
+        """
+        doc_lower = doc.lower()
+        score = 0.0
+        for t in query_tokens:
+            cnt = doc_lower.count(t)
+            if cnt:
+                score += 1.0 + math.log(1 + cnt)
+        return score
+
+    @staticmethod
+    def _rrf_fuse(ranked_lists: List[List[Dict]], top_k: int, k: int = 60,
+                  weights: Optional[List[float]] = None) -> List[Dict]:
+        """RRF (Reciprocal Rank Fusion): 忽略分数绝对值, 用排名融合多路检索.
+
+        向量相似度(0~1) 与 BM25 分数量纲不同不可直接加; RRF 仅用排名:
+          score(doc) = Σ w_i · 1/(k + rank_i), k=60 是标准值。
+        weights: 每路权重 (默认等权). 金融领域术语精确匹配强, 关键词路给更高权重。
+        """
+        scores: Dict[str, float] = {}
+        by_id: Dict[str, Dict] = {}
+        for li, ranked in enumerate(ranked_lists):
+            w = weights[li] if weights and li < len(weights) else 1.0
+            for rank, item in enumerate(ranked):
+                did = item["id"]
+                scores[did] = scores.get(did, 0.0) + w / (k + rank + 1)
+                by_id[did] = item
+        fused = sorted(scores.items(), key=lambda x: -x[1])[:top_k]
+        return [by_id[did] for did, _ in fused]
+
+    def _retrieve(self, query: str, top_k: int = 5, regime: Optional[str] = None,
+                  mode: str = "hybrid") -> List[Dict]:
+        """v3.3: 混合检索 (哈希向量 + 关键词 BM25, RRF 融合) → 排名列表.
+
+        mode: "vector" (纯哈希向量) / "keyword" (纯关键词) / "hybrid" (RRF 融合)。
+
+        Returns: [{id, source, doc, section, regime, sim}] 按相关性降序。
+        """
+        if not self.chroma_available:
+            return []
+        col = self._ensure_knowledge_base_collection()
+        if col is None or col.count() == 0:
+            return []
+
+        # ── 向量一路 (哈希嵌入, 余弦相似度) ──
+        q_kwargs = dict(
+            query_embeddings=[_stable_hash_embed(query)],
+            n_results=top_k * 4,
+            include=["documents", "metadatas", "distances"],
+        )
+        if regime:
+            q_kwargs["where"] = {"regime": regime}
+        vec_items: List[Dict] = []
+        try:
+            vr = col.query(**q_kwargs)
+            if vr and vr.get("ids") and vr["ids"][0]:
+                docs_arr = vr.get("documents", [[]])[0]
+                metas_arr = vr.get("metadatas", [[]])[0]
+                dists_arr = vr.get("distances", [[]])[0]
+                for i, did in enumerate(vr["ids"][0]):
+                    meta = metas_arr[i] if i < len(metas_arr) and metas_arr[i] else {}
+                    doc = docs_arr[i] if i < len(docs_arr) else ""
+                    dist = dists_arr[i] if i < len(dists_arr) else 1.0
+                    vec_items.append({
+                        "id": did, "source": meta.get("source", ""),
+                        "doc": doc or "", "section": meta.get("section", ""),
+                        "regime": meta.get("regime", ""),
+                        "sim": max(0.0, min(1.0, 1 - dist)),
+                    })
+        except Exception as e:
+            logger.debug(f"向量检索失败: {e}")
+
+        if mode == "vector":
+            return vec_items[:top_k]
+
+        # ── 关键词一路 (BM25 风格, 对全库打分) ──
+        kw_items: List[Dict] = []
+        query_tokens = _cn_tokens(query)
+        try:
+            all_docs = col.get(include=["documents", "metadatas"])
+            for i, did in enumerate(all_docs["ids"]):
+                doc = all_docs["documents"][i]
+                meta = all_docs["metadatas"][i] or {}
+                if regime and meta.get("regime") != regime:
+                    continue
+                sc = self._bm25_style_score(query_tokens, doc)
+                if sc > 0:
+                    kw_items.append({
+                        "id": did, "source": meta.get("source", ""),
+                        "doc": doc, "section": meta.get("section", ""),
+                        "regime": meta.get("regime", ""), "sim": sc,
+                    })
+        except Exception as e:
+            logger.debug(f"关键词检索失败: {e}")
+        kw_items.sort(key=lambda x: -x["sim"])
+
+        if mode == "keyword":
+            return kw_items[:top_k]
+
+        # ── hybrid: 加权 RRF 融合 — 关键词权重 2× (金融术语精确匹配强, 基准验证) ──
+        return self._rrf_fuse([vec_items, kw_items[: top_k * 3]], top_k,
+                              weights=[1.0, 2.0])
+
     def _keyword_match_klines(self, query: str, top_k: int = 5) -> List[Dict]:
         """v3.1: Fallback keyword matching for K-line pattern search.
 
@@ -979,42 +1085,17 @@ class KnowledgeManager:
         Returns:
             拼接后的相关文本
         """
-        # 尝试向量检索 (v3.3: knowledge_base_v2, 加权哈希 + regime 过滤)
-        if self.chroma_available:
-            try:
-                text_col = self._ensure_knowledge_base_collection()
-                if text_col is not None and text_col.count() > 0:
-                    q_kwargs = dict(
-                        query_embeddings=[_stable_hash_embed(query)],
-                        n_results=top_k * 3,  # 过滤后可能不足 top_k
-                        include=["documents", "metadatas", "distances"],
-                    )
-                    if regime:
-                        q_kwargs["where"] = {"regime": regime}
-                    results = text_col.query(**q_kwargs)
-                    if results and results.get("documents") and results["documents"][0]:
-                        docs = results["documents"][0]
-                        metas = results.get("metadatas", [[]])[0]
-                        dists = results.get("distances", [[]])[0]
-                        # 过滤后取前 top_k
-                        picked = []
-                        for i, (doc, meta) in enumerate(zip(docs, metas)):
-                            if len(picked) >= top_k:
-                                break
-                            if not doc or not doc.strip():
-                                continue
-                            picked.append((doc, meta, dists[i] if i < len(dists) else 1.0))
-                        if picked:
-                            parts = [f"相关知识库参考 (向量检索, regime={regime or 'all'}):\n"]
-                            for doc, meta, dist in picked:
-                                source = meta.get("source", "unknown") if meta else "unknown"
-                                section = meta.get("section", "") if meta else ""
-                                sim = max(0.0, min(1.0, round(1 - dist, 3)))
-                                header = f" [{section}]" if section else ""
-                                parts.append(f"### {source}{header} (相似度{sim:.0%})\n{doc[:800]}\n")
-                            return "\n".join(parts)
-            except Exception as e:
-                logger.debug(f"向量检索降级到关键词匹配: {e}")
+        # v3.3: 混合检索 (哈希向量 + 关键词 BM25, RRF 融合) — 金融文档必须混合检索
+        picked = self._retrieve(query, top_k=top_k, regime=regime, mode="hybrid")
+        if picked:
+            parts = [f"相关知识库参考 (混合检索, regime={regime or 'all'}):\n"]
+            for item in picked:
+                if not item.get("doc"):
+                    continue
+                header = f" [{item['section']}]" if item.get("section") else ""
+                parts.append(
+                    f"### {item['source']}{header} (相关度{item['sim']:.0%})\n{item['doc'][:800]}\n")
+            return "\n".join(parts)
 
         # Fallback: 关键词匹配 (v3.1-deerflow: 中文 n-gram 打分, 旧的空格分词对中文失效)
         reference_dir = self.root / "reference"
