@@ -28,7 +28,7 @@ from analysis.regime import MarketRegimeDetector  # noqa: E402  (resolve_names �
 from backtest.broker import AShareBroker  # noqa: E402
 from factors.market_situation import build_market_close_series  # noqa: E402
 from factors.panels import compute_factor_panels  # noqa: E402
-from factors.regime_analysis import BUCKET  # noqa: E402  (resolve_names 保留参考)
+from factors.regime_analysis import BUCKET, build_synthetic_index  # noqa: E402
 
 # 策略 → 因子组合
 # NOTE (v3.2 实测): "regime_adaptive" 动态切因子集策略已弃用 —
@@ -39,6 +39,15 @@ STRATEGIES = {
     "extended": ["momentum_5", "bias_ma20", "ep", "bp", "rel_strength_5d", "sharpe_20"],
     "value": ["ep", "bp"],
     "rec": ["ep", "bp", "rel_strength_5d"],  # 报告推荐的去相关注入集
+    "mkt_filter": "MKT_FILTER",  # v3.3: 市场状态过滤 (双动量) — 市场>MA20 用动量, <MA20 纯估值
+}
+
+# v3.3 市场状态过滤 (研究: 双动量 — 指数绝对动量做市场过滤器, 相对动量做进攻):
+#   risk_on  市场>20日均线 → 动量+估值 (牛市参与)
+#   risk_off 市场<20日均线 → 纯估值 (防御)
+MKT_FILTER_FACTORS = {
+    "risk_on": ["ep", "bp", "momentum_20", "rel_strength_5d"],
+    "risk_off": ["ep", "bp"],
 }
 
 # [弃用] v3.2 regime 自适应因子集 (来自 regime_factor_analysis.md 的方向稳定性):
@@ -106,21 +115,32 @@ def bar_for(row: pd.Series) -> dict:
 
 
 def resolve_names(names, regime_index, Tdt) -> list:
-    """固定策略返回 names; regime_adaptive (names=="REGIME") 按 T 时刻 regime 选因子集。
+    """固定策略返回 names; 动态策略按 T 时刻市场状态选因子集 (PIT 安全, 只用 ≤T 数据)。
 
-    PIT 安全: 只用 ≤T 的合成指数数据判 regime。
+    "REGIME" (已弃用) → 6态检测器; "MKT_FILTER" → 市场 vs MA20 (双动量).
     """
-    if names != "REGIME":
-        return names
-    if regime_index is not None:
-        sofar = regime_index[regime_index.index <= Tdt]
-        if len(sofar) >= 20:
-            try:
-                r = MarketRegimeDetector().detect(sofar, None)
-                return REGIME_FACTOR_SETS[BUCKET[r.regime.value]]
-            except Exception:
-                return REGIME_FACTOR_SETS["震荡"]
-    return REGIME_FACTOR_SETS["震荡"]
+    if names == "MKT_FILTER":
+        if regime_index is not None:
+            sofar = regime_index[regime_index.index <= Tdt]
+            if len(sofar) >= 25:
+                try:
+                    mkt = sofar["close"]
+                    ma20 = mkt.rolling(20).mean()
+                    return MKT_FILTER_FACTORS["risk_on" if mkt.iloc[-1] > ma20.iloc[-1] else "risk_off"]
+                except Exception:
+                    return MKT_FILTER_FACTORS["risk_off"]
+        return MKT_FILTER_FACTORS["risk_off"]
+    if names == "REGIME":
+        if regime_index is not None:
+            sofar = regime_index[regime_index.index <= Tdt]
+            if len(sofar) >= 20:
+                try:
+                    r = MarketRegimeDetector().detect(sofar, None)
+                    return REGIME_FACTOR_SETS[BUCKET[r.regime.value]]
+                except Exception:
+                    return REGIME_FACTOR_SETS["震荡"]
+        return REGIME_FACTOR_SETS["震荡"]
+    return names
 
 
 def run_strategy(
@@ -253,8 +273,14 @@ def run(
     for sym, g in data.items():
         g["mkt_close"] = mkt.reindex(g.index)
 
-    # 计算所需因子面板
-    all_factors = sorted({f for names in STRATEGIES.values() for f in names})
+    # 动态策略 (mkt_filter) 需要合成指数 (等权 OHLCV) 判市场 vs MA20
+    regime_index = build_synthetic_index(full)
+
+    # 计算所需因子面板 (含动态策略的因子集)
+    all_factors = sorted(
+        {f for names in STRATEGIES.values() for f in names if names != "MKT_FILTER"}
+        | {f for fs in MKT_FILTER_FACTORS.values() for f in fs}
+    )
     print(f"计算因子面板 ({len(all_factors)}因子)...")
     panels = compute_factor_panels(data, all_factors)
 
@@ -265,6 +291,7 @@ def run(
         eq, broker = run_strategy(
             data, day_closes, panels, dates, names,
             topk, rebalance_every, warmup, initial,
+            regime_index=regime_index if names == "MKT_FILTER" else None,
         )
         m = equity_metrics(eq)
         perf = broker.get_performance()
@@ -304,6 +331,7 @@ def run(
              "|---|---|---|---|---|---|---|---|---|"]
         combos = {"baseline": "momentum_5+bias_ma20", "extended": "基线+ep+bp+rel_strength_5d+sharpe_20",
                   "value": "ep+bp", "rec": "ep+bp+rel_strength_5d",
+                  "mkt_filter": "市场>MA20: 动量+估值 / <MA20: 纯估值 (双动量)",
                   "market": "等权买入持有(无成本)"}
         for name, m in results.items():
             L.append(f"| {name} | {combos[name]} | {m['total_return']:.1%} | {m['annual_return']:.1%} | "
