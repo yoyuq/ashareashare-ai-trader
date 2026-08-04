@@ -159,11 +159,18 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
         df['rule_score'] = score.clip(0, 100)
         df_top = df.nlargest(top_n, 'rule_score')
 
-    # 1c. DeepSeek Flash 精筛 (替代 Ollama)
+    # v3.3: 市场语境提前 — regime 检测移到初筛前, 让 Flash 初筛也接收市场信息
+    try:
+        _regime_info = _detect_regime(df)
+        _regime = _regime_info.get("regime", "range_bound")
+    except Exception:
+        _regime = "range_bound"
+
+    # 1c. DeepSeek Flash 精筛 (替代 Ollama) — v3.3 注入市场语境 (进攻/防御倾向)
     if use_llm:
         try:
-            df_top = await _flash_screen(df_top, top_k=100)
-            logger.info(f"Flash精筛后: {len(df_top)} 只")
+            df_top = await _flash_screen(df_top, top_k=100, regime=_regime)
+            logger.info(f"Flash精筛后: {len(df_top)} 只 (regime={_regime})")
         except Exception as e:
             logger.warning(f"LLM精筛跳过 (Ollama不可用): {e}")
 
@@ -171,8 +178,6 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
     # v3.2: 注入 regime 门控 + 情绪上下文 (动量按体制打折, 估值/防御优先) — 主循环生效
     # v3.3: regime 自适应 thinking — 牛市开深度思考(A/B:+5.83 vs +4.17), 其他关(危机非think更好)
     try:
-        _regime_info = _detect_regime(df)
-        _regime = _regime_info.get("regime", "range_bound")
         regime_ctx = build_market_ctx(df, _regime)
         thinking_mode = regime_uses_thinking(_regime)
         logger.info(f"DeepSeek深度分析 thinking={'开' if thinking_mode else '关'} (regime={_regime})")
@@ -220,8 +225,15 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
 
 
 async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
-                        blind: bool = False) -> pd.DataFrame:
-    """DeepSeek V4-Flash 精筛 (替代 Ollama, 更快更强)"""
+                        blind: bool = False,
+                        regime: str = "range_bound") -> pd.DataFrame:
+    """DeepSeek V4-Flash 精筛 (替代 Ollama, 更快更强)
+
+    v3.3: 注入市场语境 — 决定初筛选股倾向 (进攻/防御/均衡), 避免 100 只候选永远防御。
+      bull  → 优先强势/动量/放量突破 (进攻)
+      bear  → 优先低估值/防御 (防守)
+      range → 均衡
+    """
     from openai import AsyncOpenAI
     import os
 
@@ -253,8 +265,18 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
                     f"换手={r.get('turnover',0):.1f}% 量比={r.get('vol_ratio',0):.1f}"
                 )
 
+        # v3.3 市场语境选股指令: 避免初筛永远防御
+        if regime in ("strong_bull", "weak_bull"):
+            sel_guide = ("当前市场偏强(牛市), 优先选择动量强、相对强度高、放量突破的"
+                         "强势股/龙头; 不要过分偏好低估值防御股。")
+        elif regime in ("weak_bear", "strong_bear", "crisis"):
+            sel_guide = ("当前市场偏弱(熊/危机), 优先选择低估值、高股息、防御性强的股票; "
+                         "回避高波动与追高。")
+        else:
+            sel_guide = "当前市场震荡, 均衡考虑动量与估值, 回避追高。"
         prompt = (
             f"评估以下{len(lines)}只A股的短期潜力(0-100分)。"
+            f"{sel_guide}"
             f"考虑: 动量趋势、估值合理性、成交量活跃度、市值规模。"
             f"只返回JSON数组[{{\"code\":\"..\",\"score\":0}}]按score降序:\n" + "\n".join(lines)
         )

@@ -246,7 +246,8 @@ def reconstruct_cross_section(data: dict, basic: dict, T: str) -> pd.DataFrame:
 # ═══════════════════════════════════════════════════════════════
 
 class ReplayPortfolio:
-    """回放持仓 (轻量): {symbol: {qty, entry_price, entry_date, stop, take}}"""
+    """回放持仓 (轻量): {symbol: {qty, entry_price, entry_date, stop, take}}
+    v3.3 混合结构: index_units 是"市场指数书" (risk_on 时部分资金持市场代理)."""
     def __init__(self, capital=100000.0):
         self.capital = capital
         self.cash = capital
@@ -254,11 +255,16 @@ class ReplayPortfolio:
         self.equity_curve = []       # [{date, total, cash, position_value}]
         self.trades = []
         self.max_positions = 10
+        self.index_units = 0.0       # 分配给市场指数书的资金
+        self.index_base = 0.0        # 进入指数书时的市场代理水平
+        self.index_entry_date = ""
 
     def to_dict(self) -> dict:
         return {"capital": self.capital, "cash": self.cash,
                 "positions": self.positions, "trades": self.trades,
-                "equity_curve": self.equity_curve}
+                "equity_curve": self.equity_curve,
+                "index_units": self.index_units, "index_base": self.index_base,
+                "index_entry_date": self.index_entry_date}
 
     @classmethod
     def from_dict(cls, d: dict) -> "ReplayPortfolio":
@@ -276,11 +282,44 @@ class ReplayPortfolio:
                         _p[_k] = 0.0
         pf.trades = d.get("trades", []) or []
         pf.equity_curve = d.get("equity_curve", []) or []
+        pf.index_units = float(d.get("index_units", 0.0) or 0.0)
+        pf.index_base = float(d.get("index_base", 0.0) or 0.0)
+        pf.index_entry_date = d.get("index_entry_date", "") or ""
         return pf
 
-    def total_value(self, price_map):
+    def index_value(self, index_level: float) -> float:
+        """指数书当前市值 (按市场代理涨跌)."""
+        if self.index_units <= 0 or self.index_base <= 0 or index_level <= 0:
+            return 0.0
+        return self.index_units * (index_level / self.index_base)
+
+    def buy_index(self, amount: float, index_level: float, date_str: str) -> bool:
+        """risk_on 时把部分资金投入市场指数书 (持市场代理)."""
+        if amount <= 0 or amount > self.cash or index_level <= 0:
+            return False
+        self.cash -= amount
+        if self.index_units <= 0:
+            self.index_base = index_level
+            self.index_entry_date = date_str
+        self.index_units += amount
+        return True
+
+    def sell_index(self, index_level: float, date_str: str) -> float:
+        """risk_off 时清空指数书, 落袋. 返回实现金额."""
+        amount = self.index_value(index_level)
+        self.cash += amount
+        self.trades.append({"date": date_str, "symbol": "MARKET_INDEX",
+                            "side": "sell", "price": round(index_level, 3),
+                            "qty": 1, "pnl_pct": round((amount / max(self.index_units, 1e-9) - 1) * 100, 2),
+                            "reason": "择时risk_off清指数"})
+        self.index_units = 0.0
+        self.index_base = 0.0
+        return amount
+
+    def total_value(self, price_map, index_level=None):
         pos_val = sum(p["qty"] * price_map.get(sym, p["entry_price"]) for sym, p in self.positions.items())
-        return self.cash + pos_val
+        idx_val = self.index_value(index_level) if index_level else 0.0
+        return self.cash + pos_val + idx_val
 
     def buy(self, symbol, name, price, qty, date_str, stop=None, take=None):
         if symbol in self.positions or qty <= 0 or price <= 0:
@@ -324,7 +363,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      end_date: str = "2026-07-31",
                      data_file: str = None,
                      tag: str = None,
-                     timing_overlay: bool = False) -> dict:
+                     timing_overlay: bool = False,
+                     hybrid_pct: float = 0.0) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -439,7 +479,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 continue
 
             # ── 3. LLM Flash 精筛 → 100 ──
-            df_top = await _flash_screen(screened, top_k=final_n)
+            df_top = await _flash_screen(screened, top_k=final_n, regime=regime)
             total_llm_calls += (len(screened) + 24) // 25
 
             # ── 4. LLM 深度分析 (thinking 可开关: 开=更深推理, 关=快速) ──
@@ -519,6 +559,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                     if len(past) >= 25:
                         ma20 = past.iloc[-20:].mean()
                         risk_off = past.iloc[-1] < ma20
+                        _risk_on = not risk_off
                         if risk_off:
                             timing_mult, timing_max_pos = 0.3, min(pf.max_positions, 2)
                             logger.warning(
@@ -526,6 +567,23 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                 f"→ 防御: 仓位×0.3, 最多{timing_max_pos}只")
                 except Exception as e:
                     logger.warning(f"市场择时信号失败(保持原仓位): {e}")
+
+            # v3.3 混合结构: risk_on 时按 hybrid_pct 买入市场指数书 (持市场代理吃满牛市),
+            #               risk_off 时清仓 (落袋避熊). 剩余现金做进攻/防御选股.
+            if hybrid_pct > 0 and mkt_proxy is not None and next_T:
+                try:
+                    _t1 = pd.Timestamp(next_T)
+                    _idx_now = float(mkt_proxy.loc[_t1]) if _t1 in mkt_proxy.index \
+                        else float(mkt_proxy[mkt_proxy.index <= _t1].iloc[-1])
+                    if _risk_on and pf.index_units <= 0:
+                        _amt = capital * hybrid_pct
+                        if pf.buy_index(_amt, _idx_now, next_T):
+                            logger.info(f"混合结构: risk_on 买指数书 ¥{_amt:,.0f} (指数{_idx_now:.3f})")
+                    elif not _risk_on and pf.index_units > 0:
+                        pf.sell_index(_idx_now, next_T)
+                        logger.info(f"混合结构: risk_off 清指数书 @指数{_idx_now:.3f}")
+                except Exception as e:
+                    logger.warning(f"混合结构指数书失败: {e}")
 
             for r in buy_candidates:
                 if len(pf.positions) >= timing_max_pos or pf.cash < capital * 0.05:
@@ -551,12 +609,18 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 if pf.buy(sym, r.get("name", sym), px1, qty, next_T, stop=stop, take=take):
                     pass
 
-            # ── 6. T+1 收盘市值快照 ──
+            # ── 6. T+1 收盘市值快照 (含指数书) ──
             if next_T:
-                total = pf.total_value(t1_close) if t1_close else pf.cash
+                _idx_lv = None
+                if mkt_proxy is not None:
+                    _t1 = pd.Timestamp(next_T)
+                    _idx_lv = float(mkt_proxy.loc[_t1]) if _t1 in mkt_proxy.index \
+                        else float(mkt_proxy[mkt_proxy.index <= _t1].iloc[-1])
+                total = pf.total_value(t1_close, index_level=_idx_lv) if t1_close else pf.cash
                 pf.equity_curve.append({"date": next_T, "total": round(total, 2),
                                         "cash": round(pf.cash, 2),
-                                        "positions": len(pf.positions)})
+                                        "positions": len(pf.positions),
+                                        "index_book": round(pf.index_value(_idx_lv), 2) if _idx_lv else 0.0})
             day_logs.append({"date": T, "regime": regime, "screened": len(df_cs),
                              "top": len(deep),
                              "buy": sum(1 for r in deep if r.get("action") == "BUY"),
@@ -636,6 +700,8 @@ def main():
                     help="运行标签, 用于区分同段不同条件 (checkpoint/报告文件名后缀, 防止续跑串档)")
     ap.add_argument("--timing", action="store_true",
                     help="启用市场择时 Overlay (指数<MA20 时防御仓位, 验证双动量)")
+    ap.add_argument("--hybrid", type=float, default=0.0,
+                    help="混合结构: risk_on 时把该比例资金投入市场指数书 (0~1, 如 0.5=一半持指数)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -644,7 +710,7 @@ def main():
                            force_data=args.force_data, thinking=args.thinking,
                            max_days=args.max_days, variant=args.variant,
                            end_date=args.end, data_file=args.data_file, tag=args.tag,
-                           timing_overlay=args.timing))
+                           timing_overlay=args.timing, hybrid_pct=args.hybrid))
 
 
 if __name__ == "__main__":
