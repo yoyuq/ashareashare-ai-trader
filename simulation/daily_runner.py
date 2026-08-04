@@ -554,6 +554,22 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
     regime_info = analysis.get("market_regime", {})
     regime = regime_info.get("regime", "range_bound")
     limits = REGIME_LIMITS.get(regime, REGIME_LIMITS["range_bound"])
+
+    # v3.3 市场择时 Overlay (双动量): 指数<MA20 时强制防御 (少仓/现金) — 避开熊市
+    # 回测: 指数>MA20 持市场 +34.8%/回撤2.6% vs 买入持有 -5.0%/回撤27.2%
+    _timing_sig = None
+    try:
+        from analysis.market_timing import format_timing, market_ma_signal
+        _timing_sig = await market_ma_signal()
+        if _timing_sig:
+            logger.info(f"市场择时: {format_timing(_timing_sig)}")
+            if _timing_sig["signal"] == "risk_off":
+                logger.warning(
+                    f"市场择时 risk_off (上证{_timing_sig['index_close']} < MA{_timing_sig['window']} "
+                    f"{_timing_sig['ma']}) → 强制防御仓位 (最大2只/单只5%)")
+                limits = {"max_positions": 2, "single_pct": 0.05, "label": f"{regime}+risk_off"}
+    except Exception as e:
+        logger.warning(f"市场择时信号失败(保持regime上限): {e}")
     logger.info(f"市场: {regime} → {limits['label']} | 最大{limits['max_positions']}只 | 单只{limits['single_pct']:.0%}")
 
     if dry_run:
