@@ -320,15 +320,21 @@ def _next_trading_day(data, T: str) -> str:
 async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: int = 100,
                      capital: float = 100000.0, force_data: bool = False,
                      thinking: bool = False, max_days: int = 0,
-                     variant: str = "baseline") -> dict:
+                     variant: str = "baseline",
+                     end_date: str = "2026-07-31",
+                     data_file: str = None,
+                     tag: str = None) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
     variant: "baseline" (原版) 或 "v32" (v3.2 因子注入: 相对估值分位/风险调整
              动量/反转 + regime 门控市场上下文).
+    end_date: 回放窗口终点 (YYYY-MM-DD). 用于多 regime 分段跑.
+    data_file: 显式指定缓存 parquet (长窗口全市场). 提供时跳过 build_daily_data
+              的按文件名缓存查找, 直接从该文件加载 (warmup 由文件内历史提供).
     """
     """执行历史 PIT 回放"""
-    end = date(2026, 7, 31)  # 最近完整交易日 (08-02 休市)
+    end = date.fromisoformat(end_date)  # 最近完整交易日 (08-02 休市)
     # 回放只需 ~60交易日 warmup (算 60日涨跌) + 前瞻缓冲, 无需 250日
     start = end - timedelta(days=int(days * 1.5) + 100)
 
@@ -339,7 +345,15 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
     basic = {sym: basic.get(sym, {}) for sym in universe}
 
     logger.info(f"股票池: {len(universe)} 只, 数据窗口 {start}~{end}")
-    data = build_daily_data(universe, start, end, force=force_data)
+    if data_file:
+        logger.info(f"从显式缓存加载: {data_file}")
+        _df = pd.read_parquet(data_file)
+        _df["date"] = pd.to_datetime(_df["date"])
+        _df = _df[_df["date"] <= pd.Timestamp(end)]
+        data = {s: _optimize_dtypes(g.drop(columns="symbol").reset_index(drop=True))
+                for s, g in _df.groupby("symbol")}
+    else:
+        data = build_daily_data(universe, start, end, force=force_data)
 
     # ── 交易日历 ──
     all_dates = sorted({str(pd.Timestamp(d).date()) for df in data.values()
@@ -353,8 +367,9 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
     total_llm_calls = 0
     t0 = time.time()
 
-    # ── 断点续跑: 加载已完成的日期 + 组合状态 ──
-    ckpt_path = REPLAY_DIR / f"checkpoint_{window[0]}_{window[-1]}.json" if window else None
+    # ── 断点续跑: 加载已完成的日期 + 组合状态 (tag 区分同段不同条件, 避免续跑串档) ──
+    _tag_suffix = f"_{tag}" if tag else ""
+    ckpt_path = REPLAY_DIR / f"checkpoint_{window[0]}_{window[-1]}{_tag_suffix}.json" if window else None
     completed = []
     if ckpt_path and ckpt_path.exists():
         try:
@@ -415,10 +430,22 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             total_llm_calls += (len(screened) + 24) // 25
 
             # ── 4. LLM 深度分析 (thinking 可开关: 开=更深推理, 关=快速) ──
-            deep = await _deepseek_analyze(df_top.head(final_n), thinking=thinking,
+            # v3.3 持仓纳入: 持仓股不在当日 Top100 也纳入深析 (避免持仓盲区 —
+            # 否则持仓只靠止损/止盈触发, LLM 的 SELL 信号永远看不到它)
+            df_deep = df_top.head(final_n).copy()
+            _held_codes = {_sym.split(".")[-1] for _sym in pf.positions}
+            if _held_codes:
+                _top_codes = set(df_deep["code"].astype(str))
+                _missing_held = [c for c in _held_codes if c not in _top_codes]
+                if _missing_held:
+                    _held_rows = df_cs[df_cs["code"].astype(str).isin(_missing_held)]
+                    if not _held_rows.empty:
+                        df_deep = pd.concat([df_deep, _held_rows], ignore_index=True)
+                        logger.info(f"  持仓纳入深析: {len(_held_rows)} 只不在Top{final_n}")
+            deep = await _deepseek_analyze(df_deep, thinking=thinking,
                                            variant=variant, regime_ctx=regime_ctx)
             _bs = 10 if thinking else 20
-            total_llm_calls += (len(df_top.head(final_n)) + _bs - 1) // _bs
+            total_llm_calls += (len(df_deep) + _bs - 1) // _bs
             # v3.1.1 修复: LLM JSON 偶尔把数值返成字符串 ("conviction":"0.6"),
             # 后续比较/运算会崩 (Float32 vs Str). 归一化为 float.
             for _r in deep:
@@ -515,11 +542,11 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
     logger.info(f"回放完成: {len(window)}日, {total_llm_calls}次LLM, {elapsed:.0f}s")
 
     # ── 报告 ──
-    result = _build_report(pf, window, elapsed, day_logs)
+    result = _build_report(pf, window, elapsed, day_logs, tag=tag)
     return result
 
 
-def _build_report(pf: ReplayPortfolio, window, elapsed, day_logs=None) -> dict:
+def _build_report(pf: ReplayPortfolio, window, elapsed, day_logs=None, tag: str = None) -> dict:
     eq = pf.equity_curve
     # v3.1.1 修复: checkpoint 用 default=str 保存时 numpy float 变字符串, 加载后除法崩溃
     final_total = float(eq[-1]["total"]) if eq else float(pf.capital)
@@ -537,7 +564,8 @@ def _build_report(pf: ReplayPortfolio, window, elapsed, day_logs=None) -> dict:
         "llm_calls": None,
         "day_logs": day_logs or [],
     }
-    out = REPLAY_DIR / "replay_report.json"
+    _tag_suffix = f"_{tag}" if tag else ""
+    out = REPLAY_DIR / f"replay_report{_tag_suffix}.json"
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     # 控制台表格
     print("\n=== 历史 PIT 回放结果 ===")
@@ -567,13 +595,20 @@ def main():
     ap.add_argument("--variant", type=str, default="baseline",
                     choices=["baseline", "v32"],
                     help="baseline=原版; v32=注入 v3.2 因子(相对估值分位/风险调整动量/反转) + regime 门控市场上下文")
+    ap.add_argument("--end", type=str, default="2026-07-31",
+                    help="回放窗口终点 YYYY-MM-DD (多 regime 分段跑)")
+    ap.add_argument("--data-file", type=str, default=None,
+                    help="显式缓存 parquet (长窗口全市场), 跳过按名缓存查找")
+    ap.add_argument("--tag", type=str, default=None,
+                    help="运行标签, 用于区分同段不同条件 (checkpoint/报告文件名后缀, 防止续跑串档)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
     asyncio.run(run_replay(days=args.days, universe=universe, top_n=args.top_n,
                            final_n=args.final_n, capital=args.capital,
                            force_data=args.force_data, thinking=args.thinking,
-                           max_days=args.max_days, variant=args.variant))
+                           max_days=args.max_days, variant=args.variant,
+                           end_date=args.end, data_file=args.data_file, tag=args.tag))
 
 
 if __name__ == "__main__":
