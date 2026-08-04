@@ -323,7 +323,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      variant: str = "baseline",
                      end_date: str = "2026-07-31",
                      data_file: str = None,
-                     tag: str = None) -> dict:
+                     tag: str = None,
+                     timing_overlay: bool = False) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -354,6 +355,18 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 for s, g in _df.groupby("symbol")}
     else:
         data = build_daily_data(universe, start, end, force=force_data)
+
+    # v3.3 市场择时 Overlay 用: 等权市场代理 (PIT, ≤T 数据算 MA20)
+    mkt_proxy = None
+    try:
+        _frames = []
+        for _s, _g in data.items():
+            _gg = _g.copy()
+            _gg["date"] = pd.to_datetime(_gg["date"])
+            _frames.append(_gg.set_index("date")["close"].rename(_s))
+        mkt_proxy = pd.concat(_frames, axis=1).mean(axis=1).sort_index()
+    except Exception as _e:
+        logger.warning(f"市场代理构建失败(择时Overlay禁用): {_e}")
 
     # ── 交易日历 ──
     all_dates = sorted({str(pd.Timestamp(d).date()) for df in data.values()
@@ -495,8 +508,27 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             buy_candidates.sort(key=lambda r: r.get("final_score", 0), reverse=True)
             regime_mult = {"strong_bull": 1.0, "weak_bull": 0.8, "range_bound": 0.5,
                            "weak_bear": 0.3, "strong_bear": 0.1, "crisis": 0.0}.get(regime, 0.5)
+
+            # v3.3 市场择时 Overlay (--timing): 市场代理 < MA20 (risk_off) 时防御 —
+            # 仓位×0.3, 最多2只。用回放自己的等权代理 ≤T 算 MA20 (PIT 安全, 与择时回测同信号)
+            timing_mult, timing_max_pos = 1.0, pf.max_positions
+            if timing_overlay and mkt_proxy is not None:
+                try:
+                    _tp = pd.Timestamp(T)
+                    past = mkt_proxy[mkt_proxy.index <= _tp]
+                    if len(past) >= 25:
+                        ma20 = past.iloc[-20:].mean()
+                        risk_off = past.iloc[-1] < ma20
+                        if risk_off:
+                            timing_mult, timing_max_pos = 0.3, min(pf.max_positions, 2)
+                            logger.warning(
+                                f"市场择时 risk_off (代理{past.iloc[-1]:.3f} < MA20 {ma20:.3f}) "
+                                f"→ 防御: 仓位×0.3, 最多{timing_max_pos}只")
+                except Exception as e:
+                    logger.warning(f"市场择时信号失败(保持原仓位): {e}")
+
             for r in buy_candidates:
-                if len(pf.positions) >= pf.max_positions or pf.cash < capital * 0.05:
+                if len(pf.positions) >= timing_max_pos or pf.cash < capital * 0.05:
                     break
                 code = str(r.get("code"))
                 sym = next((s for s in data if s.split(".")[-1] == code), None)
@@ -505,8 +537,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 px1 = t1_open.get(sym)
                 if px1 is None or px1 <= 0:
                     continue
-                # 仓位: 等权 × 确信度 × 体制, 封顶 10%; 但至少买得起 1 手 (100股)
-                pct = min(0.10, 0.03 + r.get("conviction", 0.5) * 0.05) * regime_mult
+                # 仓位: 等权 × 确信度 × 体制 × 择时, 封顶 10%; 但至少买得起 1 手 (100股)
+                pct = min(0.10, 0.03 + r.get("conviction", 0.5) * 0.05) * regime_mult * timing_mult
                 min_pct = 100 * px1 / pf.cash  # 1 手占资金比例
                 if pct < min_pct:
                     pct = min(min_pct, 0.10)   # 资金允许则至少买 1 手
@@ -602,6 +634,8 @@ def main():
                     help="显式缓存 parquet (长窗口全市场), 跳过按名缓存查找")
     ap.add_argument("--tag", type=str, default=None,
                     help="运行标签, 用于区分同段不同条件 (checkpoint/报告文件名后缀, 防止续跑串档)")
+    ap.add_argument("--timing", action="store_true",
+                    help="启用市场择时 Overlay (指数<MA20 时防御仓位, 验证双动量)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -609,7 +643,8 @@ def main():
                            final_n=args.final_n, capital=args.capital,
                            force_data=args.force_data, thinking=args.thinking,
                            max_days=args.max_days, variant=args.variant,
-                           end_date=args.end, data_file=args.data_file, tag=args.tag))
+                           end_date=args.end, data_file=args.data_file, tag=args.tag,
+                           timing_overlay=args.timing))
 
 
 if __name__ == "__main__":
