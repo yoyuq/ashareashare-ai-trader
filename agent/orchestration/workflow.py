@@ -337,6 +337,19 @@ class AnalysisWorkflow:
             except Exception as e:
                 logger.warning(f"市场快照注入失败: {e}")
 
+            # v3.3: RAG 知识注入 — 当前 regime 作战手册 + 向量检索 (让 AI 判断结合历史实证)
+            try:
+                if self.knowledge is not None and regime != "unknown":
+                    pb = self.knowledge.get_regime_playbook(regime)
+                    if pb:
+                        context += f"\n【{regime} 作战手册 (历史实证)】\n{pb}"
+                    rag = self.knowledge.rag_query(
+                        f"{regime} 市场 操作策略 选股 风险 止损", top_k=2, regime=regime)
+                    if rag:
+                        context += f"\n{rag[:2000]}"
+            except Exception as e:
+                logger.warning(f"regime 知识注入失败: {e}")
+
             result = await self.router.route(
                 messages=[
                     {"role": "system", "content": system_prompt},

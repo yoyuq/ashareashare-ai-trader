@@ -25,25 +25,78 @@ from loguru import logger
 
 
 def _stable_hash_embed(text: str, dim: int = 256) -> List[float]:
-    """无依赖确定性文本嵌入: 拉丁词元 + 中文字符/二元组 哈希 → L2归一化。
+    """无依赖确定性文本嵌入 (v3.3 加权 n-gram): 拉丁词 + 中文 3/2/1-gram 加权哈希 → L2归一化。
 
     md5 保证跨进程稳定 (Python 内置 hash() 对 str 有随机种子, 不可用于持久化向量)。
-    用于 ChromaDB 的 query_embeddings, 实现真实余弦相似度检索 (替代硬编码 0.5 关键词匹配)。
+    加权: 中文 3-gram (+3, 最能抓金融术语如"止损/止盈/低估值"), 2-gram (+2),
+    单字 (+1), 拉丁词 (+2)。比旧版单字+2-gram 同权更能区分语义相近片段。
     """
     vec = [0.0] * dim
     s = text.lower()
-    for tok in re.findall(r"[a-z0-9_]+", s):
+    for tok in re.findall(r"[a-z0-9_]{2,}", s):
         h = int.from_bytes(hashlib.md5(tok.encode()).digest()[:4], "big") % dim
-        vec[h] += 1.0
+        vec[h] += 2.0
     for seg in re.findall(r"[一-鿿]+", s):
+        for i in range(len(seg) - 2):
+            h = int.from_bytes(hashlib.md5(f"t:{seg[i:i+3]}".encode()).digest()[:4], "big") % dim
+            vec[h] += 3.0
+        for i in range(len(seg) - 1):
+            h = int.from_bytes(hashlib.md5(f"b:{seg[i:i+2]}".encode()).digest()[:4], "big") % dim
+            vec[h] += 2.0
         for ch in seg:
             h = int.from_bytes(hashlib.md5(f"c:{ch}".encode()).digest()[:4], "big") % dim
             vec[h] += 1.0
-        for i in range(len(seg) - 1):
-            h = int.from_bytes(hashlib.md5(f"b:{seg[i:i+2]}".encode()).digest()[:4], "big") % dim
-            vec[h] += 1.0
     norm = math.sqrt(sum(x * x for x in vec))
     return [x / norm for x in vec] if norm else vec
+
+
+# 参考文档 → regime 打标关键词 (用于 regime 感知检索)
+REGIME_TAG_KEYWORDS = {"牛": "bull", "熊": "bear", "危机": "crisis", "震荡": "range",
+                       "通用": "general", "通用原则": "general"}
+
+
+def _chunk_markdown(text: str, max_len: int = 800) -> List[tuple]:
+    """v3.3 按 `##` 节切分参考文档, 保留节标题作前缀, 大节再按段落切。
+
+    返回 [(header, chunk_text)]。比旧版纯 `\n\n` 段落切分更能保留上下文结构,
+    且方便按节打 regime 标签。
+    """
+    lines = text.split("\n")
+    sections = []  # [(header, [lines])]
+    cur_header, cur = "", []
+    for ln in lines:
+        if ln.startswith("## "):
+            if cur:
+                sections.append((cur_header, "\n".join(cur)))
+            cur_header = ln[3:].strip()
+            cur = [ln]
+        else:
+            cur.append(ln)
+    if cur:
+        sections.append((cur_header, "\n".join(cur)))
+
+    out = []
+    for header, body in sections:
+        prefix = f"## {header}\n" if header else ""
+        if len(body) <= max_len:
+            if len(body) > 30:
+                out.append((header, prefix + body))
+            continue
+        for para in re.split(r"\n\n+", body):
+            para = para.strip()
+            if len(para) > 30:
+                out.append((header, prefix + para[:max_len]))
+    return out
+
+
+def _regime_from_header(header: str) -> Optional[str]:
+    """从节标题推断 regime (用于检索过滤)。"""
+    if not header:
+        return None
+    for kw, tag in REGIME_TAG_KEYWORDS.items():
+        if kw in header:
+            return tag
+    return None
 
 
 # K线形态描述 (中英双语) — 文本检索 collection 播种用
@@ -731,36 +784,97 @@ class KnowledgeManager:
             return None
 
     def _ensure_knowledge_base_collection(self) -> Optional[Any]:
-        """v3.0: 参考文档 RAG collection (哈希向量) — 真实余弦相似度"""
+        """v3.3: 参考文档 RAG collection — 按节分块 + regime 打标 + 加权哈希向量
+
+        v2 集合名 (knowledge_base_v2): 分块/嵌入策略升级, 旧集合不兼容新查询向量。
+        """
         try:
-            name = "knowledge_base"
+            if self._chroma_client is None:
+                import chromadb
+                store_path = self.root / "vector_store" / "chroma"
+                store_path.mkdir(parents=True, exist_ok=True)
+                self._chroma_client = chromadb.PersistentClient(path=str(store_path))
+            name = "knowledge_base_v2"
             existing = [c.name for c in self._chroma_client.list_collections()]
             if name in existing:
-                return self._chroma_client.get_collection(name)
+                col = self._chroma_client.get_collection(name)
+                if col.count() == 0:
+                    self._seed_knowledge_base_v2(col)
+                return col
             col = self._chroma_client.create_collection(
                 name=name,
-                metadata={"description": "Reference docs RAG index (hash_v1)",
-                          "hnsw:space": "cosine"},  # v3.1-deerflow: 余弦距离
+                metadata={"description": "Reference docs RAG index v3.3 (section+regime, hash_v2)",
+                          "hnsw:space": "cosine"},  # 余弦距离
             )
-            reference_dir = self.root / "reference"
-            ids, docs, embeds, metas = [], [], [], []
-            if reference_dir.exists():
-                for md_file in sorted(reference_dir.glob("*.md")):
-                    text = md_file.read_text(encoding="utf-8")
-                    chunks = [c.strip() for c in re.split(r"\n\n+", text) if len(c.strip()) > 30]
-                    for j, chunk in enumerate(chunks[:50]):
-                        clip = chunk[:800]
-                        ids.append(f"ref_{md_file.stem}_{j}")
-                        docs.append(clip)
-                        embeds.append(_stable_hash_embed(clip))
-                        metas.append({"source": md_file.name, "chunk": j})
-            if ids:
-                col.add(ids=ids, embeddings=embeds, documents=docs, metadatas=metas)
-                logger.info(f"[ChromaDB] Seeded knowledge_base ({len(ids)} chunks, hash vectors)")
+            self._seed_knowledge_base_v2(col)
             return col
         except Exception as e:
-            logger.warning(f"[ChromaDB] knowledge_base 初始化失败: {e}")
+            logger.warning(f"[ChromaDB] knowledge_base_v2 初始化失败: {e}")
             return None
+
+    def _seed_knowledge_base_v2(self, col) -> None:
+        """v3.3: 按节分块 + regime 打标 播种参考文档 RAG。"""
+        reference_dir = self.root / "reference"
+        ids, docs, embeds, metas = [], [], [], []
+        if reference_dir.exists():
+            for md_file in sorted(reference_dir.glob("*.md")):
+                text = md_file.read_text(encoding="utf-8")
+                chunks = _chunk_markdown(text)
+                for j, (header, chunk) in enumerate(chunks):
+                    clip = chunk[:800]
+                    ids.append(f"ref_{md_file.stem}_{j}")
+                    docs.append(clip)
+                    embeds.append(_stable_hash_embed(clip))
+                    metas.append({
+                        "source": md_file.name, "chunk": j,
+                        "section": header,
+                        "regime": _regime_from_header(header) or "general",
+                        "doc_type": "regime_playbook" if "regime_playbook" in md_file.name else "reference",
+                    })
+        if ids:
+            col.add(ids=ids, embeddings=embeds, documents=docs, metadatas=metas)
+            logger.info(f"[ChromaDB] Seeded knowledge_base_v2 ({len(ids)} chunks, section+regime)")
+
+    def index_document(self, md_path: Path, doc_type: str = "reference") -> bool:
+        """v3.3: 把新生成的 md (如 trade_lessons.md) 按节分块索引进 knowledge_base_v2。
+
+        连续优化闭环用: 每次跑完回放/实盘后生成的经验文档, 重新索引供 AI 检索。
+        已存在的同名 chunk 先删除再重建 (idempotent)。
+        """
+        try:
+            path = Path(md_path)
+            if not path.exists():
+                logger.warning(f"索引文档不存在: {path}")
+                return False
+            col = self._ensure_knowledge_base_collection()
+            if col is None:
+                return False
+            text = path.read_text(encoding="utf-8")
+            chunks = _chunk_markdown(text)
+            ids, docs, embeds, metas = [], [], [], []
+            for j, (header, chunk) in enumerate(chunks):
+                clip = chunk[:800]
+                ids.append(f"gen_{path.stem}_{j}")
+                docs.append(clip)
+                embeds.append(_stable_hash_embed(clip))
+                metas.append({
+                    "source": path.name, "chunk": j,
+                    "section": header,
+                    "regime": _regime_from_header(header) or "general",
+                    "doc_type": doc_type,
+                })
+            if ids:
+                # 先删旧 (idempotent)
+                try:
+                    col.delete(ids=[f"gen_{path.stem}_{j}" for j in range(len(chunks))])
+                except Exception:
+                    pass
+                col.add(ids=ids, embeddings=embeds, documents=docs, metadatas=metas)
+                logger.info(f"[ChromaDB] 索引文档 {path.name} ({len(ids)} chunks)")
+            return True
+        except Exception as e:
+            logger.warning(f"[ChromaDB] 索引文档失败: {e}")
+            return False
 
     def search_similar_klines(
         self,
@@ -848,41 +962,57 @@ class KnowledgeManager:
         results.sort(key=lambda x: x["similarity"], reverse=True)
         return results[:top_k]
 
-    def rag_query(self, query: str, top_k: int = 5) -> str:
+    def rag_query(self, query: str, top_k: int = 5, regime: Optional[str] = None) -> str:
         """
-        从参考文档中检索相关知识片段 (v2.2 改进: 优先向量检索)
+        从参考文档中检索相关知识片段 (v3.3: regime 感知检索)
 
         检索策略:
-        1. 优先: ChromaDB向量检索(如果可用且有数据)
+        1. 优先: ChromaDB向量检索 (knowledge_base_v2, 加权哈希向量, 余弦相似度)
+           - 指定 regime 时按 metadata.regime 过滤 (bull/bear/crisis/range/general)
         2. 降级: 关键词匹配(零依赖fallback)
 
         Args:
             query: 查询文本
             top_k: 返回片段数
+            regime: 可选市场状态过滤 (bull/bear/crisis/range) — 让检索匹配当前形势
 
         Returns:
             拼接后的相关文本
         """
-        # 尝试向量检索 (v3.0: knowledge_base 集合, 哈希嵌入真实余弦相似度)
+        # 尝试向量检索 (v3.3: knowledge_base_v2, 加权哈希 + regime 过滤)
         if self.chroma_available:
             try:
                 text_col = self._ensure_knowledge_base_collection()
                 if text_col is not None and text_col.count() > 0:
-                    results = text_col.query(
+                    q_kwargs = dict(
                         query_embeddings=[_stable_hash_embed(query)],
-                        n_results=top_k,
+                        n_results=top_k * 3,  # 过滤后可能不足 top_k
                         include=["documents", "metadatas", "distances"],
                     )
+                    if regime:
+                        q_kwargs["where"] = {"regime": regime}
+                    results = text_col.query(**q_kwargs)
                     if results and results.get("documents") and results["documents"][0]:
                         docs = results["documents"][0]
                         metas = results.get("metadatas", [[]])[0]
                         dists = results.get("distances", [[]])[0]
-                        parts = ["相关知识库参考 (向量检索):\n"]
+                        # 过滤后取前 top_k
+                        picked = []
                         for i, (doc, meta) in enumerate(zip(docs, metas)):
-                            source = meta.get("source", "unknown") if meta else "unknown"
-                            sim = max(0.0, min(1.0, round(1 - dists[i], 3))) if i < len(dists) else 0
-                            parts.append(f"### {source} (相似度{sim:.0%})\n{doc[:800]}\n")
-                        return "\n".join(parts)
+                            if len(picked) >= top_k:
+                                break
+                            if not doc or not doc.strip():
+                                continue
+                            picked.append((doc, meta, dists[i] if i < len(dists) else 1.0))
+                        if picked:
+                            parts = [f"相关知识库参考 (向量检索, regime={regime or 'all'}):\n"]
+                            for doc, meta, dist in picked:
+                                source = meta.get("source", "unknown") if meta else "unknown"
+                                section = meta.get("section", "") if meta else ""
+                                sim = max(0.0, min(1.0, round(1 - dist, 3)))
+                                header = f" [{section}]" if section else ""
+                                parts.append(f"### {source}{header} (相似度{sim:.0%})\n{doc[:800]}\n")
+                            return "\n".join(parts)
             except Exception as e:
                 logger.debug(f"向量检索降级到关键词匹配: {e}")
 
@@ -945,6 +1075,31 @@ class KnowledgeManager:
         if path.exists():
             return path.read_text(encoding="utf-8")
         return None
+
+    def get_regime_playbook(self, regime: str) -> str:
+        """v3.3: 确定性返回对应 regime 的作战手册节 (免向量检索, 快)。
+
+        手册: knowledge/reference/regime_playbook.md — 每节 header 含 regime 标签。
+        """
+        playbook = self.get_reference("regime_playbook")
+        if not playbook:
+            return ""
+        sections = {}
+        cur = None
+        for line in playbook.split("\n"):
+            if line.startswith("## "):
+                cur = line[3:].strip()
+                sections[cur] = [line]
+            elif cur:
+                sections[cur].append(line)
+        tag = {"strong_bull": "强牛市", "weak_bull": "弱牛市", "range_bound": "震荡",
+               "weak_bear": "弱熊市", "strong_bear": "强熊市", "crisis": "危机"}.get(regime, "")
+        if not tag:
+            return ""
+        for header, lines in sections.items():
+            if tag in header:
+                return "\n".join(lines)[:2000]
+        return ""
 
     def get_glossary(self, term: Optional[str] = None) -> str:
         """查询术语表"""
