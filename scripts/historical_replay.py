@@ -552,19 +552,31 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             # v3.3 市场择时 Overlay (--timing): 市场代理 < MA20 (risk_off) 时防御 —
             # 仓位×0.3, 最多2只。用回放自己的等权代理 ≤T 算 MA20 (PIT 安全, 与择时回测同信号)
             timing_mult, timing_max_pos = 1.0, pf.max_positions
+            _risk_on = True
             if timing_overlay and mkt_proxy is not None:
                 try:
                     _tp = pd.Timestamp(T)
                     past = mkt_proxy[mkt_proxy.index <= _tp]
                     if len(past) >= 25:
                         ma20 = past.iloc[-20:].mean()
-                        risk_off = past.iloc[-1] < ma20
-                        _risk_on = not risk_off
-                        if risk_off:
+                        px = past.iloc[-1]
+                        # v3.3 迟滞带: 价格在 MA±2% 带内不切换, 只有深跌破才 risk_off,
+                        # 深升破才 risk_on — 吸收 02-03 卖/02-05 买 这类 whipsaw 抖动.
+                        _band = 0.02
+                        if pf.index_units > 0:
+                            # 已持指数: 仅当深跌破 MA×(1-2%) 才清
+                            _risk_on = not (px < ma20 * (1 - _band))
+                        else:
+                            # 未持指数: 仅当深升破 MA×(1+2%) 才视为 risk_on
+                            _risk_on = px > ma20 * (1 + _band)
+                        if not _risk_on:
                             timing_mult, timing_max_pos = 0.3, min(pf.max_positions, 2)
                             logger.warning(
-                                f"市场择时 risk_off (代理{past.iloc[-1]:.3f} < MA20 {ma20:.3f}) "
+                                f"市场择时 risk_off (代理{px:.3f} < MA20×{(1-_band):.2f}={ma20*(1-_band):.3f}) "
                                 f"→ 防御: 仓位×0.3, 最多{timing_max_pos}只")
+                        else:
+                            logger.info(
+                                f"市场择时 risk_on (代理{px:.3f} vs MA20 {ma20:.3f})")
                 except Exception as e:
                     logger.warning(f"市场择时信号失败(保持原仓位): {e}")
 
