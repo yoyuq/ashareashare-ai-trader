@@ -179,7 +179,24 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
     except Exception:
         regime_ctx = None
         thinking_mode = False
-    deep_results = await _deepseek_analyze(df_top.head(100), thinking=thinking_mode, regime_ctx=regime_ctx)
+    # v3.3 持仓纳入: 持仓不在当日 Top100 也纳入深析 (避免持仓盲区 — 否则持仓
+    # 只靠止损/止盈触发, LLM 的 SELL 信号永远看不到它; 与 historical_replay 一致)
+    df_deep = df_top.head(100).copy()
+    try:
+        from simulation.portfolio import PortfolioManager
+        _held = set(PortfolioManager().state.positions.keys())
+        if _held:
+            _held_codes = {_s.split(".")[-1] for _s in _held}
+            _top_codes = set(df_deep["code"].astype(str))
+            _missing = [c for c in _held_codes if c not in _top_codes]
+            if _missing:
+                _held_rows = df[df["code"].astype(str).isin(_missing)]
+                if not _held_rows.empty:
+                    df_deep = pd.concat([df_deep, _held_rows], ignore_index=True)
+                    logger.info(f"  持仓纳入深析: {len(_held_rows)} 只不在Top100")
+    except Exception as e:
+        logger.warning(f"持仓纳入失败(继续): {e}")
+    deep_results = await _deepseek_analyze(df_deep, thinking=thinking_mode, regime_ctx=regime_ctx)
     logger.info(f"DeepSeek分析完成: {len(deep_results)} 只")
 
     # 1e. 保存结果
@@ -317,7 +334,9 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
     # 每批尝试序列: thinking(若请求) -> 非thinking回退 (保证 100% 覆盖)
     attempts = [(True, 16000, None)] if thinking else []
     attempts.append((False, 4000, {"thinking": {"type": "disabled"}}))
-    for batch_i in range(0, min(100, len(df_top)), batch_size):
+    # v3.3 修复: 去掉 min(100) 硬上限 — 持仓纳入后 df_top 为 Top100+持仓(~110),
+    # 若只处理前 100, 追加的持仓会被丢弃 (持仓盲区补丁失效). 现在处理全部.
+    for batch_i in range(0, len(df_top), batch_size):
         batch = df_top.iloc[batch_i:batch_i+batch_size]
         lines = []
         for idx, (_, r) in enumerate(batch.iterrows()):
