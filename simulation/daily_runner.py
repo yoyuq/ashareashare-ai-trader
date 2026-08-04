@@ -169,12 +169,17 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
 
     # 1d. DeepSeek深度分析
     # v3.2: 注入 regime 门控 + 情绪上下文 (动量按体制打折, 估值/防御优先) — 主循环生效
+    # v3.3: regime 自适应 thinking — 牛市开深度思考(A/B:+5.83 vs +4.17), 其他关(危机非think更好)
     try:
         _regime_info = _detect_regime(df)
-        regime_ctx = build_market_ctx(df, _regime_info.get("regime", "range_bound"))
+        _regime = _regime_info.get("regime", "range_bound")
+        regime_ctx = build_market_ctx(df, _regime)
+        thinking_mode = regime_uses_thinking(_regime)
+        logger.info(f"DeepSeek深度分析 thinking={'开' if thinking_mode else '关'} (regime={_regime})")
     except Exception:
         regime_ctx = None
-    deep_results = await _deepseek_analyze(df_top.head(100), regime_ctx=regime_ctx)
+        thinking_mode = False
+    deep_results = await _deepseek_analyze(df_top.head(100), thinking=thinking_mode, regime_ctx=regime_ctx)
     logger.info(f"DeepSeek分析完成: {len(deep_results)} 只")
 
     # 1e. 保存结果
@@ -453,6 +458,22 @@ def build_market_ctx(df: pd.DataFrame, regime: str) -> str:
             f"操作原则: {gate}")
 
 
+def regime_take_profit_mult(regime: str) -> float:
+    """按 regime 调止盈 (v3.3): 牛市放宽让赢家跑, 熊市收紧落袋.
+
+    依据: 多 regime A/B 发现牛市段 +12% 止盈截断赢家 (+12~14% 就卖, 错过续涨);
+    且动量牛正熊负 (IC 证据) → 牛市应让趋势奔跑, 熊市均值回归应尽快落袋。
+    """
+    return {"strong_bull": 0.25, "weak_bull": 0.20, "range_bound": 0.15,
+            "weak_bear": 0.10, "strong_bear": 0.08, "crisis": 0.08}.get(regime, 0.12)
+
+
+def regime_uses_thinking(regime: str) -> bool:
+    """按 regime 决定深度思考 (v3.3): 多 regime A/B 显示 thinking 牛市好
+    (+5.83 vs +4.17, 胜率80%)、危机差 (-5.19 vs -6.57/-5.80) → 牛市开, 其他关。"""
+    return regime in ("strong_bull", "weak_bull")
+
+
 # ═══════════════════════════════════════════════════════════════
 # Phase 2: 执行交易
 # ═══════════════════════════════════════════════════════════════
@@ -630,10 +651,12 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
                 logger.info(f"  跳过 {name}({code}): {regime}高开{pct_change:.1f}%, 追高风险")
                 continue
 
-        # 动态止损止盈
-        if score >= 80: sl_pct, tp_pct = 0.05, 0.12
-        elif score >= 60: sl_pct, tp_pct = 0.07, 0.10
-        else: sl_pct, tp_pct = 0.10, 0.08
+        # 动态止损止盈 (v3.3): 止损按评分(个股风险), 止盈按 regime(市场动量)
+        #   牛市放宽让赢家跑(动量牛正), 熊市收紧落袋(均值回归)
+        if score >= 80: sl_pct = 0.05
+        elif score >= 60: sl_pct = 0.07
+        else: sl_pct = 0.10
+        tp_pct = regime_take_profit_mult(regime)
 
         # v3.0: 板块感知的涨停封板判定, 传入 execute_buy 使其真正生效
         limit_pct = _limit_pct_for_code(code)

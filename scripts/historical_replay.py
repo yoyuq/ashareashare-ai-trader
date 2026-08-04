@@ -41,6 +41,7 @@ REPLAY_DIR.mkdir(exist_ok=True)
 # 复用 daily_runner 的 LLM 函数 (忠实复现分析逻辑)
 from simulation.daily_runner import (  # noqa: E402
     _flash_screen, _deepseek_analyze, _detect_regime, build_market_ctx,
+    regime_take_profit_mult,
 )
 
 
@@ -514,7 +515,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 if qty < 100 or pf.cash * pct > pf.cash * 0.12:
                     continue
                 stop = px1 * (1 - 0.07)
-                take = px1 * (1 + 0.12)
+                # v3.3: regime 自适应止盈 — 牛市放宽(赢家跑), 熊市收紧(落袋)
+                take = px1 * (1 + regime_take_profit_mult(regime))
                 if pf.buy(sym, r.get("name", sym), px1, qty, next_T, stop=stop, take=take):
                     pass
 
