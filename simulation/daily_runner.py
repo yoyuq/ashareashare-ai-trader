@@ -834,26 +834,33 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
                 if trade:
                     logger.info(f"  [退出] {trigger['name']}({sym}) {trigger['reason']}: {trigger['detail']}")
 
-        # v3.3 防御减仓 (risk_off): 持仓 > 防御上限 → 主动卖最弱减到上限 (防跌, 不只靠止损)
-        # 用户反馈: 板块不合适应卖出防跌, 不能死拿等止损. 择时回测: risk_off 应大幅降敞口.
+        # v3.3 防御减仓 (risk_off) — 股票感知版: 只卖"自身走弱"的 (现价<自身MA20),
+        # 保留强势股. 用户反馈: 指数弱 ≠ 个股弱 (结构性行情强股可持有),
+        # 不能按浮亏盲卖强股 (实测: 上次 8→2 误卖 3 只自身在MA20上的盈利股).
         if _timing_sig and _timing_sig["signal"] == "risk_off":
-            _cap = limits["max_positions"]
-            _over = len(state.positions) - _cap
-            if _over > 0:
-                _weakest = sorted(
-                    state.positions.items(),
-                    key=lambda kv: ((kv[1].current_price / kv[1].avg_cost - 1)
-                                    if kv[1].avg_cost and kv[1].avg_cost > 0 else 0.0))
-                logger.warning(
-                    f"风险关闭: 持仓{len(state.positions)} > 防御上限{_cap}, "
-                    f"主动减仓最弱{_over}只防跌")
-                for sym, pos in _weakest[:_over]:
-                    _px, _pct = _tencent_quote(sym)
-                    trade = engine.execute_sell(
-                        symbol=sym, exit_reason="risk_off防御减仓", pct_change=_pct)
-                    if trade:
-                        sold.append({"symbol": sym, "name": pos.name, "price": trade.price})
-                        logger.info(f"  [防御减仓] {pos.name}({sym}) pnl={trade.pnl:+.2f}")
+            _sold_weak = 0
+            for sym, pos in list(state.positions.items()):
+                try:
+                    req = DataRequest(sym, today_cn() - timedelta(days=60), today_cn(), DataFrequency.DAILY)
+                    _r = await data_router.get_daily_kline(req)
+                    _df = _r.data
+                    if _df is None or _df.empty or "close" not in _df.columns or len(_df) < 25:
+                        continue
+                    _cl = pd.to_numeric(_df["close"], errors="coerce").dropna()
+                    _px_now = float(_cl.iloc[-1])
+                    _ma20 = float(_cl.rolling(20).mean().iloc[-1])
+                    if _px_now < _ma20:  # 个股自身走弱 → 防跌卖出
+                        _px, _pct = _tencent_quote(sym)
+                        trade = engine.execute_sell(
+                            symbol=sym, exit_reason="risk_off+个股走弱", pct_change=_pct)
+                        if trade:
+                            sold.append({"symbol": sym, "name": pos.name, "price": trade.price})
+                            _sold_weak += 1
+                            logger.info(f"  [防御减仓] {pos.name}({sym}) 现价{_px_now:.1f}<自身MA20 {_ma20:.1f} → 卖出 pnl={trade.pnl:+.2f}")
+                except Exception as _e:
+                    logger.debug(f"个股MA20判断跳过({sym}): {_e}")
+            if _sold_weak:
+                logger.warning(f"风险关闭+个股走弱: 减仓 {_sold_weak} 只 (强势股保留)")
 
         manager.save()
 
