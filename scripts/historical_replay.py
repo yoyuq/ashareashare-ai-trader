@@ -474,16 +474,21 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             regime = _detect_regime(df_cs).get("regime", "range_bound")
             # v3.3 市场结构识别: 抱团/动量 → 进攻; 轮动/普涨/熊 → 防御/均衡
             # 广度式 regime 在窄幅抱团牛误判成熊, 需结构维度修正 (见 analysis/market_structure.py)
+            # v3.3 市场结构: 始终计算 (便宜), 用于初筛 regime 调整 + 进攻/防御切换
             _structure = "震荡"
-            if auto_structure or offensive:
-                try:
-                    from analysis.market_structure import market_structure
-                    _structure = market_structure(df_cs)
-                    _struct_history.append(_structure)
-                    _struct_history = _struct_history[-5:]  # 5日多数平滑
-                    _structure = max(set(_struct_history), key=_struct_history.count)
-                except Exception as _e:
-                    logger.warning(f"市场结构识别失败: {_e}")
+            try:
+                from analysis.market_structure import market_structure, screening_regime
+                _structure = market_structure(df_cs)
+                _struct_history.append(_structure)
+                _struct_history = _struct_history[-5:]  # 5日多数平滑
+                _structure = max(set(_struct_history), key=_struct_history.count)
+                # 结构 → 初筛 regime: 抱团动量用 strong_bull 权重 (让龙头进前300)
+                screen_regime = screening_regime(_structure, regime)
+                if screen_regime != regime:
+                    logger.info(f"市场结构 {_structure} → 初筛 regime 用 {screen_regime} (原 {regime})")
+            except Exception as _e:
+                logger.warning(f"市场结构识别失败: {_e}")
+                screen_regime = regime
             _off = offensive or (auto_structure and _structure == "抱团动量")
             # v3.2: 构建市场状态/情绪/操作原则上下文 (仅 v32 变体注入)
             if _off:
@@ -498,7 +503,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             # ── 2. 规则初筛 → 300 ──
             from analysis.pre_screener import PreScreener
             screener = PreScreener()
-            screened = screener.screen(df_cs, regime=regime, top_n=top_n).df
+            screened = screener.screen(df_cs, regime=screen_regime, top_n=top_n).df
             if screened.empty:
                 continue
 
@@ -640,7 +645,17 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 qty = int(pf.cash * pct / px1 / 100) * 100
                 if qty < 100 or pf.cash * pct > pf.cash * 0.12:
                     continue
-                stop = px1 * (1 - 0.07)
+                # v3.3 ATR 缩放止损: 高波动股放宽, 低波动股收紧 (2×ATR, 限5-10%)
+                _g = data.get(sym)
+                _stop_pct = 0.07
+                if _g is not None and "high" in _g.columns and "close" in _g.columns:
+                    _h, _l, _c = (_g["high"], _g["low"], _g["close"])
+                    _pc = _c.shift(1)
+                    _tr = pd.concat([_h - _l, (_h - _pc).abs(), (_l - _pc).abs()], axis=1).max(axis=1)
+                    _atr = float(_tr.rolling(20).mean().iloc[-1]) if len(_tr) >= 20 else 0.0
+                    if _atr > 0 and px1 > 0:
+                        _stop_pct = float(np.clip(2 * _atr / px1, 0.05, 0.10))
+                stop = px1 * (1 - _stop_pct)
                 # v3.3 回退: 止盈A/B证明 regime 自适应净负, 回到固定 +12%
                 take = px1 * (1 + 0.12)
                 if pf.buy(sym, r.get("name", sym), px1, qty, next_T, stop=stop, take=take):

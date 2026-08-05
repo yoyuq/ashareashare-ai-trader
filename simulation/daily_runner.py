@@ -114,10 +114,20 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
         # 检测当前市场体制
         regime_info = _detect_regime(df)
         regime = regime_info.get("regime", "range_bound")
-        logger.info(f"市场体制: {regime} ({regime_info.get('label', '')})")
+        # v3.3 市场结构: 抱团动量 → 初筛用强牛权重 (让龙头进前300), 修复广度误判
+        try:
+            from analysis.market_structure import market_structure, screening_regime
+            _structure = market_structure(df)
+            screen_regime = screening_regime(_structure, regime)
+            if screen_regime != regime:
+                logger.info(f"市场结构 {_structure} → 初筛 regime 用 {screen_regime} (原 {regime})")
+        except Exception as _e:
+            logger.warning(f"市场结构识别失败: {_e}")
+            screen_regime = regime
+        logger.info(f"市场体制: {regime} ({regime_info.get('label', '')}) | 结构→初筛 {screen_regime}")
 
         screener = PreScreener()
-        result = screener.screen(df, regime=regime, top_n=top_n)
+        result = screener.screen(df, regime=screen_regime, top_n=top_n)
         df_top = result.df
 
         logger.info(
@@ -169,7 +179,7 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
     # 1c. DeepSeek Flash 精筛 (替代 Ollama) — v3.3 注入市场语境 (进攻/防御倾向)
     if use_llm:
         try:
-            df_top = await _flash_screen(df_top, top_k=100, regime=_regime)
+            df_top = await _flash_screen(df_top, top_k=100, regime=screen_regime)
             logger.info(f"Flash精筛后: {len(df_top)} 只 (regime={_regime})")
         except Exception as e:
             logger.warning(f"LLM精筛跳过 (Ollama不可用): {e}")
@@ -705,8 +715,9 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
                 logger.info(f"  跳过 {name}({code}): {regime}高开{pct_change:.1f}%, 追高风险")
                 continue
 
-        # 动态止损止盈 (v3.3 回退: 止盈A/B证明 regime 自适应净负 — 牛市放宽-2.17pp
-        # / 危机收紧+0.8pp, 回到固定 +12% 更稳。见 reports/take_profit_ab.md)
+        # 动态止损止盈 (v3.3 回退: 止盈A/B证明 regime 自适应净负 — 回到固定 +12%
+        # v3.3 ATR近似止损: 高波动板块 (创业板/科创板20%限) 正常波动大, 止损放宽到2倍,
+        # 主板(10%)保持基础 — 避免高波动股被正常噪声误杀)
         if score >= 80: sl_pct, tp_pct = 0.05, 0.12
         elif score >= 60: sl_pct, tp_pct = 0.07, 0.10
         else: sl_pct, tp_pct = 0.10, 0.08
@@ -714,6 +725,7 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
         # v3.0: 板块感知的涨停封板判定, 传入 execute_buy 使其真正生效
         limit_pct = _limit_pct_for_code(code)
         sealed_limit_up = bool(pct_change is not None and pct_change >= limit_pct - 0.2)
+        sl_pct = min(0.15, sl_pct * (limit_pct / 10.0))  # 高波动板块止损×limit/10
 
         enhanced = {
             "conviction": conv, "score": score/10, "composite_score": score,

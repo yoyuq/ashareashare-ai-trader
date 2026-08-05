@@ -67,6 +67,24 @@ def structure_label(structure: str) -> str:
     }.get(structure, "均衡")
 
 
+def screening_regime(structure: str, fallback: str = "range_bound") -> str:
+    """结构 → PreScreener 使用的 regime (决定初筛 6 维权重).
+
+    关键: 广度式 _detect_regime 在抱团牛 (指数涨但广度差) 误判成熊市 → PreScreener
+    用熊市权重 (value 0.25-0.40, momentum 0.00-0.05) → 高PE龙头被打低分跌出前300,
+    进攻模式在源头就被饿死. 这里按结构覆盖 regime:
+      抱团动量 → strong_bull (momentum 0.35, 让龙头进前300)
+      轮动普涨 → fallback (广度 regime, 通常 weak_bull)
+      熊       → fallback (弱/强熊)
+      震荡     → range_bound
+    """
+    if structure == "抱团动量":
+        return "strong_bull"
+    if structure == "震荡":
+        return "range_bound"
+    return fallback
+
+
 def market_structure_series(cross_sections: dict, window: int = 5) -> dict:
     """从多日截面序列判结构 (最近 window 日多数投票, 平滑噪声).
 
