@@ -834,6 +834,27 @@ async def phase2_execute(dry_run: bool = False) -> Dict[str, Any]:
                 if trade:
                     logger.info(f"  [退出] {trigger['name']}({sym}) {trigger['reason']}: {trigger['detail']}")
 
+        # v3.3 防御减仓 (risk_off): 持仓 > 防御上限 → 主动卖最弱减到上限 (防跌, 不只靠止损)
+        # 用户反馈: 板块不合适应卖出防跌, 不能死拿等止损. 择时回测: risk_off 应大幅降敞口.
+        if _timing_sig and _timing_sig["signal"] == "risk_off":
+            _cap = limits["max_positions"]
+            _over = len(state.positions) - _cap
+            if _over > 0:
+                _weakest = sorted(
+                    state.positions.items(),
+                    key=lambda kv: ((kv[1].current_price / kv[1].avg_cost - 1)
+                                    if kv[1].avg_cost and kv[1].avg_cost > 0 else 0.0))
+                logger.warning(
+                    f"风险关闭: 持仓{len(state.positions)} > 防御上限{_cap}, "
+                    f"主动减仓最弱{_over}只防跌")
+                for sym, pos in _weakest[:_over]:
+                    _px, _pct = _tencent_quote(sym)
+                    trade = engine.execute_sell(
+                        symbol=sym, exit_reason="risk_off防御减仓", pct_change=_pct)
+                    if trade:
+                        sold.append({"symbol": sym, "name": pos.name, "price": trade.price})
+                        logger.info(f"  [防御减仓] {pos.name}({sym}) pnl={trade.pnl:+.2f}")
+
         manager.save()
 
     return {
