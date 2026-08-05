@@ -365,7 +365,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      tag: str = None,
                      timing_overlay: bool = False,
                      hybrid_pct: float = 0.0,
-                     offensive: bool = False) -> dict:
+                     offensive: bool = False,
+                     auto_structure: bool = False) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -460,6 +461,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
         except Exception as _e:
             logger.error(f"checkpoint 保存失败: {_e}")
 
+    _struct_history: list = []  # v3.3 市场结构滚动 (5日多数平滑)
+
     for i, T in enumerate(window):
         logger.info(f"[{i+1}/{len(window)}] T={T} 回放...")
         try:
@@ -469,13 +472,26 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 continue
             df_cs = df_cs[df_cs["isST"] != 1]  # 剔除 ST
             regime = _detect_regime(df_cs).get("regime", "range_bound")
+            # v3.3 市场结构识别: 抱团/动量 → 进攻; 轮动/普涨/熊 → 防御/均衡
+            # 广度式 regime 在窄幅抱团牛误判成熊, 需结构维度修正 (见 analysis/market_structure.py)
+            _structure = "震荡"
+            if auto_structure or offensive:
+                try:
+                    from analysis.market_structure import market_structure
+                    _structure = market_structure(df_cs)
+                    _struct_history.append(_structure)
+                    _struct_history = _struct_history[-5:]  # 5日多数平滑
+                    _structure = max(set(_struct_history), key=_struct_history.count)
+                except Exception as _e:
+                    logger.warning(f"市场结构识别失败: {_e}")
+            _off = offensive or (auto_structure and _structure == "抱团动量")
             # v3.2: 构建市场状态/情绪/操作原则上下文 (仅 v32 变体注入)
-            if offensive:
-                # v3.3 强制进攻: 抱团/窄幅动量市 — 广度失真, 指令忽略 regime 判熊
+            if _off:
+                # v3.3 进攻: 抱团/窄幅动量市 — 广度失真, 指令忽略 regime 判熊
                 regime_ctx = ("今日为抱团/动量市: 强势龙头持续走强, 普通股票普跌。"
                               "操作原则: 优先选择动量最强/相对强度最高/放量突破的龙头强势股, "
                               "回避低估值但趋势下跌的防御股。"
-                              f" (regime检测={regime} 但强制进攻模式)")
+                              f" (structure={_structure}, regime检测={regime})")
             else:
                 regime_ctx = build_market_ctx(df_cs, regime) if variant == "v32" else None
 
@@ -488,7 +504,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
 
             # ── 3. LLM Flash 精筛 → 100 ──
             df_top = await _flash_screen(screened, top_k=final_n, regime=regime,
-                                         offensive=offensive)
+                                         offensive=_off)
             total_llm_calls += (len(screened) + 24) // 25
 
             # ── 4. LLM 深度分析 (thinking 可开关: 开=更深推理, 关=快速) ──
@@ -725,6 +741,8 @@ def main():
                     help="混合结构: risk_on 时把该比例资金投入市场指数书 (0~1, 如 0.5=一半持指数)")
     ap.add_argument("--offensive", action="store_true",
                     help="强制进攻模式: 初筛/深析优先强势龙头动量 (抱团/窄幅动量牛, 广度失真时用)")
+    ap.add_argument("--auto-structure", action="store_true",
+                    help="自动市场结构识别: 抱团动量→进攻, 轮动普涨/熊→防御 (5日多数平滑)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -734,7 +752,7 @@ def main():
                            max_days=args.max_days, variant=args.variant,
                            end_date=args.end, data_file=args.data_file, tag=args.tag,
                            timing_overlay=args.timing, hybrid_pct=args.hybrid,
-                           offensive=args.offensive))
+                           offensive=args.offensive, auto_structure=args.auto_structure))
 
 
 if __name__ == "__main__":
