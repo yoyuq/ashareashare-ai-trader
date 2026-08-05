@@ -503,7 +503,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             # ── 2. 规则初筛 → 300 ──
             from analysis.pre_screener import PreScreener
             screener = PreScreener()
-            screened = screener.screen(df_cs, regime=screen_regime, top_n=top_n).df
+            screened = screener.screen(df_cs, regime=screen_regime, top_n=top_n,
+                                       structure=_structure).df
             if screened.empty:
                 continue
 

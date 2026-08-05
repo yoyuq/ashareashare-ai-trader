@@ -99,6 +99,7 @@ class PreScreener:
         regime: str = "range_bound",
         top_n: int = 300,
         industry_neutral: bool = False,
+        structure: str = None,
     ) -> ScreenResult:
         """
         执行全市场初筛
@@ -108,9 +109,10 @@ class PreScreener:
                 需含列: code, name, price, pct_change, volume, amount,
                         turnover, pe_ttm, pb, total_mv, vol_ratio,
                         pct_60d, amplitude
-            regime: 市场体制
+            regime: 市场体制 (可传 structure 调整后的, 见 market_structure.screening_regime)
             top_n: 最终返回的股票数量
             industry_neutral: 是否启用行业中性化
+            structure (v3.3): 市场结构 "抱团动量" → 放宽 PE/PB 帽, 让高估值龙头通过
 
         Returns:
             ScreenResult with ranked DataFrame
@@ -121,8 +123,8 @@ class PreScreener:
         df = self._hard_filter(df)
         after_L0 = len(df)
 
-        # L1: 质量过滤
-        df = self._quality_filter(df)
+        # L1: 质量过滤 (抱团动量 → 放宽估值帽, 让龙头进前300)
+        df = self._quality_filter(df, relax_valuation=(structure == "抱团动量"))
         after_L1 = len(df)
 
         # L2: 6维打分
@@ -220,19 +222,26 @@ class PreScreener:
     # L1: 质量过滤
     # ═══════════════════════════════════════════════════════════════
 
-    def _quality_filter(self, df: pd.DataFrame) -> pd.DataFrame:
-        """过滤财务异常标的"""
+    def _quality_filter(self, df: pd.DataFrame, relax_valuation: bool = False) -> pd.DataFrame:
+        """过滤财务异常标的
+
+        relax_valuation (v3.3 抱团动量): 放宽 PE/PB 帽 (200→400, 50→80),
+        让高估值龙头 (茅台/宁德 PE 40-210) 能通过 — 抱团牛里它们正是领涨者,
+        硬帽会把进攻候选在源头过滤掉 (实测: 宁德 PE210 被 200 帽剔除).
+        """
         initial = len(df)
+        _pe_cap = self.MAX_PE_SPIKE * 2 if relax_valuation else self.MAX_PE_SPIKE
+        _pb_cap = self.MAX_PB_SPIKE * 1.6 if relax_valuation else self.MAX_PB_SPIKE
 
         # PE 极端值 (可能是微利股, PE虚高无意义)
         if 'pe_ttm' in df.columns:
-            df = df[(df['pe_ttm'] > 0) & (df['pe_ttm'] <= self.MAX_PE_SPIKE)]
+            df = df[(df['pe_ttm'] > 0) & (df['pe_ttm'] <= _pe_cap)]
             # 同时也保留PE为负但有合理市值和成交量的 (周期股)
             # 这里我们保守保留PE>0的
 
         # PB 合理范围
         if 'pb' in df.columns:
-            df = df[(df['pb'] >= self.MIN_PB) & (df['pb'] <= self.MAX_PB_SPIKE)]
+            df = df[(df['pb'] >= self.MIN_PB) & (df['pb'] <= _pb_cap)]
 
         # 当日振幅合理 (<20%排除妖股)
         if 'amplitude' in df.columns:

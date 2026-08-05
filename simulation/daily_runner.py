@@ -114,7 +114,8 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
         # 检测当前市场体制
         regime_info = _detect_regime(df)
         regime = regime_info.get("regime", "range_bound")
-        # v3.3 市场结构: 抱团动量 → 初筛用强牛权重 (让龙头进前300), 修复广度误判
+        # v3.3 市场结构: 抱团动量 → 初筛用强牛权重 + 放宽估值帽 (让龙头进前300), 修复广度误判
+        _structure = None
         try:
             from analysis.market_structure import market_structure, screening_regime
             _structure = market_structure(df)
@@ -127,7 +128,7 @@ async def phase1_analyze(use_llm: bool = True) -> Dict[str, Any]:
         logger.info(f"市场体制: {regime} ({regime_info.get('label', '')}) | 结构→初筛 {screen_regime}")
 
         screener = PreScreener()
-        result = screener.screen(df, regime=screen_regime, top_n=top_n)
+        result = screener.screen(df, regime=screen_regime, top_n=top_n, structure=_structure)
         df_top = result.df
 
         logger.info(
