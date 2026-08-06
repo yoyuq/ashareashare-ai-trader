@@ -82,6 +82,12 @@ def momentum_20(df: pd.DataFrame, didx) -> pd.Series:
     return df["close"].pct_change(20)
 
 
+@_register("momentum_126")
+def momentum_126(df: pd.DataFrame, didx) -> pd.Series:
+    """126日动量 (RPS 基础). 截面对其排名 = 欧奈尔 RPS, 捕捉牛市中强势龙头."""
+    return df["close"].pct_change(126)
+
+
 @_register("vol_spike")
 def vol_spike(df: pd.DataFrame, didx) -> pd.Series:
     tr = _tr(df["high"], df["low"], df["close"])

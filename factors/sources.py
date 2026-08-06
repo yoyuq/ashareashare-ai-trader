@@ -93,6 +93,16 @@ def momentum_20(df: pd.DataFrame) -> float:
     return float(c[-1] / c[-21] - 1) if c[-21] > 0 else 0.0
 
 
+@_register("momentum_126")
+def momentum_126(df: pd.DataFrame) -> float:
+    """126日动量 (RPS 基础). 研究: 126日窗口是 A 股灵敏度/稳定性的黄金点 —
+    截面对 126日涨幅排名 = 欧奈尔 RPS, 牛市中捕捉强势龙头 (龙头涨幅是指数5倍)."""
+    if len(df) < 127:
+        return 0.0
+    c = df["close"].values
+    return float(c[-1] / c[-127] - 1) if c[-127] > 0 else 0.0
+
+
 @_register("vol_spike")
 def vol_spike(df: pd.DataFrame) -> float:
     """波动率突增: ATR 相对20日均值"""

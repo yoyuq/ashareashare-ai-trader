@@ -1,0 +1,4272 @@
+[
+  {
+    "date": "2026-08-04",
+    "regime": "weak_bull",
+    "buys": [
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 91,
+        "conviction": 0.85,
+        "price_at_rec": 16.8,
+        "technical": "今日涨3.3%，换手2.5%，趋势稳健；60日平台支撑有效。",
+        "return_d1": -1.85,
+        "return_d2": -2.08
+      },
+      {
+        "code": "300724",
+        "name": "捷佳伟创",
+        "score": 89,
+        "conviction": 0.85,
+        "price_at_rec": 58.45,
+        "technical": "日内+1.7%，换手2.3%，60日涨跌0%，因子分99，综合信号强。",
+        "return_d1": 2.09,
+        "return_d2": 1.63
+      },
+      {
+        "code": "000700",
+        "name": "模塑科技",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 10.86,
+        "technical": "今日涨4.4%，换手5.2%，短线动能强；60日整理后量价齐升。",
+        "return_d1": 4.7,
+        "return_d2": 3.96
+      },
+      {
+        "code": "002768",
+        "name": "国恩股份",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 50.9,
+        "technical": "今日涨4.2%，换手3.3%，多头延续；60日趋势保持向上。",
+        "return_d1": 6.99,
+        "return_d2": 10.88
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 11.8,
+        "technical": "今日涨3.4%，换手2.2%，温和上行；60日平台蓄势。",
+        "return_d1": -0.34,
+        "return_d2": -0.42
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 88,
+        "conviction": 0.75,
+        "price_at_rec": 46.32,
+        "technical": "多头排列，放量突破，形态健康",
+        "return_d1": 3.63,
+        "return_d2": 3.52
+      },
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 17.93,
+        "technical": "多头趋势明确，量价配合佳",
+        "return_d1": 2.4,
+        "return_d2": 2.62
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 88,
+        "conviction": 0.75,
+        "price_at_rec": 17.13,
+        "technical": "今日涨2.3%，换手2.7%，温和放量，趋势健康。",
+        "return_d1": 1.4,
+        "return_d2": 1.46
+      },
+      {
+        "code": "600961",
+        "name": "株冶集团",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 22.89,
+        "technical": "日内+1.6%，换手3.0%，60日涨跌0%，因子分97，趋势信号强。",
+        "return_d1": 14.55,
+        "return_d2": 17.96
+      },
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 87,
+        "conviction": 0.8,
+        "price_at_rec": 30.1,
+        "technical": "今日涨3.4%，换手4.6%，短线量能活跃；60日平台整固后有望延续修复。",
+        "return_d1": 0.03,
+        "return_d2": -1.66
+      },
+      {
+        "code": "002255",
+        "name": "海陆重工",
+        "score": 87,
+        "conviction": 0.8,
+        "price_at_rec": 8.61,
+        "technical": "今日涨4.8%，换手5.1%，交投活跃；60日区间震荡后动量增强。",
+        "return_d1": 1.28,
+        "return_d2": 0.93
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 87,
+        "conviction": 0.75,
+        "price_at_rec": 23.65,
+        "technical": "稳步上行，换手适中，筹码稳定",
+        "return_d1": -1.27,
+        "return_d2": -1.48
+      },
+      {
+        "code": "600312",
+        "name": "平高电气",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 21.04,
+        "technical": "今日涨4.7%，换手2.1%，量价配合；60日趋势转强。",
+        "return_d1": 0.33,
+        "return_d2": -0.19
+      },
+      {
+        "code": "001696",
+        "name": "宗申动力",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 15.45,
+        "technical": "今日涨4.2%，换手3.8%，多头活跃；60日趋势延续向上。",
+        "return_d1": 0.45,
+        "return_d2": 2.59
+      },
+      {
+        "code": "600363",
+        "name": "联创光电",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 27.3,
+        "technical": "量价健康，上升通道保持良好",
+        "return_d1": -9.74,
+        "return_d2": -18.75
+      },
+      {
+        "code": "002472",
+        "name": "双环传动",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 38.85,
+        "technical": "今日涨2.6%，换手3.0%，趋势稳健，主力资金运作明显。",
+        "return_d1": 2.08,
+        "return_d2": 2.24
+      },
+      {
+        "code": "603367",
+        "name": "辰欣药业",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 14.75,
+        "technical": "今日涨2.6%，换手2.4%，稳步上行，走势扎实。",
+        "return_d1": -1.42,
+        "return_d2": -1.49
+      },
+      {
+        "code": "002315",
+        "name": "焦点科技",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 27.18,
+        "technical": "趋势强度高，量能维持，中期多头格局明显。",
+        "return_d1": 4.05,
+        "return_d2": 3.61
+      },
+      {
+        "code": "002402",
+        "name": "和而泰",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 20.99,
+        "technical": "日内+2.1%，换手2.2%，60日涨跌0%，因子分98，技术信号强劲。",
+        "return_d1": 2.38,
+        "return_d2": 2.43
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 85,
+        "conviction": 0.75,
+        "price_at_rec": 12.8,
+        "technical": "今日涨3.4%，换手2.3%，稳步上行；60日震荡蓄势后转强。",
+        "return_d1": 3.36,
+        "return_d2": 5.47
+      },
+      {
+        "code": "300827",
+        "name": "上能电气",
+        "score": 85,
+        "conviction": 0.65,
+        "price_at_rec": 25.92,
+        "technical": "趋势稳健，量价配合良好",
+        "return_d1": 0.27,
+        "return_d2": -0.42
+      },
+      {
+        "code": "002460",
+        "name": "赣锋锂业",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 50.4,
+        "technical": "整理后重回上行，量能适中",
+        "return_d1": 4.4,
+        "return_d2": 5.14
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 13.15,
+        "technical": "温和放量，上升形态良好",
+        "return_d1": 3.65,
+        "return_d2": 4.71
+      },
+      {
+        "code": "600366",
+        "name": "宁波韵升",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 11.39,
+        "technical": "今日涨2.3%，换手3.5%，温和放量，趋势向上。",
+        "return_d1": 5.0,
+        "return_d2": 4.74
+      },
+      {
+        "code": "603596",
+        "name": "伯特利",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 27.44,
+        "technical": "放量上涨，趋势突破，短线动能强劲。",
+        "return_d1": -0.84,
+        "return_d2": -1.68
+      },
+      {
+        "code": "600875",
+        "name": "东方电气",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 26.85,
+        "technical": "今日涨6.3%，换手3.1%，放量拉升；60日趋势走强。",
+        "return_d1": 3.91,
+        "return_d2": 3.84
+      },
+      {
+        "code": "002202",
+        "name": "金风科技",
+        "score": 83,
+        "conviction": 0.75,
+        "price_at_rec": 19.39,
+        "technical": "今日涨3.9%，换手3.0%，量能向好；60日底部回升态势。",
+        "return_d1": 3.35,
+        "return_d2": 4.07
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 83,
+        "conviction": 0.6,
+        "price_at_rec": 40.8,
+        "technical": "上升趋势，均线多头排列",
+        "return_d1": 3.68,
+        "return_d2": 3.33
+      },
+      {
+        "code": "301291",
+        "name": "明阳电气",
+        "score": 83,
+        "conviction": 0.7,
+        "price_at_rec": 40.19,
+        "technical": "上涨趋势健康，量价配合较好。",
+        "return_d1": 0.6,
+        "return_d2": -0.35
+      },
+      {
+        "code": "300815",
+        "name": "玉禾田",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 17.0,
+        "technical": "今日涨7.6%，换手3.4%，强势反弹；60日平台有修复动力。",
+        "return_d1": -2.41,
+        "return_d2": -1.88
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 82,
+        "conviction": 0.6,
+        "price_at_rec": 34.81,
+        "technical": "沿均线稳步上行，中期趋势向好",
+        "return_d1": 9.77,
+        "return_d2": 13.24
+      },
+      {
+        "code": "603897",
+        "name": "长城科技",
+        "score": 82,
+        "conviction": 0.6,
+        "price_at_rec": 25.53,
+        "technical": "均线多头，量能温和放大",
+        "return_d1": 2.9,
+        "return_d2": 2.31
+      },
+      {
+        "code": "300286",
+        "name": "安科瑞",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 20.99,
+        "technical": "放量小涨，中期趋势向上，技术形态良好。",
+        "return_d1": 2.0,
+        "return_d2": 0.29
+      },
+      {
+        "code": "601877",
+        "name": "正泰电器",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 25.88,
+        "technical": "日内+2.1%，换手0.8%，60日涨跌0%，因子分76，大盘蓝筹修复。",
+        "return_d1": -0.23,
+        "return_d2": -0.04
+      },
+      {
+        "code": "002192",
+        "name": "融捷股份",
+        "score": 81,
+        "conviction": 0.65,
+        "price_at_rec": 61.7,
+        "technical": "趋势走强，今日涨幅温和，中期量价结构健康。",
+        "return_d1": 8.12,
+        "return_d2": 9.56
+      },
+      {
+        "code": "600577",
+        "name": "精达股份",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 8.1,
+        "technical": "今日涨4.1%，换手2.3%，跟随走强；60日趋势缓慢上移。",
+        "return_d1": 2.35,
+        "return_d2": 1.23
+      },
+      {
+        "code": "301155",
+        "name": "海力风电",
+        "score": 80,
+        "conviction": 0.55,
+        "price_at_rec": 45.29,
+        "technical": "量价齐升，短期趋势向上",
+        "return_d1": 0.31,
+        "return_d2": 0.82
+      },
+      {
+        "code": "600351",
+        "name": "亚宝药业",
+        "score": 80,
+        "conviction": 0.5,
+        "price_at_rec": 6.94,
+        "technical": "放量突破，短期动能强",
+        "return_d1": -2.74,
+        "return_d2": -3.31
+      },
+      {
+        "code": "688187",
+        "name": "时代电气",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 50.57,
+        "technical": "放量上涨，但换手率低显示抛压小",
+        "return_d1": -1.72,
+        "return_d2": -1.5
+      },
+      {
+        "code": "002606",
+        "name": "大连电瓷",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 14.49,
+        "technical": "今日涨2.6%，换手6.9%成交活跃，短期偏强，但60日趋势未明。",
+        "return_d1": 0.55,
+        "return_d2": 0.76
+      },
+      {
+        "code": "601991",
+        "name": "大唐发电",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 6.4,
+        "technical": "今日涨4.1%，换手2.4%，蓝筹放量上涨，走势稳健。",
+        "return_d1": -0.31,
+        "return_d2": -0.94
+      },
+      {
+        "code": "300488",
+        "name": "恒锋工具",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 29.3,
+        "technical": "今日涨3.8%，换手2.4%，上行趋势延续，筹码稳定。",
+        "return_d1": 5.15,
+        "return_d2": 4.1
+      },
+      {
+        "code": "603686",
+        "name": "福龙马",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 13.59,
+        "technical": "今日涨3.4%，换手2.6%，量价齐升，底部有启动迹象。",
+        "return_d1": -1.1,
+        "return_d2": -1.77
+      },
+      {
+        "code": "000949",
+        "name": "新乡化纤",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 6.1,
+        "technical": "放量上行，趋势改善，短线处于强势阶段。",
+        "return_d1": 5.08,
+        "return_d2": 4.26
+      },
+      {
+        "code": "002083",
+        "name": "孚日股份",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 11.3,
+        "technical": "趋势向上，换手活跃，短线资金关注度较高。",
+        "return_d1": 2.57,
+        "return_d2": 3.36
+      },
+      {
+        "code": "300680",
+        "name": "隆盛科技",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 22.04,
+        "technical": "放量反弹，趋势修复，短线动能偏强。",
+        "return_d1": 1.18,
+        "return_d2": -0.18
+      },
+      {
+        "code": "603606",
+        "name": "东方电缆",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 42.45,
+        "technical": "日内+2.6%，换手1.5%，60日涨跌0%，因子分84，趋势偏强。",
+        "return_d1": -8.29,
+        "return_d2": -7.35
+      },
+      {
+        "code": "300772",
+        "name": "运达股份",
+        "score": 79,
+        "conviction": 0.65,
+        "price_at_rec": 12.99,
+        "technical": "今日涨6.5%，换手3.8%，短线强势；60日走平后反弹。",
+        "return_d1": -0.54,
+        "return_d2": -1.31
+      },
+      {
+        "code": "002154",
+        "name": "报喜鸟",
+        "score": 79,
+        "conviction": 0.65,
+        "price_at_rec": 4.15,
+        "technical": "低位放量反弹，估值修复空间打开。",
+        "return_d1": -0.96,
+        "return_d2": -1.2
+      },
+      {
+        "code": "002788",
+        "name": "鹭燕医药",
+        "score": 79,
+        "conviction": 0.65,
+        "price_at_rec": 10.68,
+        "technical": "温和反弹，低估值品种获得资金关注。",
+        "return_d1": 0.75,
+        "return_d2": 0.0
+      },
+      {
+        "code": "002553",
+        "name": "南方精工",
+        "score": 79,
+        "conviction": 0.6,
+        "price_at_rec": 16.52,
+        "technical": "日内+2.5%，换手2.9%，60日涨跌0%，因子分91，短线强势。",
+        "return_d1": -1.21,
+        "return_d2": -1.51
+      },
+      {
+        "code": "601858",
+        "name": "中国科传",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 22.76,
+        "technical": "今日涨5.8%，换手2.4%，放量上攻；60日横盘后突破迹象。",
+        "return_d1": 8.04,
+        "return_d2": 3.25
+      },
+      {
+        "code": "002637",
+        "name": "赞宇科技",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 10.7,
+        "technical": "今日涨6.1%，换手4.3%，短线强势；60日平台向上尝试突破。",
+        "return_d1": -0.37,
+        "return_d2": -2.24
+      },
+      {
+        "code": "002015",
+        "name": "协鑫能科",
+        "score": 78,
+        "conviction": 0.55,
+        "price_at_rec": 15.99,
+        "technical": "今日涨3.6%，换手4.6%，量价配合良好，短期趋势向上。",
+        "return_d1": 1.0,
+        "return_d2": -0.69
+      },
+      {
+        "code": "002782",
+        "name": "可立克",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 14.1,
+        "technical": "今日涨3.3%，换手2.1%，稳步攀升，量能适中。",
+        "return_d1": 5.39,
+        "return_d2": 6.31
+      },
+      {
+        "code": "300566",
+        "name": "激智科技",
+        "score": 78,
+        "conviction": 0.55,
+        "price_at_rec": 22.66,
+        "technical": "今日涨3.2%，换手6.2%，量能充沛，交投活跃。",
+        "return_d1": 7.19,
+        "return_d2": 8.12
+      },
+      {
+        "code": "000922",
+        "name": "佳电股份",
+        "score": 78,
+        "conviction": 0.55,
+        "price_at_rec": 11.2,
+        "technical": "今日涨2.9%，换手1.9%，缩量上攻，短线仍有潜力。",
+        "return_d1": 2.5,
+        "return_d2": 3.75
+      },
+      {
+        "code": "600288",
+        "name": "大恒科技",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 10.36,
+        "technical": "量价配合良好，趋势修复，短线仍有上行动能。",
+        "return_d1": 4.63,
+        "return_d2": 4.44
+      },
+      {
+        "code": "002941",
+        "name": "新疆交建",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 11.02,
+        "technical": "温和放量上涨，趋势重心上移。",
+        "return_d1": -0.82,
+        "return_d2": -0.54
+      },
+      {
+        "code": "300953",
+        "name": "震裕科技",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 91.2,
+        "technical": "日内+1.6%，换手2.8%，60日涨跌0%，因子分88，短线偏强。",
+        "return_d1": 8.39,
+        "return_d2": 11.09
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 12.77,
+        "technical": "日内+3.2%，换手1.7%，60日涨跌0%，因子分85，趋势改善。",
+        "return_d1": 1.1,
+        "return_d2": 0.7
+      },
+      {
+        "code": "000603",
+        "name": "盛达资源",
+        "score": 77,
+        "conviction": 0.6,
+        "price_at_rec": 26.0,
+        "technical": "今日涨幅较小，缩量整理，暂无破位迹象。",
+        "return_d1": 12.12,
+        "return_d2": 23.35
+      },
+      {
+        "code": "300695",
+        "name": "兆丰股份",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 49.11,
+        "technical": "今日涨6.8%，换手1.5%，大涨但换手偏低；60日底部反弹。",
+        "return_d1": 2.71,
+        "return_d2": 3.05
+      },
+      {
+        "code": "603179",
+        "name": "新泉股份",
+        "score": 76,
+        "conviction": 0.5,
+        "price_at_rec": 39.95,
+        "technical": "震荡上行，趋势温和",
+        "return_d1": 0.03,
+        "return_d2": -1.38
+      },
+      {
+        "code": "002457",
+        "name": "青龙管业",
+        "score": 76,
+        "conviction": 0.55,
+        "price_at_rec": 10.86,
+        "technical": "今日涨4.9%，换手7.3%放量上攻，短期动能较强。",
+        "return_d1": -0.18,
+        "return_d2": 1.93
+      },
+      {
+        "code": "603861",
+        "name": "白云电器",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 12.12,
+        "technical": "缩量小涨，趋势平稳，短期保持多头格局。",
+        "return_d1": 1.9,
+        "return_d2": 2.15
+      },
+      {
+        "code": "000848",
+        "name": "承德露露",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 9.3,
+        "technical": "日内+3.0%，换手1.7%，60日涨跌0%，因子分76，防守中带修复。",
+        "return_d1": -3.12,
+        "return_d2": -3.44
+      },
+      {
+        "code": "002410",
+        "name": "广联达",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 9.79,
+        "technical": "日内+3.8%，换手2.7%，60日涨跌0%，因子分89，反弹力度强。",
+        "return_d1": 1.02,
+        "return_d2": -1.33
+      },
+      {
+        "code": "002498",
+        "name": "汉缆股份",
+        "score": 75,
+        "conviction": 0.5,
+        "price_at_rec": 7.24,
+        "technical": "放量上攻，短线动能强",
+        "return_d1": -1.1,
+        "return_d2": -0.55
+      },
+      {
+        "code": "300852",
+        "name": "四会富仕",
+        "score": 75,
+        "conviction": 0.55,
+        "price_at_rec": 38.53,
+        "technical": "今日涨5.1%，换手3.7%，强势上攻，短线资金关注。",
+        "return_d1": 6.0,
+        "return_d2": 6.8
+      },
+      {
+        "code": "300319",
+        "name": "麦捷科技",
+        "score": 75,
+        "conviction": 0.5,
+        "price_at_rec": 14.45,
+        "technical": "今日涨2.0%，换手6.8%，放量但涨幅一般，多空分歧。",
+        "return_d1": 9.13,
+        "return_d2": 8.72
+      },
+      {
+        "code": "688186",
+        "name": "广大特材",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 14.68,
+        "technical": "今日涨4.1%，换手1.9%，温和上攻；60日底部区域抬升。",
+        "return_d1": 0.89,
+        "return_d2": 1.57
+      },
+      {
+        "code": "300113",
+        "name": "顺网科技",
+        "score": 74,
+        "conviction": 0.5,
+        "price_at_rec": 18.97,
+        "technical": "放量上攻，资金关注度高",
+        "return_d1": 0.63,
+        "return_d2": -0.37
+      },
+      {
+        "code": "601179",
+        "name": "中国西电",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 14.0,
+        "technical": "今日放量上涨4.3%，短线动能强，但中期60日趋势仍属震荡修复。",
+        "return_d1": 1.79,
+        "return_d2": 2.93
+      },
+      {
+        "code": "605133",
+        "name": "嵘泰股份",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 24.39,
+        "technical": "小阳上攻，走势平稳，量能尚可。",
+        "return_d1": 6.77,
+        "return_d2": 6.77
+      },
+      {
+        "code": "002284",
+        "name": "亚太股份",
+        "score": 74,
+        "conviction": 0.55,
+        "price_at_rec": 9.7,
+        "technical": "日内+2.1%，换手1.5%，60日涨跌0%，因子分76，量价配合平稳。",
+        "return_d1": 0.93,
+        "return_d2": -1.75
+      },
+      {
+        "code": "002276",
+        "name": "万马股份",
+        "score": 74,
+        "conviction": 0.55,
+        "price_at_rec": 10.85,
+        "technical": "日内+2.4%，换手1.7%，60日涨跌0%，因子分83，走势稳健。",
+        "return_d1": -1.75,
+        "return_d2": -2.3
+      },
+      {
+        "code": "000969",
+        "name": "安泰科技",
+        "score": 72,
+        "conviction": 0.4,
+        "price_at_rec": 16.8,
+        "technical": "放量上涨，但上方压力较大",
+        "return_d1": 1.61,
+        "return_d2": 2.5
+      },
+      {
+        "code": "601778",
+        "name": "晶科科技",
+        "score": 72,
+        "conviction": 0.5,
+        "price_at_rec": 3.79,
+        "technical": "今日涨4.4%，换手2.8%，低价股放量反弹，短线活跃。",
+        "return_d1": 3.17,
+        "return_d2": 2.9
+      },
+      {
+        "code": "001230",
+        "name": "劲旅环境",
+        "score": 72,
+        "conviction": 0.5,
+        "price_at_rec": 18.42,
+        "technical": "今日涨4.8%，换手4.9%，放量上涨，短线表现强势。",
+        "return_d1": 1.68,
+        "return_d2": 1.74
+      },
+      {
+        "code": "300444",
+        "name": "双杰电气",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 10.61,
+        "technical": "换手率11.8%，短线资金博弈激烈，波动风险较大。",
+        "return_d1": 2.54,
+        "return_d2": 0.75
+      },
+      {
+        "code": "002169",
+        "name": "智光电气",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 11.48,
+        "technical": "日内+3.4%，换手2.2%，60日涨跌0%，因子分88，量价尚可。",
+        "return_d1": 7.32,
+        "return_d2": 8.54
+      },
+      {
+        "code": "605189",
+        "name": "富春染织",
+        "score": 72,
+        "conviction": 0.5,
+        "price_at_rec": 16.07,
+        "technical": "日内+2.2%，换手5.4%，60日涨跌0%，因子分82，短线活跃。",
+        "return_d1": 1.06,
+        "return_d2": 2.68
+      },
+      {
+        "code": "603305",
+        "name": "旭升集团",
+        "score": 71,
+        "conviction": 0.55,
+        "price_at_rec": 12.05,
+        "technical": "今日涨5.4%，换手1.8%，反弹力度尚可；60日仍处低位修复。",
+        "return_d1": 0.66,
+        "return_d2": -0.08
+      },
+      {
+        "code": "000777",
+        "name": "中核科技",
+        "score": 70,
+        "conviction": 0.4,
+        "price_at_rec": 18.4,
+        "technical": "放量上涨，短期强势，但冲高后有回踩需求",
+        "return_d1": -1.47,
+        "return_d2": 0.05
+      }
+    ]
+  },
+  {
+    "date": "2026-08-04",
+    "regime": "weak_bull",
+    "buys": [
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 92,
+        "conviction": 0.9,
+        "price_at_rec": 16.38,
+        "technical": "上涨3.3%，换手率2.5%，走势稳健，60日横盘后有补涨动能。",
+        "return_d1": 0.73,
+        "return_d2": 0.43
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 92,
+        "conviction": 0.85,
+        "price_at_rec": 46.38,
+        "technical": "放量上涨，均线多头，动量较强。",
+        "return_d1": 3.43,
+        "return_d2": 3.41
+      },
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 92,
+        "conviction": 0.85,
+        "price_at_rec": 17.9,
+        "technical": "趋势向好，放量上攻。",
+        "return_d1": 2.35,
+        "return_d2": 2.79
+      },
+      {
+        "code": "300724",
+        "name": "捷佳伟创",
+        "score": 91,
+        "conviction": 0.85,
+        "price_at_rec": 58.25,
+        "technical": "今日涨1.7%，60日底部区域运行，低估值修复空间较大。",
+        "return_d1": 2.35,
+        "return_d2": 1.82
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 90,
+        "conviction": 0.82,
+        "price_at_rec": 41.4,
+        "technical": "放量上行，趋势走强。",
+        "return_d1": 2.1,
+        "return_d2": 1.84
+      },
+      {
+        "code": "600363",
+        "name": "联创光电",
+        "score": 90,
+        "conviction": 0.82,
+        "price_at_rec": 27.0,
+        "technical": "量价配合，趋势向上。",
+        "return_d1": -8.74,
+        "return_d2": -17.85
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 90,
+        "conviction": 0.85,
+        "price_at_rec": 17.05,
+        "technical": "量价齐升，强势平台突破",
+        "return_d1": 1.88,
+        "return_d2": 1.94
+      },
+      {
+        "code": "002402",
+        "name": "和而泰",
+        "score": 90,
+        "conviction": 0.75,
+        "price_at_rec": 20.53,
+        "technical": "今日涨2.1%，趋势强劲，筹码活跃。",
+        "return_d1": 4.68,
+        "return_d2": 4.72
+      },
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 89,
+        "conviction": 0.85,
+        "price_at_rec": 30.5,
+        "technical": "今日放量上涨3.4%，换手率4.6%，60日横盘后或启动趋势，技术面偏强。",
+        "return_d1": -1.38,
+        "return_d2": -2.89
+      },
+      {
+        "code": "000700",
+        "name": "模塑科技",
+        "score": 89,
+        "conviction": 0.85,
+        "price_at_rec": 10.54,
+        "technical": "上涨4.4%，换手率5.2%明显放量，60日平台突破迹象。",
+        "return_d1": 7.78,
+        "return_d2": 7.12
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 89,
+        "conviction": 0.8,
+        "price_at_rec": 23.45,
+        "technical": "放量上涨，均线多头。",
+        "return_d1": -0.38,
+        "return_d2": -0.81
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 89,
+        "conviction": 0.78,
+        "price_at_rec": 13.15,
+        "technical": "温和放量，走势偏强。",
+        "return_d1": 3.5,
+        "return_d2": 4.71
+      },
+      {
+        "code": "002315",
+        "name": "焦点科技",
+        "score": 89,
+        "conviction": 0.82,
+        "price_at_rec": 27.35,
+        "technical": "今日涨1.9%，60日震荡平台蓄势，量价结构偏强。",
+        "return_d1": 3.29,
+        "return_d2": 2.96
+      },
+      {
+        "code": "600961",
+        "name": "株冶集团",
+        "score": 89,
+        "conviction": 0.8,
+        "price_at_rec": 23.32,
+        "technical": "今日涨1.6%，60日震荡偏强，量能平稳。",
+        "return_d1": 12.01,
+        "return_d2": 15.78
+      },
+      {
+        "code": "600312",
+        "name": "平高电气",
+        "score": 88,
+        "conviction": 0.85,
+        "price_at_rec": 20.79,
+        "technical": "上涨4.7%，换手率2.1%，量价平稳，处于上升通道。",
+        "return_d1": 1.44,
+        "return_d2": 0.91
+      },
+      {
+        "code": "002768",
+        "name": "国恩股份",
+        "score": 88,
+        "conviction": 0.85,
+        "price_at_rec": 49.37,
+        "technical": "上涨4.2%，换手率3.3%，量价健康，60日平台蓄势。",
+        "return_d1": 10.03,
+        "return_d2": 13.43
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 11.86,
+        "technical": "放量突破，均线多头发散",
+        "return_d1": -0.76,
+        "return_d2": -1.01
+      },
+      {
+        "code": "603367",
+        "name": "辰欣药业",
+        "score": 88,
+        "conviction": 0.78,
+        "price_at_rec": 14.59,
+        "technical": "今日涨2.6%，量价齐升，60日趋势修复良好。",
+        "return_d1": -0.27,
+        "return_d2": -0.41
+      },
+      {
+        "code": "002255",
+        "name": "海陆重工",
+        "score": 87,
+        "conviction": 0.8,
+        "price_at_rec": 8.56,
+        "technical": "上涨4.8%，换手率5.1%显示资金活跃，60日平台整理后向上概率大。",
+        "return_d1": 1.75,
+        "return_d2": 1.52
+      },
+      {
+        "code": "001696",
+        "name": "宗申动力",
+        "score": 87,
+        "conviction": 0.85,
+        "price_at_rec": 15.46,
+        "technical": "上涨4.2%，换手率3.8%，量能温和释放，走势稳健。",
+        "return_d1": 0.32,
+        "return_d2": 2.52
+      },
+      {
+        "code": "300827",
+        "name": "上能电气",
+        "score": 87,
+        "conviction": 0.75,
+        "price_at_rec": 25.9,
+        "technical": "量价齐升，短线走强，趋势转多。",
+        "return_d1": 0.27,
+        "return_d2": -0.35
+      },
+      {
+        "code": "603897",
+        "name": "长城科技",
+        "score": 87,
+        "conviction": 0.8,
+        "price_at_rec": 25.11,
+        "technical": "稳步放量，多头趋势良好",
+        "return_d1": 4.66,
+        "return_d2": 4.02
+      },
+      {
+        "code": "002202",
+        "name": "金风科技",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 19.01,
+        "technical": "上涨3.9%，换手率3.0%，量价配合，中期上升趋势。",
+        "return_d1": 5.37,
+        "return_d2": 6.05
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 35.45,
+        "technical": "温和放量上行，趋势稳健。",
+        "return_d1": 7.7,
+        "return_d2": 11.14
+      },
+      {
+        "code": "002460",
+        "name": "赣锋锂业",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 50.56,
+        "technical": "温和放量，趋势企稳。",
+        "return_d1": 3.96,
+        "return_d2": 4.81
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 86,
+        "conviction": 0.72,
+        "price_at_rec": 12.8,
+        "technical": "放量上行，短线强势。",
+        "return_d1": 3.36,
+        "return_d2": 5.39
+      },
+      {
+        "code": "600366",
+        "name": "宁波韵升",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 11.17,
+        "technical": "量价配合，短线偏强，中期趋势改善",
+        "return_d1": 6.89,
+        "return_d2": 6.8
+      },
+      {
+        "code": "603596",
+        "name": "伯特利",
+        "score": 86,
+        "conviction": 0.78,
+        "price_at_rec": 27.05,
+        "technical": "放量上攻，趋势向上",
+        "return_d1": 0.55,
+        "return_d2": -0.26
+      },
+      {
+        "code": "002472",
+        "name": "双环传动",
+        "score": 86,
+        "conviction": 0.78,
+        "price_at_rec": 38.29,
+        "technical": "趋势偏强，量能配合",
+        "return_d1": 3.4,
+        "return_d2": 3.63
+      },
+      {
+        "code": "002624",
+        "name": "完美世界",
+        "score": 86,
+        "conviction": 0.65,
+        "price_at_rec": 11.25,
+        "technical": "今日涨2.5%，换手3.8%活跃，情绪回暖。",
+        "return_d1": 4.09,
+        "return_d2": 2.22
+      },
+      {
+        "code": "002410",
+        "name": "广联达",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 9.8,
+        "technical": "今日涨3.8%，量价齐升，趋势转好。",
+        "return_d1": 0.92,
+        "return_d2": -1.43
+      },
+      {
+        "code": "301291",
+        "name": "明阳电气",
+        "score": 85,
+        "conviction": 0.74,
+        "price_at_rec": 40.28,
+        "technical": "今日涨2.6%，60日整固后带量上行，趋势偏多。",
+        "return_d1": 0.37,
+        "return_d2": -0.57
+      },
+      {
+        "code": "300286",
+        "name": "安科瑞",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 20.89,
+        "technical": "今日涨2.3%，量价配合，趋势转强。",
+        "return_d1": 2.63,
+        "return_d2": 0.77
+      },
+      {
+        "code": "603626",
+        "name": "科森科技",
+        "score": 85,
+        "conviction": 0.6,
+        "price_at_rec": 13.23,
+        "technical": "今日涨2.7%，换手4.1%高，资金关注度高。",
+        "return_d1": 9.15,
+        "return_d2": 17.76
+      },
+      {
+        "code": "300815",
+        "name": "玉禾田",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 16.35,
+        "technical": "今日大涨7.6%，换手率3.4%，短线强势，60日横盘后启动明确。",
+        "return_d1": 1.47,
+        "return_d2": 2.02
+      },
+      {
+        "code": "600875",
+        "name": "东方电气",
+        "score": 84,
+        "conviction": 0.8,
+        "price_at_rec": 27.12,
+        "technical": "上涨6.3%，换手率3.1%，放量上涨，多头信号明确。",
+        "return_d1": 2.8,
+        "return_d2": 2.51
+      },
+      {
+        "code": "600577",
+        "name": "精达股份",
+        "score": 84,
+        "conviction": 0.8,
+        "price_at_rec": 8.0,
+        "technical": "上涨4.1%，换手率2.3%，量价正常，60日横盘后有突破迹象。",
+        "return_d1": 3.62,
+        "return_d2": 2.5
+      },
+      {
+        "code": "300488",
+        "name": "恒锋工具",
+        "score": 84,
+        "conviction": 0.72,
+        "price_at_rec": 29.4,
+        "technical": "今日涨3.8%，量能配合，60日平台整理后尝试向上突破。",
+        "return_d1": 4.93,
+        "return_d2": 3.74
+      },
+      {
+        "code": "300953",
+        "name": "震裕科技",
+        "score": 84,
+        "conviction": 0.65,
+        "price_at_rec": 90.36,
+        "technical": "今日涨1.6%，中短期趋势偏强。",
+        "return_d1": 9.37,
+        "return_d2": 12.12
+      },
+      {
+        "code": "002941",
+        "name": "新疆交建",
+        "score": 83,
+        "conviction": 0.7,
+        "price_at_rec": 10.86,
+        "technical": "今日涨3.5%，60日平台整理，量能温和放大。",
+        "return_d1": 0.46,
+        "return_d2": 0.92
+      },
+      {
+        "code": "002553",
+        "name": "南方精工",
+        "score": 83,
+        "conviction": 0.65,
+        "price_at_rec": 16.01,
+        "technical": "今日涨2.5%，换手2.9%，短线动能较强。",
+        "return_d1": 1.94,
+        "return_d2": 1.62
+      },
+      {
+        "code": "002169",
+        "name": "智光电气",
+        "score": 83,
+        "conviction": 0.65,
+        "price_at_rec": 11.39,
+        "technical": "今日涨3.4%，量能放大，短线强势。",
+        "return_d1": 8.17,
+        "return_d2": 9.39
+      },
+      {
+        "code": "300772",
+        "name": "运达股份",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 12.9,
+        "technical": "今日大涨6.5%，换手率3.8%，短期动量强，但60日仍处平台。",
+        "return_d1": 0.0,
+        "return_d2": -0.62
+      },
+      {
+        "code": "000949",
+        "name": "新乡化纤",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 6.18,
+        "technical": "量价齐升，趋势偏强",
+        "return_d1": 3.4,
+        "return_d2": 2.91
+      },
+      {
+        "code": "002154",
+        "name": "报喜鸟",
+        "score": 82,
+        "conviction": 0.68,
+        "price_at_rec": 4.19,
+        "technical": "今日涨3.1%，低位温和放量，60日修复趋势渐起。",
+        "return_d1": -1.91,
+        "return_d2": -2.15
+      },
+      {
+        "code": "002083",
+        "name": "孚日股份",
+        "score": 82,
+        "conviction": 0.68,
+        "price_at_rec": 11.07,
+        "technical": "今日涨1.4%，换手7.5%，60日重心逐步抬高。",
+        "return_d1": 4.97,
+        "return_d2": 5.51
+      },
+      {
+        "code": "300680",
+        "name": "隆盛科技",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 21.64,
+        "technical": "今日涨3.5%，60日平台回升，短期动能改善。",
+        "return_d1": 3.0,
+        "return_d2": 1.66
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 12.65,
+        "technical": "今日涨3.2%，量价改善，趋势偏强。",
+        "return_d1": 1.98,
+        "return_d2": 1.66
+      },
+      {
+        "code": "603606",
+        "name": "东方电缆",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 42.02,
+        "technical": "今日涨2.6%，量能温和，趋势偏强。",
+        "return_d1": -7.33,
+        "return_d2": -6.35
+      },
+      {
+        "code": "601858",
+        "name": "中国科传",
+        "score": 81,
+        "conviction": 0.7,
+        "price_at_rec": 22.79,
+        "technical": "上涨5.8%，换手率2.4%，量价配合较好，趋势向好。",
+        "return_d1": 7.9,
+        "return_d2": 3.16
+      },
+      {
+        "code": "601991",
+        "name": "大唐发电",
+        "score": 81,
+        "conviction": 0.68,
+        "price_at_rec": 6.37,
+        "technical": "放量拉升，短期均线向上",
+        "return_d1": 0.16,
+        "return_d2": -0.47
+      },
+      {
+        "code": "300566",
+        "name": "激智科技",
+        "score": 81,
+        "conviction": 0.68,
+        "price_at_rec": 22.45,
+        "technical": "放量上攻，短线强势",
+        "return_d1": 8.37,
+        "return_d2": 8.69
+      },
+      {
+        "code": "000603",
+        "name": "盛达资源",
+        "score": 81,
+        "conviction": 0.65,
+        "price_at_rec": 26.17,
+        "technical": "今日涨0.3%，60日趋势偏强，但当日上攻力度一般。",
+        "return_d1": 11.39,
+        "return_d2": 22.54
+      },
+      {
+        "code": "002637",
+        "name": "赞宇科技",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 10.35,
+        "technical": "上涨6.1%，换手率4.3%，短期反弹力度强，但60日趋势未完全修复。",
+        "return_d1": 2.9,
+        "return_d2": 1.06
+      },
+      {
+        "code": "002380",
+        "name": "科远智慧",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 28.87,
+        "technical": "上涨4.4%，换手率4.5%，资金关注度高，60日横盘后尝试突破。",
+        "return_d1": 3.29,
+        "return_d2": 2.01
+      },
+      {
+        "code": "000922",
+        "name": "佳电股份",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 11.16,
+        "technical": "放量上涨，短线偏强",
+        "return_d1": 2.78,
+        "return_d2": 3.94
+      },
+      {
+        "code": "600288",
+        "name": "大恒科技",
+        "score": 80,
+        "conviction": 0.68,
+        "price_at_rec": 10.42,
+        "technical": "今日涨2.7%，换手活跃，60日横盘后量能回升。",
+        "return_d1": 4.03,
+        "return_d2": 3.84
+      },
+      {
+        "code": "603686",
+        "name": "福龙马",
+        "score": 80,
+        "conviction": 0.66,
+        "price_at_rec": 13.19,
+        "technical": "今日涨3.4%，60日横盘后走强，量能有所放大。",
+        "return_d1": 1.9,
+        "return_d2": 1.21
+      },
+      {
+        "code": "300007",
+        "name": "汉威科技",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 33.25,
+        "technical": "今日涨2.3%，换手3%活跃，短线偏强。",
+        "return_d1": 6.08,
+        "return_d2": 4.36
+      },
+      {
+        "code": "601877",
+        "name": "正泰电器",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 25.93,
+        "technical": "今日涨2.1%，换手低，走势稳定。",
+        "return_d1": -0.46,
+        "return_d2": -0.23
+      },
+      {
+        "code": "002788",
+        "name": "鹭燕医药",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 10.67,
+        "technical": "今日涨2.5%，量能温和，走势稳健。",
+        "return_d1": 1.03,
+        "return_d2": 0.09
+      },
+      {
+        "code": "603861",
+        "name": "白云电器",
+        "score": 79,
+        "conviction": 0.62,
+        "price_at_rec": 12.22,
+        "technical": "今日涨2.7%，60日平台放量回升，短期动能增强。",
+        "return_d1": 1.06,
+        "return_d2": 1.31
+      },
+      {
+        "code": "603305",
+        "name": "旭升集团",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 11.96,
+        "technical": "上涨5.4%，但换手率仅1.8%，量能一般，60日横盘。",
+        "return_d1": 1.34,
+        "return_d2": 0.67
+      },
+      {
+        "code": "000848",
+        "name": "承德露露",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 9.2,
+        "technical": "今日涨3.0%，走势稳健，换手不高。",
+        "return_d1": -2.07,
+        "return_d2": -2.39
+      },
+      {
+        "code": "002782",
+        "name": "可立克",
+        "score": 77,
+        "conviction": 0.62,
+        "price_at_rec": 14.07,
+        "technical": "放量中阳，短线趋势向好",
+        "return_d1": 5.54,
+        "return_d2": 6.47
+      },
+      {
+        "code": "300319",
+        "name": "麦捷科技",
+        "score": 77,
+        "conviction": 0.63,
+        "price_at_rec": 14.4,
+        "technical": "换手活跃，震荡上行",
+        "return_d1": 9.58,
+        "return_d2": 9.1
+      },
+      {
+        "code": "605133",
+        "name": "嵘泰股份",
+        "score": 77,
+        "conviction": 0.6,
+        "price_at_rec": 23.98,
+        "technical": "今日涨2.8%，60日零涨幅，短线止跌但量能偏低。",
+        "return_d1": 8.55,
+        "return_d2": 8.84
+      },
+      {
+        "code": "002276",
+        "name": "万马股份",
+        "score": 77,
+        "conviction": 0.6,
+        "price_at_rec": 10.69,
+        "technical": "今日涨2.4%，量价配合一般，趋势待确认。",
+        "return_d1": -0.19,
+        "return_d2": -0.84
+      },
+      {
+        "code": "002015",
+        "name": "协鑫能科",
+        "score": 76,
+        "conviction": 0.62,
+        "price_at_rec": 15.74,
+        "technical": "放量上攻，短线趋势转强",
+        "return_d1": 2.48,
+        "return_d2": 0.89
+      },
+      {
+        "code": "605189",
+        "name": "富春染织",
+        "score": 76,
+        "conviction": 0.58,
+        "price_at_rec": 15.81,
+        "technical": "今日涨2.2%，60日盘整，量能一般，趋势待确认。",
+        "return_d1": 2.59,
+        "return_d2": 4.05
+      },
+      {
+        "code": "601179",
+        "name": "中国西电",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 14.09,
+        "technical": "放量上涨，资金介入明显",
+        "return_d1": 1.06,
+        "return_d2": 2.27
+      },
+      {
+        "code": "688122",
+        "name": "西部超导",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 53.66,
+        "technical": "今日涨3.7%，60日区间震荡，弹性较好。",
+        "return_d1": 0.3,
+        "return_d2": 2.09
+      },
+      {
+        "code": "002284",
+        "name": "亚太股份",
+        "score": 73,
+        "conviction": 0.55,
+        "price_at_rec": 9.64,
+        "technical": "今日涨2.1%短线反弹，量能一般，60日仍平台整理。",
+        "return_d1": 1.56,
+        "return_d2": -1.14
+      },
+      {
+        "code": "002457",
+        "name": "青龙管业",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 10.69,
+        "technical": "放量上涨4.9%，短线动能强，60日趋势仍平",
+        "return_d1": 1.4,
+        "return_d2": 3.37
+      },
+      {
+        "code": "001230",
+        "name": "劲旅环境",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 18.42,
+        "technical": "放量急涨，短线资金关注",
+        "return_d1": 1.68,
+        "return_d2": 1.74
+      },
+      {
+        "code": "301162",
+        "name": "国能日新",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 40.29,
+        "technical": "放量上涨，短线动能强",
+        "return_d1": 5.93,
+        "return_d2": 3.03
+      },
+      {
+        "code": "300444",
+        "name": "双杰电气",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 10.66,
+        "technical": "今日涨2.4%，但换手高达11.8%，短线分歧明显。",
+        "return_d1": 2.16,
+        "return_d2": 0.28
+      },
+      {
+        "code": "000767",
+        "name": "晋控电力",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 3.82,
+        "technical": "今日涨2.7%，量能温和，60日横盘整理。",
+        "return_d1": -0.52,
+        "return_d2": -0.26
+      }
+    ]
+  },
+  {
+    "date": "2026-08-04",
+    "regime": "weak_bull",
+    "buys": [
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 93,
+        "conviction": 0.85,
+        "price_at_rec": 30.3,
+        "technical": "当日上涨3.4%，换手4.6%，量比放大；因子分满分100，多头排列，趋势极强。",
+        "return_d1": -0.73,
+        "return_d2": -2.24
+      },
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 92,
+        "conviction": 0.8,
+        "price_at_rec": 16.51,
+        "technical": "当日上涨3.3%，换手2.5%，量价配合良好；因子分高达98，短期动量强，趋势向上。",
+        "return_d1": -0.06,
+        "return_d2": -0.36
+      },
+      {
+        "code": "300724",
+        "name": "捷佳伟创",
+        "score": 91,
+        "conviction": 0.8,
+        "price_at_rec": 58.64,
+        "technical": "当日上涨1.7%，换手2.3%，走势稳健；因子分99，中期趋势强劲，主力控盘良好。",
+        "return_d1": 1.67,
+        "return_d2": 1.13
+      },
+      {
+        "code": "600363",
+        "name": "联创光电",
+        "score": 91,
+        "conviction": 0.85,
+        "price_at_rec": 26.87,
+        "technical": "涨3.6%，量价齐升，动量强，属强势标的。",
+        "return_d1": -8.3,
+        "return_d2": -17.45
+      },
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 90,
+        "conviction": 0.8,
+        "price_at_rec": 18.06,
+        "technical": "强势上涨，量能配合",
+        "return_d1": 1.44,
+        "return_d2": 1.88
+      },
+      {
+        "code": "000700",
+        "name": "模塑科技",
+        "score": 89,
+        "conviction": 0.8,
+        "price_at_rec": 10.69,
+        "technical": "当日上涨4.4%，换手5.2%，放量上攻；因子分99，强势特征，资金关注度高。",
+        "return_d1": 6.27,
+        "return_d2": 5.61
+      },
+      {
+        "code": "600312",
+        "name": "平高电气",
+        "score": 88,
+        "conviction": 0.75,
+        "price_at_rec": 20.66,
+        "technical": "当日上涨4.7%，换手2.1%，主力稳步推升；因子分94，趋势强劲，突破有效。",
+        "return_d1": 2.13,
+        "return_d2": 1.36
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 88,
+        "conviction": 0.85,
+        "price_at_rec": 46.72,
+        "technical": "涨3.6%，因子分99，强势领涨",
+        "return_d1": 2.7,
+        "return_d2": 2.65
+      },
+      {
+        "code": "300827",
+        "name": "上能电气",
+        "score": 88,
+        "conviction": 0.75,
+        "price_at_rec": 26.03,
+        "technical": "上升通道，资金流入",
+        "return_d1": -0.19,
+        "return_d2": -0.85
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 88,
+        "conviction": 0.75,
+        "price_at_rec": 13.28,
+        "technical": "强势上涨，量能充足",
+        "return_d1": 2.56,
+        "return_d2": 3.69
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 17.05,
+        "technical": "稳步上涨，趋势向好",
+        "return_d1": 1.82,
+        "return_d2": 1.88
+      },
+      {
+        "code": "600366",
+        "name": "宁波韵升",
+        "score": 88,
+        "conviction": 0.82,
+        "price_at_rec": 11.34,
+        "technical": "涨2.3%，趋势延续，量能稳定，强势格局。",
+        "return_d1": 5.29,
+        "return_d2": 5.2
+      },
+      {
+        "code": "603367",
+        "name": "辰欣药业",
+        "score": 88,
+        "conviction": 0.75,
+        "price_at_rec": 14.77,
+        "technical": "今日涨2.6%，短线走强；60日盘整后有望突破，量能配合。",
+        "return_d1": -1.56,
+        "return_d2": -1.62
+      },
+      {
+        "code": "002402",
+        "name": "和而泰",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 20.73,
+        "technical": "今日涨2.1%，短线趋势良好；60日蓄势后突破，动量强化。",
+        "return_d1": 3.76,
+        "return_d2": 3.71
+      },
+      {
+        "code": "002768",
+        "name": "国恩股份",
+        "score": 87,
+        "conviction": 0.8,
+        "price_at_rec": 50.01,
+        "technical": "涨4.2%，换手适中，因子分98，趋势强劲",
+        "return_d1": 9.08,
+        "return_d2": 11.74
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 87,
+        "conviction": 0.85,
+        "price_at_rec": 40.7,
+        "technical": "涨3.3%，因子分93，趋势向好",
+        "return_d1": 3.93,
+        "return_d2": 3.51
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 87,
+        "conviction": 0.85,
+        "price_at_rec": 23.46,
+        "technical": "涨3.4%，因子分91，强势运行",
+        "return_d1": -0.47,
+        "return_d2": -0.85
+      },
+      {
+        "code": "301291",
+        "name": "明阳电气",
+        "score": 87,
+        "conviction": 0.8,
+        "price_at_rec": 39.7,
+        "technical": "涨2.6%，趋势健康，换手率不过热，中期形态良好。",
+        "return_d1": 1.84,
+        "return_d2": 0.88
+      },
+      {
+        "code": "002255",
+        "name": "海陆重工",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 8.53,
+        "technical": "当日上涨4.8%，换手5.1%，交投活跃；因子分92，短期动能充足，突破形态明显。",
+        "return_d1": 2.11,
+        "return_d2": 1.88
+      },
+      {
+        "code": "603596",
+        "name": "伯特利",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 26.88,
+        "technical": "涨3.9%，因子分91，强势特征",
+        "return_d1": 1.19,
+        "return_d2": 0.37
+      },
+      {
+        "code": "001696",
+        "name": "宗申动力",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 15.29,
+        "technical": "涨4.2%，因子分98，动量极强",
+        "return_d1": 1.31,
+        "return_d2": 3.73
+      },
+      {
+        "code": "002472",
+        "name": "双环传动",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 38.49,
+        "technical": "强势上行，主力资金介入",
+        "return_d1": 2.91,
+        "return_d2": 2.88
+      },
+      {
+        "code": "002315",
+        "name": "焦点科技",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 27.56,
+        "technical": "今日涨1.9%，换手4.5%，短期动能强；60日走平后有望抬升。",
+        "return_d1": 2.72,
+        "return_d2": 2.18
+      },
+      {
+        "code": "300815",
+        "name": "玉禾田",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 16.34,
+        "technical": "当日上涨7.6%，换手3.4%，强势拉升；因子分85，量价齐升，技术形态良好。",
+        "return_d1": 1.53,
+        "return_d2": 2.02
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 85,
+        "conviction": 0.75,
+        "price_at_rec": 36.15,
+        "technical": "涨2.8%，因子分86，稳步上行",
+        "return_d1": 5.56,
+        "return_d2": 8.99
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 11.87,
+        "technical": "量价齐升，均线多头",
+        "return_d1": -1.01,
+        "return_d2": -1.1
+      },
+      {
+        "code": "603897",
+        "name": "长城科技",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 25.45,
+        "technical": "放量上涨，趋势良好",
+        "return_d1": 3.26,
+        "return_d2": 2.63
+      },
+      {
+        "code": "300286",
+        "name": "安科瑞",
+        "score": 85,
+        "conviction": 0.78,
+        "price_at_rec": 21.05,
+        "technical": "涨2.3%，趋势稳健，换手适中，量价配合良好。",
+        "return_d1": 1.76,
+        "return_d2": 0.0
+      },
+      {
+        "code": "600961",
+        "name": "株冶集团",
+        "score": 84,
+        "conviction": 0.6,
+        "price_at_rec": 24.08,
+        "technical": "当日上涨1.6%，换手3.0%，温和放量；因子分97，短线动能强，但涨幅相对温和。",
+        "return_d1": 8.51,
+        "return_d2": 12.13
+      },
+      {
+        "code": "002460",
+        "name": "赣锋锂业",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 51.37,
+        "technical": "涨2.2%，因子分86，稳健上行",
+        "return_d1": 2.43,
+        "return_d2": 3.15
+      },
+      {
+        "code": "000949",
+        "name": "新乡化纤",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 6.14,
+        "technical": "涨3.9%，量价配合，短线趋势走强。",
+        "return_d1": 4.07,
+        "return_d2": 3.58
+      },
+      {
+        "code": "300680",
+        "name": "隆盛科技",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 21.84,
+        "technical": "涨3.5%，均线多头，量价健康，趋势向好。",
+        "return_d1": 2.01,
+        "return_d2": 0.73
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 84,
+        "conviction": 0.7,
+        "price_at_rec": 12.58,
+        "technical": "今日涨3.2%，港口板块走强；60日横盘后放量突破迹象。",
+        "return_d1": 2.46,
+        "return_d2": 2.23
+      },
+      {
+        "code": "603606",
+        "name": "东方电缆",
+        "score": 84,
+        "conviction": 0.7,
+        "price_at_rec": 41.8,
+        "technical": "今日涨2.6%，短期走强；60日横盘后蓄势，量能温和。",
+        "return_d1": -6.79,
+        "return_d2": -5.86
+      },
+      {
+        "code": "002202",
+        "name": "金风科技",
+        "score": 83,
+        "conviction": 0.6,
+        "price_at_rec": 19.1,
+        "technical": "当日上涨3.9%，换手3.0%，量价健康；因子分87，多头趋势，回调即买点。",
+        "return_d1": 4.82,
+        "return_d2": 5.55
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 83,
+        "conviction": 0.8,
+        "price_at_rec": 12.84,
+        "technical": "涨3.4%，因子分93，动能强劲",
+        "return_d1": 3.35,
+        "return_d2": 4.36
+      },
+      {
+        "code": "002941",
+        "name": "新疆交建",
+        "score": 83,
+        "conviction": 0.72,
+        "price_at_rec": 10.87,
+        "technical": "涨3.5%，均线多头，量能温和，趋势延续。",
+        "return_d1": 0.37,
+        "return_d2": 0.83
+      },
+      {
+        "code": "301155",
+        "name": "海力风电",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 44.1,
+        "technical": "涨3.8%，因子分91，动量强",
+        "return_d1": 2.97,
+        "return_d2": 3.54
+      },
+      {
+        "code": "002083",
+        "name": "孚日股份",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 11.1,
+        "technical": "涨1.4%涨幅偏小，但换手7.5%显示资金关注，趋势未破坏。",
+        "return_d1": 4.77,
+        "return_d2": 5.23
+      },
+      {
+        "code": "002276",
+        "name": "万马股份",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 10.7,
+        "technical": "今日涨2.4%，短期反弹；60日横盘整理，均线有望多头。",
+        "return_d1": -0.28,
+        "return_d2": -0.93
+      },
+      {
+        "code": "000539",
+        "name": "粤电力Ａ",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 5.88,
+        "technical": "今日涨3.4%，短期走强；60日无趋势，电力板块整体偏强。",
+        "return_d1": 1.53,
+        "return_d2": 2.04
+      },
+      {
+        "code": "600875",
+        "name": "东方电气",
+        "score": 81,
+        "conviction": 0.6,
+        "price_at_rec": 26.65,
+        "technical": "当日上涨6.3%，换手3.1%，放量突破；因子分78，短期攻势强劲，中期趋势向上。",
+        "return_d1": 4.65,
+        "return_d2": 4.28
+      },
+      {
+        "code": "002154",
+        "name": "报喜鸟",
+        "score": 81,
+        "conviction": 0.72,
+        "price_at_rec": 4.13,
+        "technical": "温和放量上涨3.1%，走势稳健，短期均线偏多。",
+        "return_d1": -0.73,
+        "return_d2": -0.73
+      },
+      {
+        "code": "002788",
+        "name": "鹭燕医药",
+        "score": 81,
+        "conviction": 0.72,
+        "price_at_rec": 10.7,
+        "technical": "涨2.5%，量能温和，走势偏强。",
+        "return_d1": 0.75,
+        "return_d2": -0.19
+      },
+      {
+        "code": "300772",
+        "name": "运达股份",
+        "score": 80,
+        "conviction": 0.55,
+        "price_at_rec": 12.86,
+        "technical": "当日大涨6.5%，换手3.8%，资金介入明显；因子分89，短期动量强，突破平台。",
+        "return_d1": 0.31,
+        "return_d2": -0.62
+      },
+      {
+        "code": "600577",
+        "name": "精达股份",
+        "score": 80,
+        "conviction": 0.55,
+        "price_at_rec": 7.99,
+        "technical": "当日上涨4.1%，换手2.3%，稳步上行；因子分90，趋势良好。",
+        "return_d1": 3.63,
+        "return_d2": 2.63
+      },
+      {
+        "code": "600351",
+        "name": "亚宝药业",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 6.84,
+        "technical": "涨5.4%，换手5.5%，因子分82，走势强",
+        "return_d1": -1.32,
+        "return_d2": -1.75
+      },
+      {
+        "code": "300488",
+        "name": "恒锋工具",
+        "score": 80,
+        "conviction": 0.65,
+        "price_at_rec": 29.64,
+        "technical": "多头排列，强势整理",
+        "return_d1": 4.15,
+        "return_d2": 2.9
+      },
+      {
+        "code": "600288",
+        "name": "大恒科技",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 10.46,
+        "technical": "涨2.7%站上短期均线，换手5.7%活性提升；小盘股弹性大。",
+        "return_d1": 3.73,
+        "return_d2": 3.44
+      },
+      {
+        "code": "002410",
+        "name": "广联达",
+        "score": 80,
+        "conviction": 0.68,
+        "price_at_rec": 9.82,
+        "technical": "涨3.8%放量反弹，短期动能明显修复。",
+        "return_d1": 0.61,
+        "return_d2": -1.63
+      },
+      {
+        "code": "002169",
+        "name": "智光电气",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 11.42,
+        "technical": "今日涨3.4%，短线走强；60日持平，量能温和放大。",
+        "return_d1": 7.88,
+        "return_d2": 9.11
+      },
+      {
+        "code": "000603",
+        "name": "盛达资源",
+        "score": 79,
+        "conviction": 0.65,
+        "price_at_rec": 25.76,
+        "technical": "涨0.3%缩量整理，短线滞涨，等待方向。",
+        "return_d1": 13.16,
+        "return_d2": 24.5
+      },
+      {
+        "code": "601991",
+        "name": "大唐发电",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 6.31,
+        "technical": "放量上涨，趋势转强",
+        "return_d1": 1.27,
+        "return_d2": 0.48
+      },
+      {
+        "code": "002782",
+        "name": "可立克",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 14.15,
+        "technical": "稳步上行，缩量回调",
+        "return_d1": 5.09,
+        "return_d2": 5.44
+      },
+      {
+        "code": "300566",
+        "name": "激智科技",
+        "score": 78,
+        "conviction": 0.55,
+        "price_at_rec": 22.66,
+        "technical": "放量上涨，活跃度高",
+        "return_d1": 7.41,
+        "return_d2": 7.68
+      },
+      {
+        "code": "601179",
+        "name": "中国西电",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 13.81,
+        "technical": "放量涨4.3%，短线动能强；60日趋势仍处平台，需放量突破确认。",
+        "return_d1": 3.11,
+        "return_d2": 4.34
+      },
+      {
+        "code": "603861",
+        "name": "白云电器",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 12.17,
+        "technical": "涨2.7%，量能平稳，均线走好。",
+        "return_d1": 1.48,
+        "return_d2": 1.73
+      },
+      {
+        "code": "000969",
+        "name": "安泰科技",
+        "score": 77,
+        "conviction": 0.6,
+        "price_at_rec": 16.61,
+        "technical": "涨5.4%，因子分85，量价齐升",
+        "return_d1": 2.77,
+        "return_d2": 3.67
+      },
+      {
+        "code": "605133",
+        "name": "嵘泰股份",
+        "score": 77,
+        "conviction": 0.62,
+        "price_at_rec": 24.07,
+        "technical": "涨2.8%，走势平稳，短期均线支撑有效。",
+        "return_d1": 8.27,
+        "return_d2": 8.43
+      },
+      {
+        "code": "603179",
+        "name": "新泉股份",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 37.92,
+        "technical": "涨3.4%，因子分83，趋势良好",
+        "return_d1": 5.35,
+        "return_d2": 3.9
+      },
+      {
+        "code": "688187",
+        "name": "时代电气",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 49.35,
+        "technical": "涨4.7%，因子分77，反弹走势",
+        "return_d1": 0.65,
+        "return_d2": 0.93
+      },
+      {
+        "code": "000922",
+        "name": "佳电股份",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 11.21,
+        "technical": "温和放量，震荡上行",
+        "return_d1": 2.23,
+        "return_d2": 3.48
+      },
+      {
+        "code": "002236",
+        "name": "大华股份",
+        "score": 76,
+        "conviction": 0.7,
+        "price_at_rec": 16.91,
+        "technical": "今日涨0.5%，换手2.0%，60日横盘但下方支撑明显，技术面稳健。",
+        "return_d1": 2.07,
+        "return_d2": 0.65
+      },
+      {
+        "code": "300113",
+        "name": "顺网科技",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 18.96,
+        "technical": "今日涨3.7%，换手7%，因子分83，短期动能强",
+        "return_d1": 0.9,
+        "return_d2": -0.74
+      },
+      {
+        "code": "603686",
+        "name": "福龙马",
+        "score": 75,
+        "conviction": 0.5,
+        "price_at_rec": 13.29,
+        "technical": "上涨趋势，量价配合",
+        "return_d1": 1.2,
+        "return_d2": 0.45
+      },
+      {
+        "code": "300444",
+        "name": "双杰电气",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 10.71,
+        "technical": "涨2.4%但换手11.8%较高，短线博弈激烈，注意节奏。",
+        "return_d1": 1.59,
+        "return_d2": -0.09
+      },
+      {
+        "code": "688122",
+        "name": "西部超导",
+        "score": 74,
+        "conviction": 0.55,
+        "price_at_rec": 53.11,
+        "technical": "涨3.7%短线反弹，但换手不高，趋势尚需确认。",
+        "return_d1": 1.3,
+        "return_d2": 3.14
+      },
+      {
+        "code": "300852",
+        "name": "四会富仕",
+        "score": 73,
+        "conviction": 0.5,
+        "price_at_rec": 38.27,
+        "technical": "短期反弹，量能温和",
+        "return_d1": 6.98,
+        "return_d2": 7.45
+      },
+      {
+        "code": "002015",
+        "name": "协鑫能科",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 15.72,
+        "technical": "涨3.6%，因子分89，强势特征",
+        "return_d1": 2.67,
+        "return_d2": 1.02
+      },
+      {
+        "code": "002498",
+        "name": "汉缆股份",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 7.17,
+        "technical": "放量上攻，突破前高",
+        "return_d1": -0.28,
+        "return_d2": -0.28
+      },
+      {
+        "code": "300319",
+        "name": "麦捷科技",
+        "score": 70,
+        "conviction": 0.5,
+        "price_at_rec": 14.71,
+        "technical": "高换手活跃，短线强势",
+        "return_d1": 7.48,
+        "return_d2": 6.8
+      },
+      {
+        "code": "001230",
+        "name": "劲旅环境",
+        "score": 70,
+        "conviction": 0.4,
+        "price_at_rec": 18.48,
+        "technical": "放量上行，短期强势",
+        "return_d1": 1.52,
+        "return_d2": 1.41
+      }
+    ]
+  },
+  {
+    "date": "2026-08-05",
+    "regime": "weak_bull",
+    "buys": [
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 95,
+        "conviction": 0.9,
+        "price_at_rec": 18.27,
+        "technical": "技术面强势，趋势明确",
+        "return_d1": 0.71
+      },
+      {
+        "code": "600363",
+        "name": "联创光电",
+        "score": 92,
+        "conviction": 0.85,
+        "price_at_rec": 24.64,
+        "technical": "量价齐升，技术形态强",
+        "return_d1": -9.98
+      },
+      {
+        "code": "002472",
+        "name": "双环传动",
+        "score": 90,
+        "conviction": 0.8,
+        "price_at_rec": 39.23,
+        "technical": "多头排列，强势特征明显",
+        "return_d1": 0.89
+      },
+      {
+        "code": "603596",
+        "name": "伯特利",
+        "score": 90,
+        "conviction": 0.8,
+        "price_at_rec": 27.08,
+        "technical": "强势上行，资金流入",
+        "return_d1": -0.37
+      },
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 16.52,
+        "technical": "放量上涨3.3%，短期动量修复，均线多头迹象初现。",
+        "return_d1": -0.42
+      },
+      {
+        "code": "002315",
+        "name": "焦点科技",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 27.95,
+        "technical": "股价27.39涨1.9%，换手4.5%，因子分98，资金关注度高。",
+        "return_d1": 0.75
+      },
+      {
+        "code": "000700",
+        "name": "模塑科技",
+        "score": 87,
+        "conviction": 0.82,
+        "price_at_rec": 11.37,
+        "technical": "涨4.4%，换手5.2%，因子99，资金高度关注。",
+        "return_d1": -0.7
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 87,
+        "conviction": 0.75,
+        "price_at_rec": 17.35,
+        "technical": "稳健上涨2.3%，趋势向上，量能温和，具备动量持续性。",
+        "return_d1": 0.12
+      },
+      {
+        "code": "600312",
+        "name": "平高电气",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 21.03,
+        "technical": "量价齐升，趋势向上，主力做多意愿强",
+        "return_d1": -0.48
+      },
+      {
+        "code": "001696",
+        "name": "宗申动力",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 15.42,
+        "technical": "涨4.2%，换手3.8%，因子98，趋势强势。",
+        "return_d1": 2.85
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 86,
+        "conviction": 0.7,
+        "price_at_rec": 13.52,
+        "technical": "放量上涨2.3%，量价配合良好，短期动能增强。",
+        "return_d1": 2.07
+      },
+      {
+        "code": "600366",
+        "name": "宁波韵升",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 11.93,
+        "technical": "股价11.21涨2.3%，换手3.5%，短期放量反弹，60日趋势中性，因子分98信号强。",
+        "return_d1": 0.0
+      },
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 85,
+        "conviction": 0.78,
+        "price_at_rec": 29.97,
+        "technical": "强势突破，量价配合良好，趋势明确",
+        "return_d1": -0.9
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 85,
+        "conviction": 0.8,
+        "price_at_rec": 47.75,
+        "technical": "涨3.6%，换手3.1%，因子99，锂电材料强势。",
+        "return_d1": 0.44
+      },
+      {
+        "code": "000949",
+        "name": "新乡化纤",
+        "score": 85,
+        "conviction": 0.75,
+        "price_at_rec": 6.44,
+        "technical": "强势上涨，趋势向上",
+        "return_d1": -1.24
+      },
+      {
+        "code": "301291",
+        "name": "明阳电气",
+        "score": 85,
+        "conviction": 0.8,
+        "price_at_rec": 40.42,
+        "technical": "强势上涨，多头趋势",
+        "return_d1": -0.92
+      },
+      {
+        "code": "603897",
+        "name": "长城科技",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 26.24,
+        "technical": "放量上涨2.7%，量价齐升，短期突破迹象明显。",
+        "return_d1": -0.46
+      },
+      {
+        "code": "002768",
+        "name": "国恩股份",
+        "score": 84,
+        "conviction": 0.76,
+        "price_at_rec": 54.5,
+        "technical": "放量上行，趋势强劲，量价结构良好",
+        "return_d1": 2.53
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 84,
+        "conviction": 0.78,
+        "price_at_rec": 13.21,
+        "technical": "涨3.4%，换手2.3%，因子93，稳中走强。",
+        "return_d1": 1.44
+      },
+      {
+        "code": "002606",
+        "name": "大连电瓷",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 14.6,
+        "technical": "平台突破，量价配合",
+        "return_d1": 0.0
+      },
+      {
+        "code": "002202",
+        "name": "金风科技",
+        "score": 83,
+        "conviction": 0.75,
+        "price_at_rec": 20.1,
+        "technical": "放量上行，趋势稳健，蓝筹风格占优",
+        "return_d1": 0.3
+      },
+      {
+        "code": "002255",
+        "name": "海陆重工",
+        "score": 82,
+        "conviction": 0.72,
+        "price_at_rec": 8.68,
+        "technical": "放量上涨，短期趋势转强，量价配合较好",
+        "return_d1": 0.12
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 42.42,
+        "technical": "涨3.3%，换手3.7%，因子93，海上风电主线性强。",
+        "return_d1": -0.8
+      },
+      {
+        "code": "688187",
+        "name": "时代电气",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 49.72,
+        "technical": "低吸放量上行，趋势向好",
+        "return_d1": 0.18
+      },
+      {
+        "code": "300566",
+        "name": "激智科技",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 24.18,
+        "technical": "放量上涨，资金关注",
+        "return_d1": 0.7
+      },
+      {
+        "code": "601991",
+        "name": "大唐发电",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 6.38,
+        "technical": "放量反弹，走势稳健",
+        "return_d1": -0.63
+      },
+      {
+        "code": "300488",
+        "name": "恒锋工具",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 30.83,
+        "technical": "技术面强势，量能配合",
+        "return_d1": -1.07
+      },
+      {
+        "code": "002553",
+        "name": "南方精工",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 16.21,
+        "technical": "股价16.16涨2.5%，换手2.9%，因子分91，短线走强但60日趋势平淡。",
+        "return_d1": 0.37
+      },
+      {
+        "code": "000539",
+        "name": "粤电力A",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 5.96,
+        "technical": "股价5.77涨3.4%，换手2.3%，因子分90，低估值反弹。",
+        "return_d1": 0.5
+      },
+      {
+        "code": "000603",
+        "name": "盛达资源",
+        "score": 82,
+        "conviction": 0.7,
+        "price_at_rec": 28.0,
+        "technical": "股价25.48涨0.3%，换手5.5%，因子分87，高位换手充分。",
+        "return_d1": 14.54
+      },
+      {
+        "code": "300815",
+        "name": "玉禾田",
+        "score": 81,
+        "conviction": 0.71,
+        "price_at_rec": 16.54,
+        "technical": "放量上攻，短线强势，多头格局延续",
+        "return_d1": 0.79
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 81,
+        "conviction": 0.73,
+        "price_at_rec": 11.69,
+        "technical": "涨3.4%，换手2.2%，因子93，量价配合良好。",
+        "return_d1": 0.43
+      },
+      {
+        "code": "601858",
+        "name": "中国科传",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 24.5,
+        "technical": "放量上涨，趋势修复，强势特征明显",
+        "return_d1": -4.08
+      },
+      {
+        "code": "600875",
+        "name": "东方电气",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 27.82,
+        "technical": "放量走强，蓝筹权重稳定，趋势向好",
+        "return_d1": -0.11
+      },
+      {
+        "code": "600577",
+        "name": "精达股份",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 8.23,
+        "technical": "放量上行，趋势健康，资金关注度提升",
+        "return_d1": -0.49
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 23.28,
+        "technical": "放量上涨3.4%，换手2.1%，因子分91，短线动能强；60日仍处震荡整理。",
+        "return_d1": -0.09
+      },
+      {
+        "code": "601179",
+        "name": "中国西电",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 14.21,
+        "technical": "放量上涨突破，短期趋势转强",
+        "return_d1": 1.41
+      },
+      {
+        "code": "002782",
+        "name": "可立克",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 14.78,
+        "technical": "放量上涨，趋势改善",
+        "return_d1": 0.95
+      },
+      {
+        "code": "605189",
+        "name": "富春染织",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 15.99,
+        "technical": "温和放量，走势健康",
+        "return_d1": 2.75
+      },
+      {
+        "code": "002410",
+        "name": "广联达",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 9.82,
+        "technical": "股价9.76涨3.8%，换手2.7%，因子分89，超跌反弹明显。",
+        "return_d1": -1.73
+      },
+      {
+        "code": "000848",
+        "name": "承德露露",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 9.01,
+        "technical": "股价9.27涨3.0%，换手1.7%，因子分76，走势稳健。",
+        "return_d1": -0.33
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 12.64,
+        "technical": "股价12.81涨3.2%，换手1.7%，因子分85，港口板块相对强势。",
+        "return_d1": 1.74
+      },
+      {
+        "code": "300772",
+        "name": "运达股份",
+        "score": 78,
+        "conviction": 0.66,
+        "price_at_rec": 12.72,
+        "technical": "放量上攻，均线多头初现，短线动能增强",
+        "return_d1": 0.16
+      },
+      {
+        "code": "600351",
+        "name": "亚宝药业",
+        "score": 78,
+        "conviction": 0.66,
+        "price_at_rec": 6.73,
+        "technical": "放量上涨，均线转强，短线趋势向好",
+        "return_d1": 0.0
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 78,
+        "conviction": 0.72,
+        "price_at_rec": 37.85,
+        "technical": "涨2.8%，换手2.8%，因子86，有色板块共振；60日趋势待有效突破。",
+        "return_d1": 4.12
+      },
+      {
+        "code": "002460",
+        "name": "赣锋锂业",
+        "score": 78,
+        "conviction": 0.72,
+        "price_at_rec": 52.68,
+        "technical": "涨2.2%，换手2.5%，因子86，锂板块企稳。",
+        "return_d1": 0.57
+      },
+      {
+        "code": "603626",
+        "name": "科森科技",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 14.28,
+        "technical": "上涨趋势良好",
+        "return_d1": 9.1
+      },
+      {
+        "code": "603662",
+        "name": "柯力传感",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 53.76,
+        "technical": "股价51.40涨1.7%，换手2.1%，因子分93，趋势偏强。",
+        "return_d1": -0.11
+      },
+      {
+        "code": "002637",
+        "name": "赞宇科技",
+        "score": 77,
+        "conviction": 0.65,
+        "price_at_rec": 10.52,
+        "technical": "放量反弹，短线偏强，技术面改善",
+        "return_d1": -0.57
+      },
+      {
+        "code": "300827",
+        "name": "上能电气",
+        "score": 77,
+        "conviction": 0.7,
+        "price_at_rec": 25.88,
+        "technical": "涨4.0%，换手2.8%，因子97，光伏逆变器主线强势。",
+        "return_d1": -0.27
+      },
+      {
+        "code": "301155",
+        "name": "海力风电",
+        "score": 76,
+        "conviction": 0.64,
+        "price_at_rec": 45.12,
+        "technical": "放量上涨，趋势转强，短线情绪回暖",
+        "return_d1": 1.88
+      },
+      {
+        "code": "001230",
+        "name": "劲旅环境",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 18.72,
+        "technical": "放量上行，趋势向好",
+        "return_d1": 0.11
+      },
+      {
+        "code": "605222",
+        "name": "起帆电缆",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 19.52,
+        "technical": "股价18.94涨3.5%，换手1.5%，量能温和，因子分82。",
+        "return_d1": -0.31
+      },
+      {
+        "code": "605133",
+        "name": "嵘泰股份",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 26.12,
+        "technical": "股价23.91涨2.8%，换手1.6%，因子分82，稳步修复。",
+        "return_d1": -0.08
+      },
+      {
+        "code": "603305",
+        "name": "旭升集团",
+        "score": 75,
+        "conviction": 0.62,
+        "price_at_rec": 12.06,
+        "technical": "放量上涨，中期底部进一步抬升",
+        "return_d1": -0.17
+      },
+      {
+        "code": "300695",
+        "name": "兆丰股份",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 50.18,
+        "technical": "放量上涨但换手偏低，趋势温和偏强",
+        "return_d1": 0.86
+      },
+      {
+        "code": "002498",
+        "name": "汉缆股份",
+        "score": 74,
+        "conviction": 0.65,
+        "price_at_rec": 7.14,
+        "technical": "涨3.7%，换手4.1%，因子88，电缆板块共振。",
+        "return_d1": -0.14
+      },
+      {
+        "code": "603179",
+        "name": "新泉股份",
+        "score": 73,
+        "conviction": 0.65,
+        "price_at_rec": 39.92,
+        "technical": "涨3.4%，换手1.9%，因子83，跟随汽车零部件反弹。",
+        "return_d1": -1.3
+      },
+      {
+        "code": "300201",
+        "name": "海伦哲",
+        "score": 72,
+        "conviction": 0.58,
+        "price_at_rec": 15.24,
+        "technical": "放量走强，短期题材弹性充足",
+        "return_d1": 0.39
+      },
+      {
+        "code": "002380",
+        "name": "科远智慧",
+        "score": 72,
+        "conviction": 0.58,
+        "price_at_rec": 29.68,
+        "technical": "放量拉升，短线强势，题材活跃",
+        "return_d1": -0.98
+      },
+      {
+        "code": "000969",
+        "name": "安泰科技",
+        "score": 72,
+        "conviction": 0.65,
+        "price_at_rec": 17.04,
+        "technical": "涨5.4%，换手3.5%，因子85，短线强势。",
+        "return_d1": 1.06
+      },
+      {
+        "code": "001896",
+        "name": "豫能控股",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 13.23,
+        "technical": "股价12.28涨2.2%，换手3.3%，因子分93，短线热度高。",
+        "return_d1": 0.53
+      },
+      {
+        "code": "002236",
+        "name": "大华股份",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 17.23,
+        "technical": "今日涨0.5%，换手2.0%，60日零涨幅，处震荡蓄势，等待放量。",
+        "return_d1": -1.28
+      },
+      {
+        "code": "002015",
+        "name": "协鑫能科",
+        "score": 70,
+        "conviction": 0.6,
+        "price_at_rec": 16.16,
+        "technical": "涨3.6%，换手4.6%，因子89，资金活跃。",
+        "return_d1": -1.73
+      },
+      {
+        "code": "300221",
+        "name": "银禧科技",
+        "score": 70,
+        "conviction": 0.55,
+        "price_at_rec": 12.38,
+        "technical": "股价11.24涨2.6%，换手3.1%，因子分88，短线强于大盘。",
+        "return_d1": -2.42
+      }
+    ]
+  },
+  {
+    "date": "2026-08-05",
+    "regime": "weak_bull",
+    "buys": [
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 98,
+        "conviction": 0.95,
+        "price_at_rec": 18.35,
+        "technical": "强势拉升，资金踊跃",
+        "return_d1": -0.22
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 97,
+        "conviction": 0.95,
+        "price_at_rec": 47.98,
+        "technical": "强势突破，量价齐升",
+        "return_d1": -0.04
+      },
+      {
+        "code": "600363",
+        "name": "联创光电",
+        "score": 96,
+        "conviction": 0.9,
+        "price_at_rec": 24.64,
+        "technical": "强势放量，趋势向上",
+        "return_d1": -9.98
+      },
+      {
+        "code": "300827",
+        "name": "上能电气",
+        "score": 95,
+        "conviction": 0.9,
+        "price_at_rec": 25.99,
+        "technical": "多头排列，强势上攻",
+        "return_d1": -0.69
+      },
+      {
+        "code": "002402",
+        "name": "和而泰",
+        "score": 94,
+        "conviction": 0.93,
+        "price_at_rec": 21.51,
+        "technical": "今日+2.1%，换手2.2%，量价配合健康，60日平台向上突破迹象。",
+        "return_d1": -0.6
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 92,
+        "conviction": 0.85,
+        "price_at_rec": 42.33,
+        "technical": "放量突破，趋势强劲",
+        "return_d1": -0.69
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 92,
+        "conviction": 0.85,
+        "price_at_rec": 11.75,
+        "technical": "量价齐升，多头强势",
+        "return_d1": -0.09
+      },
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 92,
+        "conviction": 0.95,
+        "price_at_rec": 16.5,
+        "technical": "强势特征显著，量价齐升，中期趋势向上。",
+        "return_d1": -0.3
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 90,
+        "conviction": 0.85,
+        "price_at_rec": 13.23,
+        "technical": "放量上攻，走势强劲",
+        "return_d1": 0.98
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 90,
+        "conviction": 0.95,
+        "price_at_rec": 17.37,
+        "technical": "趋势强劲，多头排列，量能温和放大。",
+        "return_d1": 0.0
+      },
+      {
+        "code": "600366",
+        "name": "宁波韵升",
+        "score": 90,
+        "conviction": 0.9,
+        "price_at_rec": 11.97,
+        "technical": "因子98，今日+2.3%，强动量信号。",
+        "return_d1": -0.33
+      },
+      {
+        "code": "002315",
+        "name": "焦点科技",
+        "score": 90,
+        "conviction": 0.9,
+        "price_at_rec": 28.24,
+        "technical": "今日+1.9%，因子98，超强动量。",
+        "return_d1": 0.6
+      },
+      {
+        "code": "002624",
+        "name": "完美世界",
+        "score": 90,
+        "conviction": 0.9,
+        "price_at_rec": 11.69,
+        "technical": "今日+2.5%，换手3.8%，资金活跃，60日平台或向上选择。",
+        "return_d1": -2.48
+      },
+      {
+        "code": "600114",
+        "name": "东睦股份",
+        "score": 89,
+        "conviction": 0.88,
+        "price_at_rec": 28.76,
+        "technical": "今日+2.8%，换手2.5%，量能放大，60日震荡向上。",
+        "return_d1": 0.83
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 23.35,
+        "technical": "放量上攻，趋势向好",
+        "return_d1": -0.39
+      },
+      {
+        "code": "600577",
+        "name": "精达股份",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 8.28,
+        "technical": "稳步上行，量能配合",
+        "return_d1": -0.97
+      },
+      {
+        "code": "002472",
+        "name": "双环传动",
+        "score": 88,
+        "conviction": 0.9,
+        "price_at_rec": 39.62,
+        "technical": "稳步上行，主力控盘较好，趋势健康。",
+        "return_d1": -0.1
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 88,
+        "conviction": 0.85,
+        "price_at_rec": 13.64,
+        "technical": "强势上行，量价配合好，趋势乐观。",
+        "return_d1": 1.1
+      },
+      {
+        "code": "603596",
+        "name": "伯特利",
+        "score": 88,
+        "conviction": 0.88,
+        "price_at_rec": 27.22,
+        "technical": "因子91，今日+3.9%，量能配合，趋势向上。",
+        "return_d1": -1.18
+      },
+      {
+        "code": "603897",
+        "name": "长城科技",
+        "score": 88,
+        "conviction": 0.86,
+        "price_at_rec": 26.27,
+        "technical": "今日+2.7%，因子93，趋势动能强。",
+        "return_d1": -0.57
+      },
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 30.1,
+        "technical": "因子分100，温和放量，多头形态良好。",
+        "return_d1": -0.37
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 38.25,
+        "technical": "量价齐升，多头格局",
+        "return_d1": 3.11
+      },
+      {
+        "code": "002460",
+        "name": "赣锋锂业",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 52.63,
+        "technical": "反弹走强，资金回流",
+        "return_d1": 0.67
+      },
+      {
+        "code": "301291",
+        "name": "明阳电气",
+        "score": 86,
+        "conviction": 0.85,
+        "price_at_rec": 40.43,
+        "technical": "多头排列，今日上涨2.6%，趋势健康。",
+        "return_d1": -0.94
+      },
+      {
+        "code": "002553",
+        "name": "南方精工",
+        "score": 86,
+        "conviction": 0.82,
+        "price_at_rec": 16.31,
+        "technical": "今日+2.5%，换手2.9%，量价平稳，60日横盘后走强迹象。",
+        "return_d1": -0.25
+      },
+      {
+        "code": "600312",
+        "name": "平高电气",
+        "score": 85,
+        "conviction": 0.75,
+        "price_at_rec": 21.13,
+        "technical": "放量上涨4.7%，量价关系健康，趋势向好。",
+        "return_d1": -1.04
+      },
+      {
+        "code": "300815",
+        "name": "玉禾田",
+        "score": 84,
+        "conviction": 0.7,
+        "price_at_rec": 16.58,
+        "technical": "放量大涨7.6%，短线强势明显。",
+        "return_d1": -0.12
+      },
+      {
+        "code": "603686",
+        "name": "福龙马",
+        "score": 84,
+        "conviction": 0.8,
+        "price_at_rec": 13.45,
+        "technical": "今日+3.4%，因子91，强势。",
+        "return_d1": -1.04
+      },
+      {
+        "code": "603606",
+        "name": "东方电缆",
+        "score": 84,
+        "conviction": 0.8,
+        "price_at_rec": 38.95,
+        "technical": "今日+2.6%，因子84，趋势稳健。",
+        "return_d1": 0.74
+      },
+      {
+        "code": "002941",
+        "name": "新疆交建",
+        "score": 84,
+        "conviction": 0.78,
+        "price_at_rec": 10.92,
+        "technical": "今日+3.5%，换手1.7%量能温和，60日平台整理后有上攻迹象。",
+        "return_d1": 0.37
+      },
+      {
+        "code": "603662",
+        "name": "柯力传感",
+        "score": 84,
+        "conviction": 0.78,
+        "price_at_rec": 53.98,
+        "technical": "今日+1.7%，换手2.1%，走势稳健，60日高位震荡整理。",
+        "return_d1": -0.52
+      },
+      {
+        "code": "002202",
+        "name": "金风科技",
+        "score": 83,
+        "conviction": 0.7,
+        "price_at_rec": 20.03,
+        "technical": "放量上涨3.9%，龙头企稳信号明显。",
+        "return_d1": 0.65
+      },
+      {
+        "code": "000700",
+        "name": "模塑科技",
+        "score": 83,
+        "conviction": 0.7,
+        "price_at_rec": 11.38,
+        "technical": "上涨4.4%，趋势强劲，因子分99。",
+        "return_d1": -0.79
+      },
+      {
+        "code": "002410",
+        "name": "广联达",
+        "score": 83,
+        "conviction": 0.77,
+        "price_at_rec": 9.89,
+        "technical": "今日+3.8%反弹，换手2.7%，60日底部区域有企稳迹象。",
+        "return_d1": -2.43
+      },
+      {
+        "code": "002255",
+        "name": "海陆重工",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 8.71,
+        "technical": "当日放量上涨4.8%，换手5.1%，短线强势。",
+        "return_d1": -0.11
+      },
+      {
+        "code": "600875",
+        "name": "东方电气",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 27.88,
+        "technical": "放量上涨6.3%，短线走势转强。",
+        "return_d1": -0.39
+      },
+      {
+        "code": "002606",
+        "name": "大连电瓷",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 14.58,
+        "technical": "换手6.9%放量，均线多头排列，走势较强。",
+        "return_d1": 0.14
+      },
+      {
+        "code": "000949",
+        "name": "新乡化纤",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 6.41,
+        "technical": "放量上涨3.9%，短期均线向上，走势良好。",
+        "return_d1": -0.78
+      },
+      {
+        "code": "002788",
+        "name": "鹭燕医药",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 10.76,
+        "technical": "今日+2.5%，因子82，走势稳健。",
+        "return_d1": -0.74
+      },
+      {
+        "code": "300488",
+        "name": "恒锋工具",
+        "score": 82,
+        "conviction": 0.76,
+        "price_at_rec": 30.85,
+        "technical": "今日+3.8%，因子91，短线强势。",
+        "return_d1": -1.13
+      },
+      {
+        "code": "002083",
+        "name": "孚日股份",
+        "score": 82,
+        "conviction": 0.76,
+        "price_at_rec": 11.59,
+        "technical": "今日+1.4%上行，换手7.5%交投活跃，60日平台整理。",
+        "return_d1": 0.6
+      },
+      {
+        "code": "000603",
+        "name": "盛达资源",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 29.15,
+        "technical": "今日+0.3%涨幅较小，换手5.5%交投充分，60日震荡蓄势。",
+        "return_d1": 10.02
+      },
+      {
+        "code": "002768",
+        "name": "国恩股份",
+        "score": 81,
+        "conviction": 0.65,
+        "price_at_rec": 54.34,
+        "technical": "上涨4.2%，趋势较强，因子分98。",
+        "return_d1": 3.05
+      },
+      {
+        "code": "001696",
+        "name": "宗申动力",
+        "score": 81,
+        "conviction": 0.65,
+        "price_at_rec": 15.52,
+        "technical": "上涨4.2%，量能配合，因子分98。",
+        "return_d1": 2.19
+      },
+      {
+        "code": "600288",
+        "name": "大恒科技",
+        "score": 81,
+        "conviction": 0.72,
+        "price_at_rec": 10.84,
+        "technical": "今日+2.7%，换手5.7%，因子86，资金关注度高。",
+        "return_d1": -0.18
+      },
+      {
+        "code": "300680",
+        "name": "隆盛科技",
+        "score": 81,
+        "conviction": 0.75,
+        "price_at_rec": 22.3,
+        "technical": "今日+3.5%，换手2.5%，短线量价配合良好，60日平台待突破。",
+        "return_d1": -1.35
+      },
+      {
+        "code": "300772",
+        "name": "运达股份",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 12.9,
+        "technical": "放量上涨6.5%，短线动能较强。",
+        "return_d1": -1.24
+      },
+      {
+        "code": "300566",
+        "name": "激智科技",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 24.31,
+        "technical": "放量上攻，换手6.2%，资金关注度提升。",
+        "return_d1": -0.04
+      },
+      {
+        "code": "002335",
+        "name": "科华数据",
+        "score": 80,
+        "conviction": 0.78,
+        "price_at_rec": 31.16,
+        "technical": "今日+2.4%，因子94，趋势动能强，60日盘整后蓄势。",
+        "return_d1": 1.38
+      },
+      {
+        "code": "002782",
+        "name": "可立克",
+        "score": 80,
+        "conviction": 0.74,
+        "price_at_rec": 14.86,
+        "technical": "今日+3.3%，因子82，短期强势。",
+        "return_d1": 0.4
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 80,
+        "conviction": 0.76,
+        "price_at_rec": 12.92,
+        "technical": "今日+3.2%，因子85，趋势转强。",
+        "return_d1": -0.54
+      },
+      {
+        "code": "600351",
+        "name": "亚宝药业",
+        "score": 78,
+        "conviction": 0.6,
+        "price_at_rec": 6.75,
+        "technical": "放量上涨5.4%，短线走强。",
+        "return_d1": -0.3
+      },
+      {
+        "code": "603179",
+        "name": "新泉股份",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 39.88,
+        "technical": "今日放量上涨3.4%，短期均线走强，中期趋势待突破。",
+        "return_d1": -1.23
+      },
+      {
+        "code": "002498",
+        "name": "汉缆股份",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 7.17,
+        "technical": "放量上涨3.7%，短线资金介入，趋势转强。",
+        "return_d1": -0.56
+      },
+      {
+        "code": "601991",
+        "name": "大唐发电",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 6.38,
+        "technical": "放量涨4.1%，股价站上短期均线，走势稳健。",
+        "return_d1": -0.63
+      },
+      {
+        "code": "001896",
+        "name": "豫能控股",
+        "score": 78,
+        "conviction": 0.72,
+        "price_at_rec": 13.21,
+        "technical": "今日+2.2%，因子93，趋势偏强。",
+        "return_d1": 0.68
+      },
+      {
+        "code": "000848",
+        "name": "承德露露",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 9.01,
+        "technical": "今日+3.0%，换手1.7%温和，60日走势平稳。",
+        "return_d1": -0.33
+      },
+      {
+        "code": "000922",
+        "name": "佳电股份",
+        "score": 78,
+        "conviction": 0.72,
+        "price_at_rec": 11.47,
+        "technical": "今日+2.9%，换手1.9%温和，60日平台整理，重心上移。",
+        "return_d1": 1.13
+      },
+      {
+        "code": "601858",
+        "name": "中国科传",
+        "score": 77,
+        "conviction": 0.6,
+        "price_at_rec": 24.57,
+        "technical": "放量上涨5.8%，走势转强。",
+        "return_d1": -4.35
+      },
+      {
+        "code": "300695",
+        "name": "兆丰股份",
+        "score": 76,
+        "conviction": 0.55,
+        "price_at_rec": 50.45,
+        "technical": "上涨6.8%，短线强势但换手仅1.5%，注意流动性。",
+        "return_d1": 0.32
+      },
+      {
+        "code": "301155",
+        "name": "海力风电",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 45.43,
+        "technical": "放量上行，海风主题热度回升。",
+        "return_d1": 1.21
+      },
+      {
+        "code": "605189",
+        "name": "富春染织",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 16.28,
+        "technical": "换手率较高，温和放量，短线活跃。",
+        "return_d1": 0.92
+      },
+      {
+        "code": "605222",
+        "name": "起帆电缆",
+        "score": 75,
+        "conviction": 0.7,
+        "price_at_rec": 19.59,
+        "technical": "今日+3.5%，换手1.5%温和，60日横盘蓄势。",
+        "return_d1": -0.56
+      },
+      {
+        "code": "002236",
+        "name": "大华股份",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 17.22,
+        "technical": "今日上涨0.5%，换手率2.0%，60日走平，处于低位整理阶段，安全边际较好。",
+        "return_d1": -1.22
+      },
+      {
+        "code": "002637",
+        "name": "赞宇科技",
+        "score": 74,
+        "conviction": 0.55,
+        "price_at_rec": 10.67,
+        "technical": "放量上涨6.1%，短线表现偏强。",
+        "return_d1": -1.97
+      },
+      {
+        "code": "601179",
+        "name": "中国西电",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 14.25,
+        "technical": "放量涨4.3%，突破近期平台，量价配合良好。",
+        "return_d1": 1.12
+      },
+      {
+        "code": "603626",
+        "name": "科森科技",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 14.46,
+        "technical": "资金介入明显，股价上行，短线强势。",
+        "return_d1": 7.75
+      },
+      {
+        "code": "300444",
+        "name": "双杰电气",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 10.88,
+        "technical": "换手率11.8%极高，短线博弈激烈，波动大。",
+        "return_d1": -1.75
+      },
+      {
+        "code": "688122",
+        "name": "西部超导",
+        "score": 74,
+        "conviction": 0.7,
+        "price_at_rec": 53.86,
+        "technical": "今日+3.7%，因子79，科创板反弹，60日走平等待方向。",
+        "return_d1": 1.71
+      },
+      {
+        "code": "300201",
+        "name": "海伦哲",
+        "score": 73,
+        "conviction": 0.55,
+        "price_at_rec": 15.35,
+        "technical": "上涨4.9%，量价配合，短线趋势偏强。",
+        "return_d1": -0.33
+      },
+      {
+        "code": "001230",
+        "name": "劲旅环境",
+        "score": 73,
+        "conviction": 0.6,
+        "price_at_rec": 18.73,
+        "technical": "小盘活跃，放量涨4.8%，短线有弹性。",
+        "return_d1": 0.05
+      },
+      {
+        "code": "300319",
+        "name": "麦捷科技",
+        "score": 73,
+        "conviction": 0.6,
+        "price_at_rec": 15.78,
+        "technical": "换手6.8%，震荡上行，短期强势。",
+        "return_d1": -0.44
+      },
+      {
+        "code": "603444",
+        "name": "吉比特",
+        "score": 73,
+        "conviction": 0.6,
+        "price_at_rec": 395.25,
+        "technical": "今日小幅回调0.9%，换手率2.8%，60日横盘整理，短期缺乏明显方向，但低估值提供支撑。",
+        "return_d1": -0.57
+      },
+      {
+        "code": "603305",
+        "name": "旭升集团",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 12.13,
+        "technical": "上涨5.4%但换手仅1.8%，需观察量能持续性。",
+        "return_d1": -0.82
+      },
+      {
+        "code": "301162",
+        "name": "国能日新",
+        "score": 72,
+        "conviction": 0.62,
+        "price_at_rec": 42.66,
+        "technical": "今日涨4.8%，量能温和，因子85显示短线强势；但60日走平，需站稳41元上方确认趋势。",
+        "return_d1": -4.36
+      }
+    ]
+  },
+  {
+    "date": "2026-08-06",
+    "regime": "weak_bull",
+    "buys": [
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 90,
+        "conviction": 0.9,
+        "price_at_rec": 16.46,
+        "technical": "今日涨3.3%，换手适中，趋势稳健，动量延续。"
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 90,
+        "conviction": 0.9,
+        "price_at_rec": 13.75,
+        "technical": "涨2.3%，走势稳定，筹码较稳。"
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 90,
+        "conviction": 0.9,
+        "price_at_rec": 17.38,
+        "technical": "涨2.3%，稳健上行，主力控盘较好。"
+      },
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 29.6,
+        "technical": "今日涨3.4%，换手4.6%，60日横盘后放量上攻，短线动能强"
+      },
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 88,
+        "conviction": 0.8,
+        "price_at_rec": 18.4,
+        "technical": "涨2.7%，换手2.7%，走势稳健，抛压不重"
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 88,
+        "conviction": 0.85,
+        "price_at_rec": 23.3,
+        "technical": "涨3.4%，量价齐升，中大盘蓝筹走势良好。"
+      },
+      {
+        "code": "002315",
+        "name": "焦点科技",
+        "score": 88,
+        "conviction": 0.85,
+        "price_at_rec": 28.16,
+        "technical": "量价配合，走势稳健，技术结构良好。"
+      },
+      {
+        "code": "002402",
+        "name": "和而泰",
+        "score": 88,
+        "conviction": 0.9,
+        "price_at_rec": 21.5,
+        "technical": "强势放量上行，技术面多头排列。"
+      },
+      {
+        "code": "000700",
+        "name": "模塑科技",
+        "score": 87,
+        "conviction": 0.75,
+        "price_at_rec": 11.3,
+        "technical": "涨4.4%，换手5.2%，量价配合良好"
+      },
+      {
+        "code": "300815",
+        "name": "玉禾田",
+        "score": 87,
+        "conviction": 0.75,
+        "price_at_rec": 16.68,
+        "technical": "涨7.6%，换手3.4%，强势反弹"
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 87,
+        "conviction": 0.75,
+        "price_at_rec": 47.92,
+        "technical": "涨3.6%，换手3.1%，趋势稳健，量能温和"
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 87,
+        "conviction": 0.85,
+        "price_at_rec": 11.75,
+        "technical": "量价齐升，趋势向上，今日涨3.4%。"
+      },
+      {
+        "code": "002255",
+        "name": "海陆重工",
+        "score": 86,
+        "conviction": 0.75,
+        "price_at_rec": 8.69,
+        "technical": "涨4.8%，换手5.1%，量能活跃，趋势向上"
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 86,
+        "conviction": 0.85,
+        "price_at_rec": 42.16,
+        "technical": "涨3.3%，换手3.7%，放量上行。"
+      },
+      {
+        "code": "002472",
+        "name": "双环传动",
+        "score": 86,
+        "conviction": 0.8,
+        "price_at_rec": 39.72,
+        "technical": "放量上涨，趋势健康，资金关注度高。"
+      },
+      {
+        "code": "002768",
+        "name": "国恩股份",
+        "score": 85,
+        "conviction": 0.75,
+        "price_at_rec": 56.44,
+        "technical": "涨4.2%，换手3.3%，60日横盘突破，走势稳健"
+      },
+      {
+        "code": "600312",
+        "name": "平高电气",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 21.0,
+        "technical": "涨4.7%，换手2.1%，稳步上行，趋势健康"
+      },
+      {
+        "code": "600363",
+        "name": "联创光电",
+        "score": 85,
+        "conviction": 0.7,
+        "price_at_rec": 22.18,
+        "technical": "涨3.6%，换手3.2%，60日走平，温和放量"
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 85,
+        "conviction": 0.85,
+        "price_at_rec": 39.4,
+        "technical": "涨2.8%，换手2.8%，趋势健康。"
+      },
+      {
+        "code": "600366",
+        "name": "宁波韵升",
+        "score": 85,
+        "conviction": 0.85,
+        "price_at_rec": 11.93,
+        "technical": "涨2.3%，走势平稳，中期趋势向上。"
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 85,
+        "conviction": 0.85,
+        "price_at_rec": 13.53,
+        "technical": "涨3.4%，量价配合，走势稳健。"
+      },
+      {
+        "code": "300724",
+        "name": "捷佳伟创",
+        "score": 85,
+        "conviction": 0.8,
+        "price_at_rec": 59.8,
+        "technical": "+1.7%稳健上行，趋势因子99，技术面强。"
+      },
+      {
+        "code": "002202",
+        "name": "金风科技",
+        "score": 84,
+        "conviction": 0.7,
+        "price_at_rec": 20.22,
+        "technical": "涨3.9%，换手3.0%，底部抬升，趋势向好"
+      },
+      {
+        "code": "600114",
+        "name": "东睦股份",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 29.06,
+        "technical": "涨2.8%，趋势稳健，量价配合。"
+      },
+      {
+        "code": "002637",
+        "name": "赞宇科技",
+        "score": 83,
+        "conviction": 0.65,
+        "price_at_rec": 10.45,
+        "technical": "涨6.1%，换手4.3%，放量上行，资金关注"
+      },
+      {
+        "code": "600875",
+        "name": "东方电气",
+        "score": 83,
+        "conviction": 0.65,
+        "price_at_rec": 27.89,
+        "technical": "涨6.3%，换手3.1%，放量拉升，突破形态"
+      },
+      {
+        "code": "001696",
+        "name": "宗申动力",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 15.84,
+        "technical": "涨4.2%，换手3.8%，60日走平，蓄势待发"
+      },
+      {
+        "code": "300827",
+        "name": "上能电气",
+        "score": 82,
+        "conviction": 0.65,
+        "price_at_rec": 25.81,
+        "technical": "涨4.0%，换手2.8%，60日横盘，方向选择"
+      },
+      {
+        "code": "600351",
+        "name": "亚宝药业",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 6.71,
+        "technical": "涨5.4%，放量突破，短期强势特征明显。"
+      },
+      {
+        "code": "600577",
+        "name": "精达股份",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 8.22,
+        "technical": "涨4.1%，量能放大，趋势向好。"
+      },
+      {
+        "code": "002606",
+        "name": "大连电瓷",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 14.53,
+        "technical": "涨2.6%，换手6.9%显著放量，资金流入。"
+      },
+      {
+        "code": "000833",
+        "name": "粤桂股份",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 20.35,
+        "technical": "强因子，量价配合，短线多头占优。"
+      },
+      {
+        "code": "603606",
+        "name": "东方电缆",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 39.33,
+        "technical": "海缆龙头，量价配合，趋势向上。"
+      },
+      {
+        "code": "601858",
+        "name": "中国科传",
+        "score": 81,
+        "conviction": 0.6,
+        "price_at_rec": 23.5,
+        "technical": "涨5.8%，换手2.4%，放量上涨，趋势转强"
+      },
+      {
+        "code": "300566",
+        "name": "激智科技",
+        "score": 81,
+        "conviction": 0.7,
+        "price_at_rec": 24.52,
+        "technical": "放量涨3.2%，换手6.2%，短线活跃。"
+      },
+      {
+        "code": "603596",
+        "name": "伯特利",
+        "score": 81,
+        "conviction": 0.72,
+        "price_at_rec": 26.98,
+        "technical": "+3.9%放量上行，趋势因子91，走势较强。"
+      },
+      {
+        "code": "300772",
+        "name": "运达股份",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 12.82,
+        "technical": "涨6.5%，换手3.8%，短期强势突破"
+      },
+      {
+        "code": "301155",
+        "name": "海力风电",
+        "score": 80,
+        "conviction": 0.6,
+        "price_at_rec": 45.66,
+        "technical": "涨3.8%，换手3.2%，60日横盘，方向向上"
+      },
+      {
+        "code": "002460",
+        "name": "赣锋锂业",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 52.99,
+        "technical": "涨2.2%，换手2.5%，底部放量，反弹进行中。"
+      },
+      {
+        "code": "002015",
+        "name": "协鑫能科",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 16.11,
+        "technical": "放量涨3.6%，换手活跃，短线动能较强。"
+      },
+      {
+        "code": "002624",
+        "name": "完美世界",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 11.5,
+        "technical": "放量涨2.5%，游戏板块情绪修复。"
+      },
+      {
+        "code": "002498",
+        "name": "汉缆股份",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 7.2,
+        "technical": "放量涨3.7%，趋势向好。"
+      },
+      {
+        "code": "600961",
+        "name": "株冶集团",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 27.0,
+        "technical": "+1.6%温和上行，趋势因子97，技术面强势。"
+      },
+      {
+        "code": "002192",
+        "name": "融捷股份",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 67.3,
+        "technical": "强因子支撑，量价尚可，60日横盘后需突破。"
+      },
+      {
+        "code": "002083",
+        "name": "孚日股份",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 11.68,
+        "technical": "高换手+放量，资金关注度高，短线活跃。"
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 12.86,
+        "technical": "放量上行，港口蓝筹，走势稳健。"
+      },
+      {
+        "code": "688187",
+        "name": "时代电气",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 49.81,
+        "technical": "涨4.7%，但换手仅0.8%，流动性不足。"
+      },
+      {
+        "code": "601991",
+        "name": "大唐发电",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 6.34,
+        "technical": "放量涨4.1%，电力板块走强，趋势转好。"
+      },
+      {
+        "code": "603626",
+        "name": "科森科技",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 15.58,
+        "technical": "涨2.7%，放量上行，短线趋势良好。"
+      },
+      {
+        "code": "000949",
+        "name": "新乡化纤",
+        "score": 76,
+        "conviction": 0.62,
+        "price_at_rec": 6.36,
+        "technical": "今日+3.9%走强，趋势因子90，动量信号积极。"
+      },
+      {
+        "code": "301291",
+        "name": "明阳电气",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 40.05,
+        "technical": "+2.6%温和走强，换手温和，趋势稳定。"
+      },
+      {
+        "code": "002941",
+        "name": "新疆交建",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 10.96,
+        "technical": "+3.5%上行，趋势因子85，走势健康。"
+      },
+      {
+        "code": "002782",
+        "name": "可立克",
+        "score": 76,
+        "conviction": 0.7,
+        "price_at_rec": 14.99,
+        "technical": "今日中阳线，短线偏强，60日震荡整理。"
+      },
+      {
+        "code": "603662",
+        "name": "柯力传感",
+        "score": 76,
+        "conviction": 0.7,
+        "price_at_rec": 53.8,
+        "technical": "强因子支撑，走势相对稳健，短线偏多。"
+      },
+      {
+        "code": "000848",
+        "name": "承德露露",
+        "score": 76,
+        "conviction": 0.7,
+        "price_at_rec": 8.98,
+        "technical": "放量反弹，低估值修复，趋势中性。"
+      },
+      {
+        "code": "002380",
+        "name": "科远智慧",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 29.49,
+        "technical": "涨4.4%，量能配合，趋势向上。"
+      },
+      {
+        "code": "000969",
+        "name": "安泰科技",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 17.22,
+        "technical": "涨5.4%，放量拉升，短期强势。"
+      },
+      {
+        "code": "605189",
+        "name": "富春染织",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 16.7,
+        "technical": "涨2.2%，换手5.4%，有资金关注。"
+      },
+      {
+        "code": "002788",
+        "name": "鹭燕医药",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 10.76,
+        "technical": "+2.5%稳定上行，走势较扎实。"
+      },
+      {
+        "code": "002410",
+        "name": "广联达",
+        "score": 75,
+        "conviction": 0.7,
+        "price_at_rec": 9.66,
+        "technical": "强势反弹，底部区域活跃，趋势改善。"
+      },
+      {
+        "code": "300113",
+        "name": "顺网科技",
+        "score": 74,
+        "conviction": 0.65,
+        "price_at_rec": 18.9,
+        "technical": "涨3.7%，换手7%活跃，短线强势。"
+      },
+      {
+        "code": "688186",
+        "name": "广大特材",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 14.91,
+        "technical": "涨4.1%，破净修复，温和放量。"
+      },
+      {
+        "code": "300444",
+        "name": "双杰电气",
+        "score": 74,
+        "conviction": 0.58,
+        "price_at_rec": 10.69,
+        "technical": "放量上涨，换手11.8%显示资金活跃，短线动量较强。"
+      },
+      {
+        "code": "300680",
+        "name": "隆盛科技",
+        "score": 74,
+        "conviction": 0.65,
+        "price_at_rec": 22.0,
+        "technical": "强因子，今日放量上行，短线强势。"
+      },
+      {
+        "code": "001896",
+        "name": "豫能控股",
+        "score": 74,
+        "conviction": 0.65,
+        "price_at_rec": 13.45,
+        "technical": "强因子，走势强劲，短线动能足。"
+      },
+      {
+        "code": "601179",
+        "name": "中国西电",
+        "score": 73,
+        "conviction": 0.6,
+        "price_at_rec": 14.41,
+        "technical": "特高压题材活跃，放量涨4.3%，短线偏强。"
+      },
+      {
+        "code": "605222",
+        "name": "起帆电缆",
+        "score": 73,
+        "conviction": 0.65,
+        "price_at_rec": 19.43,
+        "technical": "今日上涨但量能温和，60日平台整理。"
+      },
+      {
+        "code": "688621",
+        "name": "阳光诺和",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 60.5,
+        "technical": "涨4.7%，换手低，科创板弹性较大。"
+      },
+      {
+        "code": "603179",
+        "name": "新泉股份",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 39.4,
+        "technical": "+3.4%放量上攻，短线动能良好。"
+      },
+      {
+        "code": "300488",
+        "name": "恒锋工具",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 30.5,
+        "technical": "+3.8%反弹，趋势因子91，短线转强。"
+      },
+      {
+        "code": "600288",
+        "name": "大恒科技",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 10.82,
+        "technical": "+2.7%，换手5.7%显示活跃度提升。"
+      },
+      {
+        "code": "603686",
+        "name": "福龙马",
+        "score": 72,
+        "conviction": 0.55,
+        "price_at_rec": 13.42,
+        "technical": "+3.4%放量上涨，短线趋势转强。"
+      },
+      {
+        "code": "300319",
+        "name": "麦捷科技",
+        "score": 72,
+        "conviction": 0.65,
+        "price_at_rec": 15.75,
+        "technical": "放量上涨，换手高，短线资金博弈明显。"
+      },
+      {
+        "code": "002987",
+        "name": "京北方",
+        "score": 72,
+        "conviction": 0.65,
+        "price_at_rec": 11.68,
+        "technical": "反弹延续，60日横盘，等待放量。"
+      },
+      {
+        "code": "300913",
+        "name": "兆龙互连",
+        "score": 71,
+        "conviction": 0.6,
+        "price_at_rec": 35.3,
+        "technical": "今日放量上涨，但60日仍横盘，短线有突破迹象。"
+      },
+      {
+        "code": "000777",
+        "name": "中核科技",
+        "score": 70,
+        "conviction": 0.6,
+        "price_at_rec": 18.41,
+        "technical": "今日放量上涨7.5%，换手5.9%，短期动量强，但60日走平显示中期趋势待确认。"
+      },
+      {
+        "code": "002457",
+        "name": "青龙管业",
+        "score": 70,
+        "conviction": 0.6,
+        "price_at_rec": 11.09,
+        "technical": "涨4.9%，换手7.3%，短线资金关注。"
+      },
+      {
+        "code": "002335",
+        "name": "科华数据",
+        "score": 70,
+        "conviction": 0.5,
+        "price_at_rec": 31.6,
+        "technical": "+2.4%反弹，数据中心方向景气度较高。"
+      }
+    ]
+  }
+]

@@ -185,6 +185,19 @@ def reconstruct_cross_section(data: dict, basic: dict, T: str) -> pd.DataFrame:
             base = df["close"].iloc[idx - 60]
             if base and base > 0:
                 pct_60d = (close / base - 1) * 100
+        # v3.4 126日涨跌 (RPS 相对强弱基础, 研究: 126日窗口是 A 股平衡灵敏度/稳定性的黄金点)
+        pct_126d = np.nan
+        if idx >= 126:
+            base126 = df["close"].iloc[idx - 126]
+            if base126 and base126 > 0:
+                pct_126d = (close / base126 - 1) * 100
+        # v3.4 拥挤度: 当日换手在自身60日内的分位 (0-1, 高=极端活跃/过热)
+        turn_pct_60d = np.nan
+        if idx >= 60:
+            _turn_hist = pd.to_numeric(df["turn"].iloc[idx - 60:idx], errors="coerce").dropna()
+            _cur_turn = row["turn"]
+            if np.isfinite(_cur_turn) and _cur_turn > 0 and len(_turn_hist) >= 20:
+                turn_pct_60d = float((_turn_hist < _cur_turn).mean())
         # 量比 = 当日量 / 前5日均量
         vol_ratio = np.nan
         if idx >= 5:
@@ -233,12 +246,19 @@ def reconstruct_cross_section(data: dict, basic: dict, T: str) -> pd.DataFrame:
             "pe_ttm": row["peTTM"] if pd.notna(row["peTTM"]) else np.nan,
             "pb": row["pbMRQ"] if pd.notna(row["pbMRQ"]) else np.nan,
             "total_mv": total_mv,
-            "pct_60d": pct_60d, "vol_ratio": vol_ratio, "amplitude": amplitude,
+            "pct_60d": pct_60d, "pct_126d": pct_126d,
+            "turn_pct_60d": turn_pct_60d,
+            "vol_ratio": vol_ratio, "amplitude": amplitude,
             "isST": row["isST"], "is_trade": 1,
             "ep": ep, "bp": bp, "pe_pct_20d": pe_pct_20d, "pb_pct_20d": pb_pct_20d,
             "sharpe_20": sharpe_20, "reversal_1d": reversal_1d,
         })
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if len(df) and "pct_126d" in df.columns:
+        # v3.4 RPS: 126日涨幅的截面百分位 (0-100). 抱团/普涨牛里捕捉强势龙头,
+        # 由 PreScreener 的 regime 权重门控 (strong_bull 动量权重 0.35, 强熊 0.00).
+        df["rps_126"] = pd.to_numeric(df["pct_126d"], errors="coerce").rank(pct=True) * 100
+    return df
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -366,7 +386,9 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      timing_overlay: bool = False,
                      hybrid_pct: float = 0.0,
                      offensive: bool = False,
-                     auto_structure: bool = False) -> dict:
+                     auto_structure: bool = False,
+                     crowding_overlay: bool = False,
+                     ma_window: int = 20) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -489,6 +511,15 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             except Exception as _e:
                 logger.warning(f"市场结构识别失败: {_e}")
                 screen_regime = regime
+            # v3.4 全市场拥挤度 (动量崩溃预警): 极端活跃占比 → hot/warm/cool
+            _crowd = {"score": 50.0, "signal": "cool", "hot_ratio": 0.0}
+            try:
+                from analysis.crowding import market_crowding, format_crowding
+                _crowd = market_crowding(df_cs)
+                if crowding_overlay:
+                    logger.info(format_crowding(_crowd))
+            except Exception as _e:
+                logger.warning(f"拥挤度信号失败: {_e}")
             _off = offensive or (auto_structure and _structure == "抱团动量")
             # v3.2: 构建市场状态/情绪/操作原则上下文 (仅 v32 变体注入)
             if _off:
@@ -500,7 +531,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             else:
                 regime_ctx = build_market_ctx(df_cs, regime) if variant == "v32" else None
 
-            # ── 2. 规则初筛 → 300 ──
+            # ── 2. 规则初筛 → 300 (v3.4 回退: RPS/拥挤度惩罚 A/B 净负, 默认关闭) ──
             from analysis.pre_screener import PreScreener
             screener = PreScreener()
             screened = screener.screen(df_cs, regime=screen_regime, top_n=top_n,
@@ -580,36 +611,46 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             regime_mult = {"strong_bull": 1.0, "weak_bull": 0.8, "range_bound": 0.5,
                            "weak_bear": 0.3, "strong_bear": 0.1, "crisis": 0.0}.get(regime, 0.5)
 
-            # v3.3 市场择时 Overlay (--timing): 市场代理 < MA20 (risk_off) 时防御 —
-            # 仓位×0.3, 最多2只。用回放自己的等权代理 ≤T 算 MA20 (PIT 安全, 与择时回测同信号)
+            # v3.3 市场择时 Overlay (--timing): 市场代理 < MA{ma_window} (risk_off) 时防御 —
+            # 仓位×0.3, 最多2只。用回放自己的等权代理 ≤T 算 MA (PIT 安全, 与择时回测同信号)
             timing_mult, timing_max_pos = 1.0, pf.max_positions
             _risk_on = True
             if timing_overlay and mkt_proxy is not None:
                 try:
                     _tp = pd.Timestamp(T)
                     past = mkt_proxy[mkt_proxy.index <= _tp]
-                    if len(past) >= 25:
-                        ma20 = past.iloc[-20:].mean()
+                    if len(past) >= ma_window + 5:
+                        _ma = past.iloc[-ma_window:].mean()
                         px = past.iloc[-1]
                         # v3.3 迟滞带: 价格在 MA±2% 带内不切换, 只有深跌破才 risk_off,
                         # 深升破才 risk_on — 吸收 02-03 卖/02-05 买 这类 whipsaw 抖动.
                         _band = 0.02
                         if pf.index_units > 0:
                             # 已持指数: 仅当深跌破 MA×(1-2%) 才清
-                            _risk_on = not (px < ma20 * (1 - _band))
+                            _risk_on = not (px < _ma * (1 - _band))
                         else:
                             # 未持指数: 仅当深升破 MA×(1+2%) 才视为 risk_on
-                            _risk_on = px > ma20 * (1 + _band)
+                            _risk_on = px > _ma * (1 + _band)
                         if not _risk_on:
                             timing_mult, timing_max_pos = 0.3, min(pf.max_positions, 2)
                             logger.warning(
-                                f"市场择时 risk_off (代理{px:.3f} < MA20×{(1-_band):.2f}={ma20*(1-_band):.3f}) "
+                                f"市场择时 risk_off (代理{px:.3f} < MA{ma_window}×{(1-_band):.2f}={_ma*(1-_band):.3f}) "
                                 f"→ 防御: 仓位×0.3, 最多{timing_max_pos}只")
                         else:
                             logger.info(
-                                f"市场择时 risk_on (代理{px:.3f} vs MA20 {ma20:.3f})")
+                                f"市场择时 risk_on (代理{px:.3f} vs MA{ma_window} {_ma:.3f})")
                 except Exception as e:
                     logger.warning(f"市场择时信号失败(保持原仓位): {e}")
+
+            # v3.4 拥挤度 Overlay (--crowding): 市场过热 (极端活跃占比高) 时, 动量崩溃
+            # 风险 → 收紧新买入仓位 (hot×0.5 / warm×0.8). 独立于择时, 可叠加.
+            if crowding_overlay and _crowd.get("signal") in ("hot", "warm"):
+                _crowd_mult = 0.5 if _crowd["signal"] == "hot" else 0.8
+                timing_mult *= _crowd_mult
+                timing_max_pos = min(timing_max_pos, 6 if _crowd["signal"] == "hot" else 8)
+                logger.warning(
+                    f"拥挤度 {_crowd['signal']} (score {_crowd['score']}, 极端活跃 "
+                    f"{_crowd['hot_ratio']:.1%}) → 新买仓位×{_crowd_mult}, 最多{timing_max_pos}只")
 
             # v3.3 混合结构: risk_on 时按 hybrid_pct 买入市场指数书 (持市场代理吃满牛市),
             #               risk_off 时清仓 (落袋避熊). 剩余现金做进攻/防御选股.
@@ -759,6 +800,10 @@ def main():
                     help="强制进攻模式: 初筛/深析优先强势龙头动量 (抱团/窄幅动量牛, 广度失真时用)")
     ap.add_argument("--auto-structure", action="store_true",
                     help="自动市场结构识别: 抱团动量→进攻, 轮动普涨/熊→防御 (5日多数平滑)")
+    ap.add_argument("--crowding", action="store_true",
+                    help="启用拥挤度 Overlay (v3.4): 市场过热时收紧新买仓位, 避动量崩盘")
+    ap.add_argument("--ma-window", type=int, default=20,
+                    help="择时均线窗口 (研究: 更长窗口更稳, 但迟滞大; 默认20)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -768,7 +813,8 @@ def main():
                            max_days=args.max_days, variant=args.variant,
                            end_date=args.end, data_file=args.data_file, tag=args.tag,
                            timing_overlay=args.timing, hybrid_pct=args.hybrid,
-                           offensive=args.offensive, auto_structure=args.auto_structure))
+                           offensive=args.offensive, auto_structure=args.auto_structure,
+                           crowding_overlay=args.crowding, ma_window=args.ma_window))
 
 
 if __name__ == "__main__":

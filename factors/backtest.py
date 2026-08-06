@@ -39,6 +39,9 @@ STRATEGIES = {
     "extended": ["momentum_5", "bias_ma20", "ep", "bp", "rel_strength_5d", "sharpe_20"],
     "value": ["ep", "bp"],
     "rec": ["ep", "bp", "rel_strength_5d"],  # 报告推荐的去相关注入集
+    # v3.4 RPS 验证: 纯估值 + 126日动量 (截面对 126日涨幅排名 = RPS).
+    # 若 RPS 在牛市有独立 alpha, 此策略应跑赢 value — 廉价的 RPS 有效性检验.
+    "value_rps": ["ep", "bp", "momentum_126"],
     "mkt_filter": "MKT_FILTER",  # v3.3: 市场状态过滤 (双动量) — 市场>MA20 用动量, <MA20 纯估值
 }
 
@@ -327,6 +330,21 @@ def run(
         curves[tag] = timing_eq
         print(f"回测 [{tag}] 指数择时: 市场>{ma_win}日均线持, 否则现金...")
         print(f"   总收益 {m['total_return']:.1%} | 夏普 {m['sharpe']:.2f} | 回撤 {m['max_drawdown']:.1%}")
+    # v3.4 双均线择时 (task 37): 快线 MA20 > 慢线 MA60 才持市场 (趋势确认), 否则现金.
+    # 研究说更长窗口稳, 但 A 股牛周期快 — 双均线折中: 进场用快线, 出场用慢线.
+    _ma_f = mkt.rolling(20).mean()
+    _ma_s = mkt.rolling(60).mean()
+    _invested = (_ma_f > _ma_s) & (mkt > _ma_f)
+    _t_ret = mkt_ret.where(_invested, 0.0).reindex(dates[warmup:]).fillna(0.0)
+    _t_eq = (1 + _t_ret).cumprod() * initial
+    _m = equity_metrics(_t_eq)
+    _m["win_rate"] = 0
+    _m["total_trades"] = 0
+    _m["total_fees"] = 0
+    results["mkt_timing_dual"] = _m
+    curves["mkt_timing_dual"] = _t_eq
+    print(f"回测 [mkt_timing_dual] 双均线: MA20>MA60 且 市场>MA20 持, 否则现金...")
+    print(f"   总收益 {_m['total_return']:.1%} | 夏普 {_m['sharpe']:.2f} | 回撤 {_m['max_drawdown']:.1%}")
 
     # ── 输出 ──
     print("\n" + "=" * 66)
@@ -350,8 +368,10 @@ def run(
         combos = {"baseline": "momentum_5+bias_ma20", "extended": "基线+ep+bp+rel_strength_5d+sharpe_20",
                   "value": "ep+bp", "rec": "ep+bp+rel_strength_5d",
                   "mkt_filter": "市场>MA20: 动量+估值 / <MA20: 纯估值 (双动量)",
+                  "value_rps": "ep+bp+momentum_126 (RPS: 126日动量)",
                   "mkt_timing_20": "指数>MA20 持市场 / <MA20 现金",
                   "mkt_timing_60": "指数>MA60 持市场 / <MA60 现金",
+                  "mkt_timing_dual": "MA20>MA60 且市场>MA20 持 / 否则现金",
                   "market": "等权买入持有(无成本)"}
         for name, m in results.items():
             L.append(f"| {name} | {combos[name]} | {m['total_return']:.1%} | {m['annual_return']:.1%} | "

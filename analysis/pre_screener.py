@@ -100,6 +100,8 @@ class PreScreener:
         top_n: int = 300,
         industry_neutral: bool = False,
         structure: str = None,
+        crowding_penalty: bool = False,
+        enable_rps: bool = False,
     ) -> ScreenResult:
         """
         执行全市场初筛
@@ -127,9 +129,10 @@ class PreScreener:
         df = self._quality_filter(df, relax_valuation=(structure == "抱团动量"))
         after_L1 = len(df)
 
-        # L2: 6维打分
+        # L2: 6维打分 (v3.4 可选拥挤度惩罚: 极度活跃股降权, 避动量崩盘尾部)
         weights = REGIME_WEIGHTS.get(regime, REGIME_WEIGHTS["range_bound"])
-        df = self._compute_scores(df, weights)
+        df = self._compute_scores(df, weights, crowding_penalty=crowding_penalty,
+                                  enable_rps=enable_rps)
 
         # 行业中性化 (可选)
         if industry_neutral and 'industry' in df.columns:
@@ -260,14 +263,16 @@ class PreScreener:
     # L2: 6维因子打分
     # ═══════════════════════════════════════════════════════════════
 
-    def _compute_scores(self, df: pd.DataFrame, weights: Dict) -> pd.DataFrame:
+    def _compute_scores(self, df: pd.DataFrame, weights: Dict,
+                        crowding_penalty: bool = True,
+                        enable_rps: bool = True) -> pd.DataFrame:
         """计算6个维度的因子分并合成综合评分"""
         df = df.copy()
 
         scores = {}
 
         # 维度1: 动量 (Momentum) — 价格趋势和强度
-        scores["momentum"] = self._score_momentum(df)
+        scores["momentum"] = self._score_momentum(df, enable_rps=enable_rps)
 
         # 维度2: 价值 (Value) — 估值便宜程度
         scores["value"] = self._score_value(df)
@@ -290,6 +295,12 @@ class PreScreener:
             if dim in scores and w > 0:
                 composite += scores[dim] * w
 
+        # v3.4 拥挤度惩罚 (研究: 拥挤度是动量策略生存前提 — 国泰君安/信达):
+        # 自身60日换手分位 >0.97 的极度活跃股降权, 避"放量赶顶"动量崩溃尾部.
+        if crowding_penalty:
+            from analysis.crowding import crowding_penalty as _crowd_pen
+            composite = composite + _crowd_pen(df, max_penalty=8.0)
+
         # 归一化到 0-100
         if composite.std() > 0:
             composite = (composite - composite.min()) / (composite.max() - composite.min()) * 100
@@ -306,7 +317,7 @@ class PreScreener:
 
     # ── 动量维度 ──
 
-    def _score_momentum(self, df: pd.DataFrame) -> pd.Series:
+    def _score_momentum(self, df: pd.DataFrame, enable_rps: bool = True) -> pd.Series:
         """
         动量评分: 短期趋势 + 中期趋势 + 相对强度
 
@@ -333,6 +344,13 @@ class PreScreener:
             # 过度上涨惩罚
             overbought = (df['pct_60d'] > 40).astype(float) * -5
             score += overbought
+
+        # v3.4 RPS 相对强弱 (126日截面分位 0-100): 捕捉强势龙头.
+        # 研究: A股牛市中龙头/强势股显著跑赢 (东方证券: 龙头涨幅是指数5倍);
+        # 126日窗口是灵敏度/稳定性黄金点 (RPS>80 后 30日胜率 68.4%).
+        # 由 regime 权重门控: strong_bull 动量权重 0.35, 强熊 0.00 → 熊市自动失效.
+        if enable_rps and 'rps_126' in df.columns:
+            score += (pd.to_numeric(df['rps_126'], errors='coerce').fillna(50) - 50) * 0.4
 
         # 量比确认: 放量上涨加分, 缩量上涨扣分
         if 'vol_ratio' in df.columns and 'pct_change' in df.columns:
