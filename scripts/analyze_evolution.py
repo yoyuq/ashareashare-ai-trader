@@ -124,6 +124,24 @@ def analyze_journal(journal_path):
     else:
         avg_first = avg_second = 0
 
+    # v5.4 组合级反事实统计 (journal 复盘里附的 portfolio_cf)
+    pcf_recs = [r["review"].get("portfolio_cf")
+                for r in reviewed if r["review"].get("portfolio_cf")]
+    pcf_verified = sum(1 for p in pcf_recs if p.get("verified"))
+    pcf_improve = [p.get("improvement_pct", 0) for p in pcf_recs]
+    worst_sym = {}
+    for p in pcf_recs:
+        if p.get("verified") and p.get("worst_stock") and p["worst_stock"].get("symbol"):
+            s = p["worst_stock"]["symbol"]
+            worst_sym[s] = worst_sym.get(s, 0) + 1
+    portfolio_cf = {
+        "total": len(pcf_recs),
+        "verified": pcf_verified,
+        "verified_rate": round(pcf_verified / len(pcf_recs), 3) if pcf_recs else 0.0,
+        "avg_improvement_pct": round(sum(pcf_improve) / len(pcf_improve), 3) if pcf_improve else 0.0,
+        "worst_symbols": sorted(worst_sym.items(), key=lambda x: -x[1])[:5],
+    }
+
     # 分阶段大师选择变化（前20天 vs 后20天）
     if len(records) >= 40:
         early_masters = {}
@@ -153,6 +171,7 @@ def analyze_journal(journal_path):
         "deviation_second_half": avg_second,
         "deviation_improvement": avg_first - avg_second,  # 正数=进步
         "master_shift": master_shift,
+        "portfolio_cf": portfolio_cf,
     }
 
 
@@ -331,6 +350,18 @@ def print_analysis(analysis: dict):
                 lc = late.get(m, 0)
                 change = lc - ec
                 print(f"    {m}: {ec} → {lc} ({change:+d})")
+
+        # v5.4 组合级反事实统计
+        pcf = j.get("portfolio_cf", {})
+        if pcf.get("total", 0) > 0:
+            print(f"\n  组合级反事实 (v5.4 #26):")
+            print(f"    总验证: {pcf['total']} 条, 移除拖累票显著改善 {pcf['verified']} 条 "
+                  f"({pcf.get('verified_rate',0):.1%})")
+            print(f"    平均从拖累票释放: {pcf.get('avg_improvement_pct',0):+.3f}pp")
+            if pcf.get("worst_symbols"):
+                print(f"    反复被标记的拖累票:")
+                for sym, cnt in pcf["worst_symbols"]:
+                    print(f"      {sym}: {cnt}次")
 
     # 经验记忆库分析
     m = analysis.get("memory", {})
