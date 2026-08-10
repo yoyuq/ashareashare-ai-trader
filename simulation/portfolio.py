@@ -119,14 +119,70 @@ class PortfolioState:
     pending_recommendations: List[Dict[str, Any]] = field(default_factory=list)
     created_at: str = ""
     updated_at: str = ""
+    # v3.5 指数书 (真指数择时进攻化): risk_on 时买入 sh.000001 吃满牛市, risk_off 清仓.
+    index_book_units: float = 0.0    # 投入指数书的资金
+    index_book_base: float = 0.0     # 买入时指数点位 (标记对账基准)
+    index_book_entry_date: str = ""  # 买入日期
 
     @property
     def position_value(self) -> float:
         return sum(p.market_value for p in self.positions.values())
 
     @property
+    def index_value(self) -> float:
+        """指数书当前市值 (按 base 对账, 无实时点位时回落面值)"""
+        if self.index_book_units <= 0:
+            return 0.0
+        if self.index_book_base and self.index_book_base > 0 and self._index_level:
+            return self.index_book_units * (self._index_level / self.index_book_base)
+        return self.index_book_units
+
+    _index_level: float = 0.0  # 最近一次标记的指数点位
+
+    def mark_index(self, level: float) -> float:
+        """用当前指数点位标记指数书市值 (供 T+1 快照). 返回指数书市值."""
+        if level and level > 0:
+            self._index_level = float(level)
+        return self.index_value
+
+    def buy_index_book(self, amount: float, level: float, date_str: str) -> bool:
+        """进攻化: risk_on 时买入指数书 (amount 资金投入 sh.000001)."""
+        if amount <= 0 or amount > self.cash + 1e-6:
+            return False
+        self.cash -= amount
+        if self.index_book_units <= 0:
+            self.index_book_base = float(level) if level > 0 else 1.0
+        else:
+            # 加仓: 按当前点位重算加权 base
+            cur = self.index_value
+            self.index_book_base = (self.index_book_base * self.index_book_units +
+                                    float(level) * amount) / (self.index_book_units + amount) if level > 0 else self.index_book_base
+        self.index_book_units += amount
+        self.index_book_entry_date = date_str
+        return True
+
+    def sell_index_book(self, level: float, date_str: str) -> float:
+        """risk_off 时清仓指数书, 落袋回现金. 返回卖出所得."""
+        if self.index_book_units <= 0:
+            return 0.0
+        proceed = self.index_value
+        self.cash += proceed
+        self.trade_count += 1
+        self.trade_history.append(PaperTrade(
+            trade_id=f"idx_{date_str}_{len(self.trade_history)}",
+            date=date_str, symbol="sh.000001", name="上证指数", side="sell",
+            quantity=int(self.index_book_units), price=float(level) if level else 0.0,
+            amount=proceed, pnl=proceed - self.index_book_units, pnl_pct=0.0,
+            exit_reason="risk_off", reason="指数择时 risk_off",
+        ))
+        self.index_book_units = 0.0
+        self.index_book_base = 0.0
+        self.index_book_entry_date = ""
+        return proceed
+
+    @property
     def total_value(self) -> float:
-        return self.cash + self.position_value
+        return self.cash + self.position_value + self.index_value
 
     @property
     def total_return(self) -> float:
@@ -234,6 +290,11 @@ class PortfolioState:
             ],
             "last_analysis_date": self.last_analysis_date,
             "pending_recommendations": self.pending_recommendations,
+            "index_book": {
+                "units": self.index_book_units,
+                "base": self.index_book_base,
+                "entry_date": self.index_book_entry_date,
+            },
         }
 
     @classmethod
@@ -320,6 +381,12 @@ class PortfolioState:
 
         # 恢复待处理推荐
         state.pending_recommendations = d.get("pending_recommendations", [])
+
+        # 恢复指数书 (v3.5 择时进攻化)
+        _ib = d.get("index_book", {}) or {}
+        state.index_book_units = float(_ib.get("units", 0.0) or 0.0)
+        state.index_book_base = float(_ib.get("base", 0.0) or 0.0)
+        state.index_book_entry_date = _ib.get("entry_date", "") or ""
 
         return state
 

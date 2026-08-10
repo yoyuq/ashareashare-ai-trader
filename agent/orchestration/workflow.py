@@ -50,7 +50,20 @@ class AnalysisWorkflow:
         # v3.1: 决策记忆与自进化
         self._memory = AgentMemory()
         self._decision_logger = None  # 延迟初始化
+        # v4.0+ 落地: 懒加载进化系统 (journal / memory / evolution)
+        self._evo_journal = None
+        self._evo_memory = None
+        self._evo = None
         self.graph = self._build_graph()
+
+    def _ensure_evolution(self):
+        """懒初始化自我进化系统 (复用 daily_runner 的 _init_evolution_system)。
+
+        编排路径与 daily_runner 共享同一套进化闭环, 不再两条路径分叉。
+        """
+        if self._evo_journal is None:
+            from simulation.daily_runner import _init_evolution_system
+            self._evo_journal, self._evo_memory, self._evo = _init_evolution_system()
 
     def _init_decision_logger(self):
         """v3.1: 延迟初始化 DecisionLogger"""
@@ -70,12 +83,12 @@ class AnalysisWorkflow:
 
     def _build_graph(self) -> StateGraph:
         """
-        构建LangGraph有向图 (v3.1: 新增 Critic审计 + Checkpoint断点续跑)
+        构建LangGraph有向图 (v3.5: 新增 市场诊断官 — LLM 风控监督模式)
 
-        工作流拓扑 (v3.1):
+        工作流拓扑 (v3.5):
 
-            data_preparation → technical_analysis → market_scanner
-            (拉数据+算指标)    (代码计算指标+LLM解读)  (LLM市况扫描)
+            data_preparation → technical_analysis → market_scanner → market_diagnostic
+            (拉数据+算指标)    (代码计算指标+LLM解读)  (LLM市况扫描)   (风险等级+仓位调节)
                 ↓
             strategy_matching → backtest_verification → adversarial_debate
             (市场适配策略)       (STRATEGY_BACKTESTERS)   (逐股Bull/Bear/Judge)
@@ -89,6 +102,7 @@ class AnalysisWorkflow:
         # ---- 注册所有节点 ----
         workflow.add_node("data_preparation", self._data_preparation_node)
         workflow.add_node("market_scanner", self._market_scanner_node)
+        workflow.add_node("market_diagnostic", self._market_diagnostic_node)  # v3.5 市场诊断官
         workflow.add_node("technical_analysis", self._technical_analysis_node)
         workflow.add_node("strategy_matching", self._strategy_matching_node)
         workflow.add_node("backtest_verification", self._backtest_verification_node)
@@ -105,9 +119,10 @@ class AnalysisWorkflow:
         # v2.8 串行执行 (避免 LangGraph 并行分支的 channel 冲突)
         workflow.add_edge("data_preparation", "technical_analysis")
         workflow.add_edge("technical_analysis", "market_scanner")
+        workflow.add_edge("market_scanner", "market_diagnostic")  # v3.5 扫描→诊断
 
         # 汇聚到策略匹配
-        workflow.add_edge("market_scanner", "strategy_matching")
+        workflow.add_edge("market_diagnostic", "strategy_matching")  # v3.5 诊断→策略
 
         # Phase 2→3: 策略匹配 → 回测验证
         workflow.add_edge("strategy_matching", "backtest_verification")
@@ -337,6 +352,15 @@ class AnalysisWorkflow:
             except Exception as e:
                 logger.warning(f"市场快照注入失败: {e}")
 
+            # v3.5: 新闻派生宏观背景注入 — 让市场扫描显式结合"先进信息+新闻+市场形势"
+            try:
+                from simulation.daily_runner import load_macro_context
+                _mc = load_macro_context()
+                if _mc:
+                    context += f"\n【宏观/新闻背景】\n{_mc}"
+            except Exception as e:
+                logger.warning(f"宏观上下文注入失败: {e}")
+
             # v3.3: RAG 知识注入 — 当前 regime 作战手册 + 向量检索 (让 AI 判断结合历史实证)
             try:
                 if self.knowledge is not None and regime != "unknown":
@@ -366,6 +390,221 @@ class AnalysisWorkflow:
             })
         except Exception as e:
             state["errors"].append({"node": "market_scanner", "error": str(e)})
+
+        return state
+
+    # ═══════════════════════════════════════════════════════════════
+    # 节点2b: 市场诊断官 (v3.5 — LLM 风控监督模式)
+    # ═══════════════════════════════════════════════════════════════
+
+    async def _market_diagnostic_node(
+        self, state: MarketAnalysisState
+    ) -> MarketAnalysisState:
+        """市场诊断官 — LLM 不直接选股,只做市场风险诊断 + 仓位调节建议.
+
+        输入: regime + 市场广度/情绪/拥挤度/估值 + 宏观新闻 + 作战手册
+        输出: 结构化 JSON {risk_level, position_multiplier, max_positions_adj, key_risks, diagnosis}
+
+        设计原则:
+        - LLM 是监督者, 不是交易员. 规则系统负责选股, LLM 负责"要不要踩油门/刹车"
+        - 输出强制结构化, 方便执行层直接取用
+        - 失败时用保守默认值, 不中断流程
+        """
+        logger.info(f"[市场诊断] task={state['task_id']}")
+
+        # 默认保守值 (失败回退: 中性偏谨慎)
+        default_diag = {
+            "risk_level": 3,          # 1=极低风险 5=极高风险
+            "position_multiplier": 0.8,  # 仓位调节系数 (0.5 ~ 1.2)
+            "max_positions_adj": 0,   # 持仓数量调整 (-5 ~ +3, 相对规则基线)
+            "key_risks": [],          # 关键风险点列表
+            "diagnosis": "LLM 诊断失败, 使用默认保守值",
+        }
+
+        if self.router is None:
+            state["market_diagnostic"] = default_diag
+            return state
+
+        try:
+            regime = state.get("market_regime", "unknown")
+            context_parts = [f"当前市场状态 (regime): {regime}"]
+
+            # 1. 市场广度 + 情绪快照
+            try:
+                from analysis.market_breadth import format_snapshot, live_market_snapshot
+                snap = await live_market_snapshot()
+                snap_txt = format_snapshot(snap)
+                if snap_txt:
+                    context_parts.append(f"市场广度快照:\n{snap_txt}")
+                try:
+                    from factors.market_sentiment import format_live_sentiment_snapshot
+                    sent_txt = format_live_sentiment_snapshot(snap)
+                    if sent_txt:
+                        context_parts.append(sent_txt)
+                except Exception:
+                    pass
+            except Exception as e:
+                context_parts.append(f"(市场快照获取失败: {e})")
+
+            # 2. 宏观/新闻背景
+            try:
+                from simulation.daily_runner import load_macro_context
+                _mc = load_macro_context()
+                if _mc:
+                    context_parts.append(f"宏观/新闻背景:\n{_mc}")
+            except Exception:
+                pass
+
+            # 3. 作战手册 (RAG)
+            try:
+                if self.knowledge is not None and regime != "unknown":
+                    pb = self.knowledge.get_regime_playbook(regime)
+                    if pb:
+                        context_parts.append(f"{regime} 作战手册 (历史实证):\n{pb[:1500]}")
+            except Exception:
+                pass
+
+            context = "\n\n".join(context_parts)
+
+            # v4.0+ 落地: 复用共享诊断 prompt 构造器 (大师基座 + 进化注入)
+            self._ensure_evolution()
+            from simulation.daily_runner import build_diagnostic_system_prompt
+            system_prompt = build_diagnostic_system_prompt(
+                self._evo, self._evo_memory, current_date=state.get("date"),
+                regime=state.get("market_regime"),  # v5.2 跨界惩罚: 熊市不注入牛市激进经验
+            )
+
+            result = await self.router.route(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context},
+                ],
+                task_type="simple_qa",
+                temperature=0.3,
+            )
+
+            # 解析 JSON (容错: 提取 ```json 块或直接 parse)
+            resp = result.response.strip()
+            diag = None
+            if resp.startswith("```"):
+                resp = resp.strip("`")
+                if resp.lower().startswith("json"):
+                    resp = resp[4:].strip()
+            try:
+                diag = json.loads(resp)
+            except json.JSONDecodeError:
+                # 尝试找到第一个 { 到最后一个 }
+                start = resp.find("{")
+                end = resp.rfind("}")
+                if start >= 0 and end > start:
+                    try:
+                        diag = json.loads(resp[start:end+1])
+                    except json.JSONDecodeError:
+                        pass
+
+            if diag is None:
+                logger.warning("市场诊断官输出解析失败, 使用默认值")
+                state["market_diagnostic"] = default_diag
+            else:
+                # 字段校验 + 裁剪到合法范围
+                risk_level = int(diag.get("risk_level", 3))
+                risk_level = max(1, min(5, risk_level))
+
+                pos_mult = float(diag.get("position_multiplier", 0.8))
+                pos_mult = max(0.3, min(1.3, pos_mult))
+
+                max_adj = int(diag.get("max_positions_adj", 0))
+                max_adj = max(-8, min(5, max_adj))
+
+                key_risks = diag.get("key_risks", [])
+                if not isinstance(key_risks, list):
+                    key_risks = []
+
+                diagnosis = str(diag.get("diagnosis", ""))[:300]
+
+                # v5.2 对抗票 — 主导 vs 对抗 分歧裁决 (与 daily_runner 共享逻辑)
+                _diag = {
+                    "risk_level": risk_level,
+                    "position_multiplier": pos_mult,
+                    "max_positions_adj": max_adj,
+                    "market_phase": diag.get("market_phase", "unknown"),
+                    "dominant_master": diag.get("dominant_master", "unknown"),
+                    "secondary_master": diag.get("secondary_master", ""),
+                    "adversarial_risk_level": diag.get("adversarial_risk_level", risk_level),
+                }
+                from simulation.daily_runner import _apply_adversarial_gate
+                _diag = _apply_adversarial_gate(_diag)
+                risk_level = int(_diag.get("risk_level", risk_level))
+                pos_mult = float(_diag.get("position_multiplier", pos_mult))
+
+                state["market_diagnostic"] = {
+                    "risk_level": risk_level,
+                    "position_multiplier": pos_mult,
+                    "max_positions_adj": max_adj,
+                    "key_risks": key_risks,
+                    "diagnosis": diagnosis,
+                    "market_phase": _diag.get("market_phase", "unknown"),
+                    "dominant_master": _diag.get("dominant_master", "unknown"),
+                    "secondary_master": _diag.get("secondary_master", ""),
+                    "adversarial_risk_level": _diag.get("adversarial_risk_level"),
+                    "adversarial_applied": _diag.get("adversarial_applied"),
+                    "adversarial_divergence": _diag.get("adversarial_divergence"),
+                }
+                logger.info(
+                    f"[市场诊断] 风险等级={risk_level}/5  "
+                    f"仓位系数={pos_mult:.2f}  "
+                    f"持仓调整={max_adj:+d}  "
+                    f"风险点={len(key_risks)}个"
+                )
+
+                # v4.0+ 落地: 写入决策日志 + 触发周期进化 (与 daily_runner 共享闭环)
+                try:
+                    self._ensure_evolution()
+                    _date = state.get("date") or datetime.date.today().isoformat()
+                    from agent.evolution.decision_journal import DecisionRecord
+                    _rec = DecisionRecord(
+                        date=_date,
+                        market_phase=diag.get("market_phase", "unknown"),
+                        dominant_master=diag.get("dominant_master", "unknown"),
+                        secondary_master=diag.get("secondary_master", ""),
+                        risk_level=risk_level,
+                        position_multiplier=pos_mult,
+                        max_positions_adj=max_adj,
+                        key_risks=list(key_risks),
+                        diagnosis=str(diagnosis),
+                        adversarial_risk_level=_diag.get("adversarial_risk_level"),
+                        adversarial_applied=_diag.get("adversarial_applied"),
+                        adversarial_divergence=_diag.get("adversarial_divergence"),
+                        market_snapshot={"regime": regime},
+                        regime=regime,
+                        crowding_score=50.0,
+                        crowding_signal="unknown",
+                    )
+                    self._evo_journal.record(_rec)
+                    logger.info(
+                        f"[进化系统] 决策日志已写入: {_rec.dominant_master}/{_rec.market_phase}"
+                    )
+                    if self._evo is not None and len(self._evo_journal) >= 3:
+                        if self._evo.should_evolve(_date, len(self._evo_journal)):
+                            logger.info(f"[进化系统] 触发周期进化总结 (已积累{len(self._evo_journal)}条决策)")
+                            _recent_items = sorted(
+                                list(self._evo_memory.items), key=lambda x: x.date, reverse=True
+                            )[:20]
+                            await self._evo.evolve(
+                                self._evo_journal.load_range("1970-01-01", _date), _recent_items
+                            )
+                except Exception as _e:
+                    logger.warning(f"[进化系统] 编排路径记录/进化失败: {_e}")
+
+            state["model_trace"].append({
+                "node": "market_diagnostic",
+                "tier": result.tier.value,
+                "cost": result.cost,
+            })
+        except Exception as e:
+            logger.warning(f"市场诊断官失败 ({e}), 使用默认保守值")
+            state["market_diagnostic"] = default_diag
+            state["errors"].append({"node": "market_diagnostic", "error": str(e)})
 
         return state
 

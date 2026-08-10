@@ -73,3 +73,6 @@ class MarketAnalysisState(TypedDict, total=False):
 
     # === 信号归档 ===
     signals_archived: bool                # 是否已归档信号
+
+    # === 🆕 v3.5 市场诊断官 (LLM 风控监督) ===
+    market_diagnostic: Dict[str, Any]     # {risk_level, position_multiplier, max_positions_adj, key_risks, diagnosis}
