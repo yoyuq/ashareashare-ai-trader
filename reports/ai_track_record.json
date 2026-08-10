@@ -4782,7 +4782,7 @@
         "technical": "今日涨3.3%，换手适中，趋势稳健，动量延续。",
         "return_d1": -1.88,
         "return_d2": -1.15,
-        "return_d4": -2.25
+        "return_d4": -1.88
       },
       {
         "code": "600338",
@@ -4793,7 +4793,7 @@
         "technical": "涨2.3%，走势稳定，筹码较稳。",
         "return_d1": 0.51,
         "return_d2": 1.24,
-        "return_d4": 2.62
+        "return_d4": 4.44
       },
       {
         "code": "002130",
@@ -4804,7 +4804,7 @@
         "technical": "涨2.3%，稳健上行，主力控盘较好。",
         "return_d1": -0.92,
         "return_d2": -0.86,
-        "return_d4": -1.84
+        "return_d4": -0.86
       },
       {
         "code": "300850",
@@ -4815,7 +4815,7 @@
         "technical": "今日涨3.4%，换手4.6%，60日横盘后放量上攻，短线动能强",
         "return_d1": -0.88,
         "return_d2": -0.95,
-        "return_d4": -0.34
+        "return_d4": -0.68
       },
       {
         "code": "002497",
@@ -4826,7 +4826,7 @@
         "technical": "涨2.7%，换手2.7%，走势稳健，抛压不重",
         "return_d1": 0.11,
         "return_d2": 0.27,
-        "return_d4": 1.79
+        "return_d4": 3.75
       },
       {
         "code": "000400",
@@ -4837,7 +4837,7 @@
         "technical": "涨3.4%，量价齐升，中大盘蓝筹走势良好。",
         "return_d1": -2.96,
         "return_d2": -2.32,
-        "return_d4": -1.59
+        "return_d4": -1.93
       },
       {
         "code": "002315",
@@ -4848,7 +4848,7 @@
         "technical": "量价配合，走势稳健，技术结构良好。",
         "return_d1": -5.5,
         "return_d2": -3.05,
-        "return_d4": -1.88
+        "return_d4": -1.17
       },
       {
         "code": "002402",
@@ -4859,7 +4859,7 @@
         "technical": "强势放量上行，技术面多头排列。",
         "return_d1": -1.44,
         "return_d2": -0.09,
-        "return_d4": -0.51
+        "return_d4": 0.33
       },
       {
         "code": "000700",
@@ -4870,7 +4870,7 @@
         "technical": "涨4.4%，换手5.2%，量价配合良好",
         "return_d1": 2.57,
         "return_d2": 4.25,
-        "return_d4": 1.24
+        "return_d4": 1.68
       },
       {
         "code": "300815",
@@ -4881,7 +4881,7 @@
         "technical": "涨7.6%，换手3.4%，强势反弹",
         "return_d1": -2.16,
         "return_d2": -2.04,
-        "return_d4": -0.72
+        "return_d4": 0.18
       },
       {
         "code": "002756",
@@ -4892,7 +4892,7 @@
         "technical": "涨3.6%，换手3.1%，趋势稳健，量能温和",
         "return_d1": 0.71,
         "return_d2": 1.29,
-        "return_d4": 1.94
+        "return_d4": 2.69
       },
       {
         "code": "002533",
@@ -4903,7 +4903,7 @@
         "technical": "量价齐升，趋势向上，今日涨3.4%。",
         "return_d1": -2.89,
         "return_d2": -2.04,
-        "return_d4": -2.3
+        "return_d4": -1.45
       },
       {
         "code": "002255",
@@ -4914,7 +4914,7 @@
         "technical": "涨4.8%，换手5.1%，量能活跃，趋势向上",
         "return_d1": -2.88,
         "return_d2": -1.73,
-        "return_d4": -1.96
+        "return_d4": -1.27
       },
       {
         "code": "002487",
@@ -4925,7 +4925,7 @@
         "technical": "涨3.3%，换手3.7%，放量上行。",
         "return_d1": -0.85,
         "return_d2": -0.09,
-        "return_d4": -2.18
+        "return_d4": -0.14
       },
       {
         "code": "002472",
@@ -4936,7 +4936,7 @@
         "technical": "放量上涨，趋势健康，资金关注度高。",
         "return_d1": -2.54,
         "return_d2": -1.11,
-        "return_d4": -3.12
+        "return_d4": -3.05
       },
       {
         "code": "002768",
@@ -4947,7 +4947,7 @@
         "technical": "涨4.2%，换手3.3%，60日横盘突破，走势稳健",
         "return_d1": 3.33,
         "return_d2": 3.65,
-        "return_d4": 3.79
+        "return_d4": 5.0
       },
       {
         "code": "600312",
@@ -4958,7 +4958,7 @@
         "technical": "涨4.7%，换手2.1%，稳步上行，趋势健康",
         "return_d1": -3.71,
         "return_d2": -2.52,
-        "return_d4": -3.05
+        "return_d4": -3.38
       },
       {
         "code": "600363",
@@ -4980,7 +4980,7 @@
         "technical": "涨2.8%，换手2.8%，趋势健康。",
         "return_d1": 0.76,
         "return_d2": 2.39,
-        "return_d4": 1.5
+        "return_d4": 2.79
       },
       {
         "code": "600366",
@@ -4991,7 +4991,7 @@
         "technical": "涨2.3%，走势平稳，中期趋势向上。",
         "return_d1": 3.27,
         "return_d2": 2.68,
-        "return_d4": 4.27
+        "return_d4": 5.11
       },
       {
         "code": "000551",
@@ -5002,7 +5002,7 @@
         "technical": "涨3.4%，量价配合，走势稳健。",
         "return_d1": -1.03,
         "return_d2": 0.3,
-        "return_d4": 0.15
+        "return_d4": 1.03
       },
       {
         "code": "300724",
@@ -5013,7 +5013,7 @@
         "technical": "+1.7%稳健上行，趋势因子99，技术面强。",
         "return_d1": -1.04,
         "return_d2": -0.42,
-        "return_d4": -1.0
+        "return_d4": -0.33
       },
       {
         "code": "002202",
@@ -5024,7 +5024,7 @@
         "technical": "涨3.9%，换手3.0%，底部抬升，趋势向好",
         "return_d1": 5.84,
         "return_d2": 7.81,
-        "return_d4": 4.3
+        "return_d4": 7.22
       },
       {
         "code": "600114",
@@ -5035,7 +5035,7 @@
         "technical": "涨2.8%，趋势稳健，量价配合。",
         "return_d1": 1.82,
         "return_d2": 1.24,
-        "return_d4": 0.14
+        "return_d4": 1.62
       },
       {
         "code": "002637",
@@ -5046,7 +5046,7 @@
         "technical": "涨6.1%，换手4.3%，放量上行，资金关注",
         "return_d1": 3.83,
         "return_d2": 4.59,
-        "return_d4": 4.31
+        "return_d4": 5.45
       },
       {
         "code": "600875",
@@ -5057,7 +5057,7 @@
         "technical": "涨6.3%，换手3.1%，放量拉升，突破形态",
         "return_d1": -2.37,
         "return_d2": -1.79,
-        "return_d4": -3.44
+        "return_d4": -2.51
       },
       {
         "code": "001696",
@@ -5068,7 +5068,7 @@
         "technical": "涨4.2%，换手3.8%，60日走平，蓄势待发",
         "return_d1": -3.91,
         "return_d2": 0.38,
-        "return_d4": -1.14
+        "return_d4": 2.53
       },
       {
         "code": "300827",
@@ -5079,7 +5079,7 @@
         "technical": "涨4.0%，换手2.8%，60日横盘，方向选择",
         "return_d1": -2.25,
         "return_d2": -0.89,
-        "return_d4": -0.89
+        "return_d4": -0.39
       },
       {
         "code": "600351",
@@ -5090,7 +5090,7 @@
         "technical": "涨5.4%，放量突破，短期强势特征明显。",
         "return_d1": 0.15,
         "return_d2": 1.64,
-        "return_d4": 3.58
+        "return_d4": 3.73
       },
       {
         "code": "600577",
@@ -5101,7 +5101,7 @@
         "technical": "涨4.1%，量能放大，趋势向好。",
         "return_d1": -1.34,
         "return_d2": 0.49,
-        "return_d4": -1.09
+        "return_d4": 0.49
       },
       {
         "code": "002606",
@@ -5112,7 +5112,7 @@
         "technical": "涨2.6%，换手6.9%显著放量，资金流入。",
         "return_d1": -1.93,
         "return_d2": -0.83,
-        "return_d4": 0.69
+        "return_d4": 2.13
       },
       {
         "code": "000833",
@@ -5123,7 +5123,7 @@
         "technical": "强因子，量价配合，短线多头占优。",
         "return_d1": -0.39,
         "return_d2": -0.64,
-        "return_d4": -0.54
+        "return_d4": 1.18
       },
       {
         "code": "603606",
@@ -5134,7 +5134,7 @@
         "technical": "海缆龙头，量价配合，趋势向上。",
         "return_d1": -1.22,
         "return_d2": -1.6,
-        "return_d4": -1.75
+        "return_d4": -1.93
       },
       {
         "code": "601858",
@@ -5145,7 +5145,7 @@
         "technical": "涨5.8%，换手2.4%，放量上涨，趋势转强",
         "return_d1": 9.91,
         "return_d2": 12.0,
-        "return_d4": 12.77
+        "return_d4": 10.04
       },
       {
         "code": "300566",
@@ -5156,7 +5156,7 @@
         "technical": "放量涨3.2%，换手6.2%，短线活跃。",
         "return_d1": 2.2,
         "return_d2": 9.91,
-        "return_d4": 8.03
+        "return_d4": 15.05
       },
       {
         "code": "603596",
@@ -5167,7 +5167,7 @@
         "technical": "+3.9%放量上行，趋势因子91，走势较强。",
         "return_d1": -1.93,
         "return_d2": -1.26,
-        "return_d4": -1.04
+        "return_d4": -0.41
       },
       {
         "code": "300772",
@@ -5178,7 +5178,7 @@
         "technical": "涨6.5%，换手3.8%，短期强势突破",
         "return_d1": -2.5,
         "return_d2": -2.26,
-        "return_d4": -3.04
+        "return_d4": -2.65
       },
       {
         "code": "301155",
@@ -5189,7 +5189,7 @@
         "technical": "涨3.8%，换手3.2%，60日横盘，方向向上",
         "return_d1": 6.79,
         "return_d2": 10.21,
-        "return_d4": 7.23
+        "return_d4": 9.09
       },
       {
         "code": "002460",
@@ -5200,7 +5200,7 @@
         "technical": "涨2.2%，换手2.5%，底部放量，反弹进行中。",
         "return_d1": -0.4,
         "return_d2": -0.32,
-        "return_d4": 1.6
+        "return_d4": 2.15
       },
       {
         "code": "002015",
@@ -5211,7 +5211,7 @@
         "technical": "放量涨3.6%，换手活跃，短线动能较强。",
         "return_d1": -2.98,
         "return_d2": -1.92,
-        "return_d4": -3.41
+        "return_d4": -3.1
       },
       {
         "code": "002624",
@@ -5222,7 +5222,7 @@
         "technical": "放量涨2.5%，游戏板块情绪修复。",
         "return_d1": -3.04,
         "return_d2": -0.09,
-        "return_d4": 0.26
+        "return_d4": 2.0
       },
       {
         "code": "002498",
@@ -5233,7 +5233,7 @@
         "technical": "放量涨3.7%，趋势向好。",
         "return_d1": -7.08,
         "return_d2": -5.28,
-        "return_d4": -4.31
+        "return_d4": -2.64
       },
       {
         "code": "600961",
@@ -5244,7 +5244,7 @@
         "technical": "+1.6%温和上行，趋势因子97，技术面强势。",
         "return_d1": 4.67,
         "return_d2": 8.89,
-        "return_d4": 9.67
+        "return_d4": 11.74
       },
       {
         "code": "002192",
@@ -5255,7 +5255,7 @@
         "technical": "强因子支撑，量价尚可，60日横盘后需突破。",
         "return_d1": 0.74,
         "return_d2": 3.25,
-        "return_d4": 3.86
+        "return_d4": 4.37
       },
       {
         "code": "002083",
@@ -5266,7 +5266,7 @@
         "technical": "高换手+放量，资金关注度高，短线活跃。",
         "return_d1": -0.17,
         "return_d2": 0.34,
-        "return_d4": 0.34
+        "return_d4": 3.77
       },
       {
         "code": "000582",
@@ -5277,7 +5277,7 @@
         "technical": "放量上行，港口蓝筹，走势稳健。",
         "return_d1": -3.34,
         "return_d2": -2.64,
-        "return_d4": -3.34
+        "return_d4": 3.27
       },
       {
         "code": "688187",
@@ -5288,7 +5288,7 @@
         "technical": "涨4.7%，但换手仅0.8%，流动性不足。",
         "return_d1": -1.02,
         "return_d2": -0.1,
-        "return_d4": 0.0
+        "return_d4": 0.74
       },
       {
         "code": "601991",
@@ -5299,7 +5299,7 @@
         "technical": "放量涨4.1%，电力板块走强，趋势转好。",
         "return_d1": -2.21,
         "return_d2": 0.79,
-        "return_d4": -1.89
+        "return_d4": 0.0
       },
       {
         "code": "603626",
@@ -5310,7 +5310,7 @@
         "technical": "涨2.7%，放量上行，短线趋势良好。",
         "return_d1": 1.35,
         "return_d2": 0.96,
-        "return_d4": -0.9
+        "return_d4": 1.22
       },
       {
         "code": "000949",
@@ -5321,7 +5321,7 @@
         "technical": "今日+3.9%走强，趋势因子90，动量信号积极。",
         "return_d1": 3.93,
         "return_d2": 3.14,
-        "return_d4": 4.09
+        "return_d4": 4.56
       },
       {
         "code": "301291",
@@ -5332,7 +5332,7 @@
         "technical": "+2.6%温和走强，换手温和，趋势稳定。",
         "return_d1": 1.25,
         "return_d2": 2.0,
-        "return_d4": 2.57
+        "return_d4": 0.87
       },
       {
         "code": "002941",
@@ -5343,7 +5343,7 @@
         "technical": "+3.5%上行，趋势因子85，走势健康。",
         "return_d1": -1.19,
         "return_d2": -2.55,
-        "return_d4": -0.27
+        "return_d4": -0.64
       },
       {
         "code": "002782",
@@ -5354,7 +5354,7 @@
         "technical": "今日中阳线，短线偏强，60日震荡整理。",
         "return_d1": 0.27,
         "return_d2": 2.87,
-        "return_d4": 3.47
+        "return_d4": 4.4
       },
       {
         "code": "603662",
@@ -5365,7 +5365,7 @@
         "technical": "强因子支撑，走势相对稳健，短线偏多。",
         "return_d1": -0.74,
         "return_d2": 1.1,
-        "return_d4": -1.32
+        "return_d4": -1.34
       },
       {
         "code": "000848",
@@ -5376,7 +5376,7 @@
         "technical": "放量反弹，低估值修复，趋势中性。",
         "return_d1": -2.78,
         "return_d2": -2.12,
-        "return_d4": 0.22
+        "return_d4": -0.11
       },
       {
         "code": "002380",
@@ -5387,7 +5387,7 @@
         "technical": "涨4.4%，量能配合，趋势向上。",
         "return_d1": -2.03,
         "return_d2": -1.66,
-        "return_d4": -1.76
+        "return_d4": -0.58
       },
       {
         "code": "000969",
@@ -5398,7 +5398,7 @@
         "technical": "涨5.4%，放量拉升，短期强势。",
         "return_d1": 0.17,
         "return_d2": 1.34,
-        "return_d4": -0.17
+        "return_d4": 0.75
       },
       {
         "code": "605189",
@@ -5409,7 +5409,7 @@
         "technical": "涨2.2%，换手5.4%，有资金关注。",
         "return_d1": -5.69,
         "return_d2": -5.69,
-        "return_d4": 1.14
+        "return_d4": 0.48
       },
       {
         "code": "002788",
@@ -5420,7 +5420,7 @@
         "technical": "+2.5%稳定上行，走势较扎实。",
         "return_d1": 1.95,
         "return_d2": 3.62,
-        "return_d4": 7.25
+        "return_d4": 6.88
       },
       {
         "code": "002410",
@@ -5431,7 +5431,7 @@
         "technical": "强势反弹，底部区域活跃，趋势改善。",
         "return_d1": -3.42,
         "return_d2": -2.8,
-        "return_d4": -1.66
+        "return_d4": -1.24
       },
       {
         "code": "300113",
@@ -5442,7 +5442,7 @@
         "technical": "涨3.7%，换手7%活跃，短线强势。",
         "return_d1": -2.75,
         "return_d2": -2.06,
-        "return_d4": -4.07
+        "return_d4": -3.23
       },
       {
         "code": "688186",
@@ -5453,7 +5453,7 @@
         "technical": "涨4.1%，破净修复，温和放量。",
         "return_d1": -2.35,
         "return_d2": -1.68,
-        "return_d4": -2.08
+        "return_d4": -1.27
       },
       {
         "code": "300444",
@@ -5464,7 +5464,7 @@
         "technical": "放量上涨，换手11.8%显示资金活跃，短线动量较强。",
         "return_d1": -2.53,
         "return_d2": -0.19,
-        "return_d4": 3.74
+        "return_d4": 6.83
       },
       {
         "code": "300680",
@@ -5475,7 +5475,7 @@
         "technical": "强因子，今日放量上行，短线强势。",
         "return_d1": -1.0,
         "return_d2": 0.73,
-        "return_d4": -0.09
+        "return_d4": 0.5
       },
       {
         "code": "001896",
@@ -5486,7 +5486,7 @@
         "technical": "强因子，走势强劲，短线动能足。",
         "return_d1": -0.22,
         "return_d2": 2.01,
-        "return_d4": -0.07
+        "return_d4": 1.56
       },
       {
         "code": "601179",
@@ -5497,7 +5497,7 @@
         "technical": "特高压题材活跃，放量涨4.3%，短线偏强。",
         "return_d1": -3.47,
         "return_d2": -2.36,
-        "return_d4": -2.5
+        "return_d4": -2.36
       },
       {
         "code": "605222",
@@ -5508,7 +5508,7 @@
         "technical": "今日上涨但量能温和，60日平台整理。",
         "return_d1": 1.29,
         "return_d2": 1.75,
-        "return_d4": 2.11
+        "return_d4": 4.68
       },
       {
         "code": "688621",
@@ -5519,7 +5519,7 @@
         "technical": "涨4.7%，换手低，科创板弹性较大。",
         "return_d1": 3.27,
         "return_d2": 7.24,
-        "return_d4": 7.07
+        "return_d4": 6.28
       },
       {
         "code": "603179",
@@ -5530,7 +5530,7 @@
         "technical": "+3.4%放量上攻，短线动能良好。",
         "return_d1": -3.73,
         "return_d2": -1.27,
-        "return_d4": -4.49
+        "return_d4": -3.88
       },
       {
         "code": "300488",
@@ -5541,7 +5541,7 @@
         "technical": "+3.8%反弹，趋势因子91，短线转强。",
         "return_d1": 2.43,
         "return_d2": 3.25,
-        "return_d4": 4.79
+        "return_d4": 6.0
       },
       {
         "code": "600288",
@@ -5552,7 +5552,7 @@
         "technical": "+2.7%，换手5.7%显示活跃度提升。",
         "return_d1": 0.18,
         "return_d2": 1.94,
-        "return_d4": 3.05
+        "return_d4": 4.34
       },
       {
         "code": "603686",
@@ -5563,7 +5563,7 @@
         "technical": "+3.4%放量上涨，短线趋势转强。",
         "return_d1": -2.01,
         "return_d2": -1.19,
-        "return_d4": -0.15
+        "return_d4": 0.3
       },
       {
         "code": "300319",
@@ -5574,7 +5574,7 @@
         "technical": "放量上涨，换手高，短线资金博弈明显。",
         "return_d1": 7.05,
         "return_d2": 9.52,
-        "return_d4": 2.54
+        "return_d4": 4.95
       },
       {
         "code": "002987",
@@ -5585,7 +5585,7 @@
         "technical": "反弹延续，60日横盘，等待放量。",
         "return_d1": -4.88,
         "return_d2": -3.25,
-        "return_d4": -4.28
+        "return_d4": -3.25
       },
       {
         "code": "300913",
@@ -5596,7 +5596,7 @@
         "technical": "今日放量上涨，但60日仍横盘，短线有突破迹象。",
         "return_d1": 0.54,
         "return_d2": 1.9,
-        "return_d4": -0.74
+        "return_d4": -0.11
       },
       {
         "code": "000777",
@@ -5607,7 +5607,7 @@
         "technical": "今日放量上涨7.5%，换手5.9%，短期动量强，但60日走平显示中期趋势待确认。",
         "return_d1": -4.35,
         "return_d2": -3.59,
-        "return_d4": -3.1
+        "return_d4": -2.72
       },
       {
         "code": "002457",
@@ -5618,7 +5618,7 @@
         "technical": "涨4.9%，换手7.3%，短线资金关注。",
         "return_d1": -3.61,
         "return_d2": -2.34,
-        "return_d4": 0.18
+        "return_d4": 3.88
       },
       {
         "code": "002335",
@@ -5629,7 +5629,7 @@
         "technical": "+2.4%反弹，数据中心方向景气度较高。",
         "return_d1": -1.96,
         "return_d2": -1.11,
-        "return_d4": -2.94
+        "return_d4": -1.01
       }
     ]
   },
@@ -5645,7 +5645,7 @@
         "price_at_rec": 18.43,
         "technical": "涨2.7%，换手2.7%，量价配合良好，趋势维持强势。",
         "return_d1": 0.11,
-        "return_d3": 1.57
+        "return_d3": 3.58
       },
       {
         "code": "002611",
@@ -5655,7 +5655,7 @@
         "price_at_rec": 16.17,
         "technical": "涨3.3%，走势强劲，资金做多意愿强，技术面领涨。",
         "return_d1": 0.62,
-        "return_d3": -0.62
+        "return_d3": -0.12
       },
       {
         "code": "300850",
@@ -5665,7 +5665,7 @@
         "price_at_rec": 29.39,
         "technical": "因子满分，涨3.4%，趋势向上，资金关注度高。",
         "return_d1": -0.24,
-        "return_d3": 0.37
+        "return_d3": 0.03
       },
       {
         "code": "002533",
@@ -5675,7 +5675,7 @@
         "price_at_rec": 11.42,
         "technical": "放量上涨3.4%，走势稳健，资金关注度提升，均线系统良好。",
         "return_d1": 0.79,
-        "return_d3": 0.53
+        "return_d3": 1.4
       },
       {
         "code": "002130",
@@ -5685,7 +5685,7 @@
         "price_at_rec": 17.27,
         "technical": "因子评分极高，趋势强劲，量价配合良好",
         "return_d1": -0.23,
-        "return_d3": -1.22
+        "return_d3": -0.23
       },
       {
         "code": "002756",
@@ -5695,7 +5695,7 @@
         "price_at_rec": 48.1,
         "technical": "放量上攻，趋势领先",
         "return_d1": 0.91,
-        "return_d3": 1.58
+        "return_d3": 2.31
       },
       {
         "code": "600366",
@@ -5705,7 +5705,7 @@
         "price_at_rec": 12.33,
         "technical": "因子得分高，趋势强劲，量能配合",
         "return_d1": -0.65,
-        "return_d3": 0.73
+        "return_d3": 1.7
       },
       {
         "code": "603897",
@@ -5715,7 +5715,7 @@
         "price_at_rec": 26.31,
         "technical": "因子得分高，趋势上行，资金关注",
         "return_d1": 0.76,
-        "return_d3": -0.3
+        "return_d3": 0.68
       },
       {
         "code": "002255",
@@ -5725,7 +5725,7 @@
         "price_at_rec": 8.45,
         "technical": "放量上涨4.8%，突破短期平台，均线多头排列，趋势转强。",
         "return_d1": 1.07,
-        "return_d3": 0.71
+        "return_d3": 1.54
       },
       {
         "code": "600312",
@@ -5735,7 +5735,7 @@
         "price_at_rec": 20.25,
         "technical": "涨4.7%，均线多头，主力资金持续流入。",
         "return_d1": 1.09,
-        "return_d3": 0.49
+        "return_d3": 0.2
       },
       {
         "code": "000700",
@@ -5745,7 +5745,7 @@
         "price_at_rec": 11.56,
         "technical": "今日放量上涨，短线动量强，60日横盘后选择向上",
         "return_d1": 1.9,
-        "return_d3": -1.3
+        "return_d3": -0.61
       },
       {
         "code": "600363",
@@ -5765,7 +5765,7 @@
         "price_at_rec": 38.65,
         "technical": "涨2.6%，走势稳中向好，成交正常，趋势维持健康。",
         "return_d1": 1.63,
-        "return_d3": -0.41
+        "return_d3": -0.36
       },
       {
         "code": "600338",
@@ -5775,7 +5775,7 @@
         "price_at_rec": 13.81,
         "technical": "涨2.3%，换手3.2%，趋势强稳，短期无明显抛压。",
         "return_d1": 0.8,
-        "return_d3": 2.03
+        "return_d3": 3.98
       },
       {
         "code": "301291",
@@ -5785,7 +5785,7 @@
         "price_at_rec": 40.44,
         "technical": "量价齐升，趋势向好，因子得分高",
         "return_d1": 1.01,
-        "return_d3": 1.61
+        "return_d3": -0.1
       },
       {
         "code": "002315",
@@ -5795,7 +5795,7 @@
         "price_at_rec": 26.65,
         "technical": "今日+1.9%，换手4.5%较活跃，60日平台整理后具备启动弹性。",
         "return_d1": 2.44,
-        "return_d3": 3.6
+        "return_d3": 4.43
       },
       {
         "code": "001696",
@@ -5805,7 +5805,7 @@
         "price_at_rec": 15.24,
         "technical": "涨4.2%，因子分98，趋势加速，资金关注度高。",
         "return_d1": 4.33,
-        "return_d3": 2.76
+        "return_d3": 6.56
       },
       {
         "code": "300827",
@@ -5815,7 +5815,7 @@
         "price_at_rec": 25.29,
         "technical": "放量大涨，动量信号强",
         "return_d1": 1.15,
-        "return_d3": 1.15
+        "return_d3": 1.66
       },
       {
         "code": "300815",
@@ -5825,7 +5825,7 @@
         "price_at_rec": 16.34,
         "technical": "涨7.6%放量拉升，突破形态明显。",
         "return_d1": 0.0,
-        "return_d3": 1.29
+        "return_d3": 2.26
       },
       {
         "code": "002768",
@@ -5835,7 +5835,7 @@
         "price_at_rec": 58.15,
         "technical": "涨4.2%，股价强势，因子分高达98。",
         "return_d1": 0.6,
-        "return_d3": 0.55
+        "return_d3": 1.91
       },
       {
         "code": "000400",
@@ -5845,7 +5845,7 @@
         "price_at_rec": 22.69,
         "technical": "放量上攻，短期趋势转强",
         "return_d1": 0.31,
-        "return_d3": 1.15
+        "return_d3": 0.71
       },
       {
         "code": "002487",
@@ -5855,7 +5855,7 @@
         "price_at_rec": 41.88,
         "technical": "放量反弹，动能增强",
         "return_d1": 0.57,
-        "return_d3": -1.5
+        "return_d3": 0.53
       },
       {
         "code": "000551",
@@ -5865,7 +5865,7 @@
         "price_at_rec": 13.36,
         "technical": "放量上涨，量价配合良好",
         "return_d1": 1.57,
-        "return_d3": 1.42
+        "return_d3": 2.32
       },
       {
         "code": "603596",
@@ -5875,7 +5875,7 @@
         "price_at_rec": 26.45,
         "technical": "放量上涨，趋势向好",
         "return_d1": 0.72,
-        "return_d3": 0.95
+        "return_d3": 1.59
       },
       {
         "code": "300772",
@@ -5885,7 +5885,7 @@
         "price_at_rec": 12.55,
         "technical": "涨6.5%强势反弹，成交量配合，短期动量信号积极。",
         "return_d1": -0.16,
-        "return_d3": -0.88
+        "return_d3": -0.56
       },
       {
         "code": "002202",
@@ -5895,7 +5895,7 @@
         "price_at_rec": 21.37,
         "technical": "涨3.9%，风电板块共振，趋势向好。",
         "return_d1": 2.01,
-        "return_d3": -1.26
+        "return_d3": 1.45
       },
       {
         "code": "600351",
@@ -5905,7 +5905,7 @@
         "price_at_rec": 6.72,
         "technical": "涨5.4%，放量走高，短期动量强。",
         "return_d1": 1.49,
-        "return_d3": 3.42
+        "return_d3": 3.57
       },
       {
         "code": "002788",
@@ -5915,7 +5915,7 @@
         "price_at_rec": 10.93,
         "technical": "走势稳健，低估值蓝筹属性，防守性强",
         "return_d1": 2.01,
-        "return_d3": 5.49
+        "return_d3": 5.22
       },
       {
         "code": "002410",
@@ -5925,7 +5925,7 @@
         "price_at_rec": 9.34,
         "technical": "反弹明显，技术面修复，动能增强",
         "return_d1": 0.54,
-        "return_d3": 1.71
+        "return_d3": 2.14
       },
       {
         "code": "002941",
@@ -5935,7 +5935,7 @@
         "price_at_rec": 10.86,
         "technical": "走势稳健，技术面偏多",
         "return_d1": -1.66,
-        "return_d3": 0.37
+        "return_d3": 0.28
       },
       {
         "code": "002460",
@@ -5945,7 +5945,7 @@
         "price_at_rec": 52.86,
         "technical": "放量上行，锂电板块联动向好",
         "return_d1": -0.08,
-        "return_d3": 1.87
+        "return_d3": 2.4
       },
       {
         "code": "000960",
@@ -5955,7 +5955,7 @@
         "price_at_rec": 39.72,
         "technical": "放量上涨，短线强势",
         "return_d1": 1.56,
-        "return_d3": 0.73
+        "return_d3": 1.96
       },
       {
         "code": "688187",
@@ -5965,7 +5965,7 @@
         "price_at_rec": 49.25,
         "technical": "放量上涨，趋势稳健",
         "return_d1": 1.04,
-        "return_d3": 1.16
+        "return_d3": 1.89
       },
       {
         "code": "002553",
@@ -5975,7 +5975,7 @@
         "price_at_rec": 15.8,
         "technical": "今日+2.5%，换手2.9%，60日横盘后有温和放量迹象。",
         "return_d1": 0.63,
-        "return_d3": 0.57
+        "return_d3": 1.33
       },
       {
         "code": "603236",
@@ -5985,7 +5985,7 @@
         "price_at_rec": 48.3,
         "technical": "今日+2.1%，换手1.7%较低，60日整理，走势稳健。",
         "return_d1": 2.44,
-        "return_d3": 1.35
+        "return_d3": 3.85
       },
       {
         "code": "000949",
@@ -5995,7 +5995,7 @@
         "price_at_rec": 6.62,
         "technical": "放量上涨，趋势走强",
         "return_d1": -0.91,
-        "return_d3": 0.15
+        "return_d3": 0.45
       },
       {
         "code": "002335",
@@ -6005,7 +6005,7 @@
         "price_at_rec": 30.88,
         "technical": "强势上涨，底部抬升，技术面偏多",
         "return_d1": 1.2,
-        "return_d3": -0.68
+        "return_d3": 1.3
       },
       {
         "code": "002782",
@@ -6015,7 +6015,7 @@
         "price_at_rec": 14.99,
         "technical": "放量走强，技术指标向好",
         "return_d1": 2.87,
-        "return_d3": 3.54
+        "return_d3": 4.4
       },
       {
         "code": "000848",
@@ -6025,7 +6025,7 @@
         "price_at_rec": 8.77,
         "technical": "今日+3.0%，换手1.7%不高，60日整理，稳健走势。",
         "return_d1": 0.23,
-        "return_d3": 2.62
+        "return_d3": 2.28
       },
       {
         "code": "000582",
@@ -6035,7 +6035,7 @@
         "price_at_rec": 12.45,
         "technical": "今日+3.2%，换手1.7%量能温和，60日平台，蓝筹走势稳定。",
         "return_d1": 0.56,
-        "return_d3": -0.16
+        "return_d3": 6.67
       },
       {
         "code": "002498",
@@ -6045,7 +6045,7 @@
         "price_at_rec": 6.7,
         "technical": "放量上涨，短线资金流入",
         "return_d1": 1.79,
-        "return_d3": 2.54
+        "return_d3": 4.63
       },
       {
         "code": "603179",
@@ -6055,7 +6055,7 @@
         "price_at_rec": 37.81,
         "technical": "涨3.4%，成交温和，走势平稳，均线多头排列。",
         "return_d1": 2.88,
-        "return_d3": -0.4
+        "return_d3": 0.16
       },
       {
         "code": "300680",
@@ -6065,7 +6065,7 @@
         "price_at_rec": 21.83,
         "technical": "涨3.5%，换手2.5%，趋势向好，量价关系健康。",
         "return_d1": 1.51,
-        "return_d3": 0.73
+        "return_d3": 1.28
       },
       {
         "code": "001314",
@@ -6075,7 +6075,7 @@
         "price_at_rec": 52.8,
         "technical": "放量上行，趋势转强，短线动能充足",
         "return_d1": 1.61,
-        "return_d3": 0.45
+        "return_d3": 2.08
       },
       {
         "code": "600288",
@@ -6085,7 +6085,7 @@
         "price_at_rec": 10.83,
         "technical": "活跃度提升，短线走势偏强",
         "return_d1": 1.85,
-        "return_d3": 2.95
+        "return_d3": 4.25
       },
       {
         "code": "603606",
@@ -6095,7 +6095,7 @@
         "price_at_rec": 38.92,
         "technical": "今日+2.6%，换手1.5%量能温和，60日走平，短线有向上突破迹象。",
         "return_d1": -0.57,
-        "return_d3": -0.69
+        "return_d3": -0.9
       },
       {
         "code": "002624",
@@ -6105,7 +6105,7 @@
         "price_at_rec": 11.15,
         "technical": "今日+2.5%，换手3.8%较活跃，60日震荡企稳，资金关注度回升。",
         "return_d1": 3.05,
-        "return_d3": 3.5
+        "return_d3": 5.2
       },
       {
         "code": "000969",
@@ -6115,7 +6115,7 @@
         "price_at_rec": 17.26,
         "technical": "放量中阳，短线资金关注",
         "return_d1": 1.1,
-        "return_d3": -0.46
+        "return_d3": 0.52
       },
       {
         "code": "688186",
@@ -6125,7 +6125,7 @@
         "price_at_rec": 14.59,
         "technical": "放量反弹，短期企稳上攻",
         "return_d1": 0.48,
-        "return_d3": 0.07
+        "return_d3": 0.89
       },
       {
         "code": "300488",
@@ -6135,7 +6135,7 @@
         "price_at_rec": 31.21,
         "technical": "涨3.8%，小盘活跃，换手适中，技术形态良好。",
         "return_d1": 0.9,
-        "return_d3": 2.72
+        "return_d3": 3.59
       },
       {
         "code": "002606",
@@ -6145,7 +6145,7 @@
         "price_at_rec": 14.28,
         "technical": "涨2.6%，换手6.9%，量能明显放大，资金活跃度高。",
         "return_d1": 0.91,
-        "return_d3": 2.38
+        "return_d3": 3.92
       },
       {
         "code": "601991",
@@ -6155,7 +6155,7 @@
         "price_at_rec": 6.21,
         "technical": "涨4.1%，放量上行，电力板块行情驱动，技术形态较好。",
         "return_d1": 2.9,
-        "return_d3": 0.0
+        "return_d3": 2.09
       },
       {
         "code": "301162",
@@ -6165,7 +6165,7 @@
         "price_at_rec": 40.33,
         "technical": "上涨延续，技术指标偏多",
         "return_d1": 0.99,
-        "return_d3": 3.3
+        "return_d3": 3.62
       },
       {
         "code": "000539",
@@ -6175,7 +6175,7 @@
         "price_at_rec": 5.88,
         "technical": "量价齐升，趋势走强",
         "return_d1": 2.21,
-        "return_d3": -0.17
+        "return_d3": 1.36
       },
       {
         "code": "300763",
@@ -6185,7 +6185,7 @@
         "price_at_rec": 61.66,
         "technical": "今日+1.9%，换手2.0%，60日横盘，量能温和，蓄势特征。",
         "return_d1": 1.77,
-        "return_d3": 0.08
+        "return_d3": 0.71
       },
       {
         "code": "688621",
@@ -6195,7 +6195,7 @@
         "price_at_rec": 62.17,
         "technical": "放量上行，科创板弹性较大",
         "return_d1": 4.36,
-        "return_d3": 4.29
+        "return_d3": 3.43
       },
       {
         "code": "002015",
@@ -6205,7 +6205,7 @@
         "price_at_rec": 15.65,
         "technical": "放量上涨，资金参与度提升",
         "return_d1": 0.96,
-        "return_d3": -0.58
+        "return_d3": -0.26
       },
       {
         "code": "300566",
@@ -6215,7 +6215,7 @@
         "price_at_rec": 25.07,
         "technical": "涨3.2%，换手6.2%，弹性较好，量能配合良好。",
         "return_d1": 7.5,
-        "return_d3": 5.74
+        "return_d3": 12.52
       },
       {
         "code": "300444",
@@ -6225,7 +6225,7 @@
         "price_at_rec": 10.45,
         "technical": "换手率高，资金活跃，短期波动加大",
         "return_d1": 2.11,
-        "return_d3": 6.03
+        "return_d3": 9.28
       },
       {
         "code": "688122",
@@ -6235,7 +6235,7 @@
         "price_at_rec": 52.93,
         "technical": "稳步上行，量能温和，趋势健康",
         "return_d1": 0.43,
-        "return_d3": 0.36
+        "return_d3": 1.23
       },
       {
         "code": "605222",
@@ -6245,7 +6245,7 @@
         "price_at_rec": 19.73,
         "technical": "今日+3.5%，换手1.5%较低，60日震荡整理，温和放量偏多。",
         "return_d1": 0.2,
-        "return_d3": 0.51
+        "return_d3": 3.09
       },
       {
         "code": "002922",
@@ -6255,7 +6255,7 @@
         "price_at_rec": 25.39,
         "technical": "今日+1.8%，换手2.5%，60日横盘，趋势有待突破。",
         "return_d1": 2.52,
-        "return_d3": 3.43
+        "return_d3": 3.54
       },
       {
         "code": "601179",
@@ -6275,7 +6275,7 @@
         "price_at_rec": 12.8,
         "technical": "今日+3.4%，量能配合，60日横盘后有上攻迹象。",
         "return_d1": 0.86,
-        "return_d3": 1.02
+        "return_d3": 1.33
       },
       {
         "code": "603662",
@@ -6285,7 +6285,7 @@
         "price_at_rec": 53.44,
         "technical": "今日+1.7%，换手2.1%，60日走平，短线偏强但需量能配合。",
         "return_d1": 1.78,
-        "return_d3": -0.71
+        "return_d3": -0.67
       },
       {
         "code": "002457",
@@ -6295,7 +6295,7 @@
         "price_at_rec": 10.72,
         "technical": "放量上涨，换手率偏高，短线活跃",
         "return_d1": 1.03,
-        "return_d3": 4.2
+        "return_d3": 7.46
       },
       {
         "code": "601778",
@@ -6305,7 +6305,7 @@
         "price_at_rec": 3.82,
         "technical": "放量上涨，短线转强",
         "return_d1": 1.57,
-        "return_d3": -0.79
+        "return_d3": 0.79
       },
       {
         "code": "603686",
@@ -6315,7 +6315,7 @@
         "price_at_rec": 13.17,
         "technical": "涨3.4%，量价配合较好，短期技术面走强。",
         "return_d1": 0.68,
-        "return_d3": 1.59
+        "return_d3": 2.2
       },
       {
         "code": "300319",
@@ -6325,7 +6325,7 @@
         "price_at_rec": 16.9,
         "technical": "今日涨2%，换手6.8%，量能活跃，短期有资金关注，技术面偏强。",
         "return_d1": 2.07,
-        "return_d3": -4.32
+        "return_d3": -2.19
       },
       {
         "code": "603626",
@@ -6335,7 +6335,7 @@
         "price_at_rec": 15.74,
         "technical": "涨2.7%，换手4.1%，技术面偏强，短期趋势向上。",
         "return_d1": -0.06,
-        "return_d3": -2.03
+        "return_d3": 0.19
       },
       {
         "code": "605189",
@@ -6345,7 +6345,7 @@
         "price_at_rec": 15.81,
         "technical": "涨2.2%，换手5.4%，有资金博弈，短线维持强势。",
         "return_d1": -0.38,
-        "return_d3": 6.83
+        "return_d3": 6.14
       },
       {
         "code": "001896",
@@ -6355,7 +6355,7 @@
         "price_at_rec": 13.43,
         "technical": "今日+2.2%，换手3.3%，短线偏强但60日仍处震荡格局。",
         "return_d1": 2.16,
-        "return_d3": 0.07
+        "return_d3": 1.71
       },
       {
         "code": "300221",
@@ -6365,7 +6365,7 @@
         "price_at_rec": 13.07,
         "technical": "今日+2.6%，换手3.1%活跃，60日平台整理，短线动能增强。",
         "return_d1": 7.88,
-        "return_d3": 7.12
+        "return_d3": 7.27
       },
       {
         "code": "001230",
@@ -6375,7 +6375,7 @@
         "price_at_rec": 19.23,
         "technical": "涨4.8%，换手4.9%，小盘活跃，短线资金介入明显。",
         "return_d1": 2.86,
-        "return_d3": 4.68
+        "return_d3": 5.67
       }
     ]
   },
@@ -6390,7 +6390,7 @@
         "conviction": 0.85,
         "price_at_rec": 22.76,
         "technical": "上涨3.4%，因子分91，特高压主线，量价齐升",
-        "return_d2": 0.75
+        "return_d2": 0.4
       },
       {
         "code": "603596",
@@ -6399,7 +6399,7 @@
         "conviction": 0.85,
         "price_at_rec": 26.64,
         "technical": "上涨3.9%，因子分91，趋势良好",
-        "return_d2": 0.26
+        "return_d2": 0.86
       },
       {
         "code": "603236",
@@ -6408,7 +6408,7 @@
         "conviction": 0.85,
         "price_at_rec": 49.48,
         "technical": "上涨2.1%，因子分90，物联网主线，资金关注",
-        "return_d2": -1.07
+        "return_d2": 1.37
       },
       {
         "code": "600888",
@@ -6417,7 +6417,7 @@
         "conviction": 0.8,
         "price_at_rec": 10.07,
         "technical": "上涨1.2%，因子分92，技术形态稳健",
-        "return_d2": -0.6
+        "return_d2": 0.89
       },
       {
         "code": "603588",
@@ -6426,7 +6426,7 @@
         "conviction": 0.8,
         "price_at_rec": 14.18,
         "technical": "上涨1.4%，因子分92，趋势健康",
-        "return_d2": 0.85
+        "return_d2": 3.6
       },
       {
         "code": "002255",
@@ -6435,7 +6435,7 @@
         "conviction": 0.8,
         "price_at_rec": 8.54,
         "technical": "放量上涨4.8%，换手5.1%，因子分92，短线动能强",
-        "return_d2": -0.35
+        "return_d2": 0.47
       },
       {
         "code": "000997",
@@ -6444,7 +6444,7 @@
         "conviction": 0.8,
         "price_at_rec": 18.36,
         "technical": "上涨1.6%，因子分91，趋势平稳向上",
-        "return_d2": -0.54
+        "return_d2": 0.33
       },
       {
         "code": "601020",
@@ -6453,7 +6453,7 @@
         "conviction": 0.8,
         "price_at_rec": 21.15,
         "technical": "上涨1.8%，因子分90，趋势稳定",
-        "return_d2": 7.8
+        "return_d2": 10.02
       },
       {
         "code": "300286",
@@ -6462,7 +6462,7 @@
         "conviction": 0.75,
         "price_at_rec": 20.82,
         "technical": "上涨2.3%，换手2.3%，因子分92，趋势向好",
-        "return_d2": -0.38
+        "return_d2": 0.34
       },
       {
         "code": "301291",
@@ -6471,7 +6471,7 @@
         "conviction": 0.75,
         "price_at_rec": 40.85,
         "technical": "上涨2.6%，因子分92，资金关注度高",
-        "return_d2": 0.51
+        "return_d2": -1.1
       },
       {
         "code": "301155",
@@ -6480,7 +6480,7 @@
         "conviction": 0.75,
         "price_at_rec": 50.32,
         "technical": "上涨3.8%，因子分91，风电板块回暖",
-        "return_d2": -2.8
+        "return_d2": -1.01
       },
       {
         "code": "600633",
@@ -6489,7 +6489,7 @@
         "conviction": 0.75,
         "price_at_rec": 11.23,
         "technical": "上涨1.6%，因子分91，相对稳健",
-        "return_d2": -0.71
+        "return_d2": -0.09
       },
       {
         "code": "002202",
@@ -6498,7 +6498,7 @@
         "conviction": 0.75,
         "price_at_rec": 21.8,
         "technical": "今日大涨3.9%，量能配合，60日重心上移",
-        "return_d2": -3.35
+        "return_d2": -0.55
       },
       {
         "code": "002611",
@@ -6507,7 +6507,7 @@
         "conviction": 0.8,
         "price_at_rec": 16.27,
         "technical": "今日涨3.3%，60日底部抬升，短期动能增强。",
-        "return_d2": -1.17
+        "return_d2": -0.74
       },
       {
         "code": "002553",
@@ -6516,7 +6516,7 @@
         "conviction": 0.7,
         "price_at_rec": 15.9,
         "technical": "上涨2.5%，因子分91，技术面强势",
-        "return_d2": -0.06
+        "return_d2": 0.69
       },
       {
         "code": "300680",
@@ -6525,7 +6525,7 @@
         "conviction": 0.7,
         "price_at_rec": 22.16,
         "technical": "上涨3.5%，因子分91，走势强劲",
-        "return_d2": -0.86
+        "return_d2": -0.23
       },
       {
         "code": "600577",
@@ -6534,7 +6534,7 @@
         "conviction": 0.7,
         "price_at_rec": 8.26,
         "technical": "上涨4.1%，因子分90，量能配合",
-        "return_d2": -1.33
+        "return_d2": 0.0
       },
       {
         "code": "300724",
@@ -6543,7 +6543,7 @@
         "conviction": 0.8,
         "price_at_rec": 59.55,
         "technical": "今日涨1.7%，60日区间整理，估值修复具备空间。",
-        "return_d2": -0.71
+        "return_d2": 0.08
       },
       {
         "code": "600312",
@@ -6552,7 +6552,7 @@
         "conviction": 0.7,
         "price_at_rec": 20.47,
         "technical": "今日大涨4.7%，量价配合良好，短线趋势强势。",
-        "return_d2": -0.68
+        "return_d2": -0.88
       },
       {
         "code": "600392",
@@ -6561,7 +6561,7 @@
         "conviction": 0.65,
         "price_at_rec": 23.94,
         "technical": "上涨2.2%，因子分91，稀土板块共振",
-        "return_d2": 1.8
+        "return_d2": 6.06
       },
       {
         "code": "300488",
@@ -6570,7 +6570,7 @@
         "conviction": 0.65,
         "price_at_rec": 31.49,
         "technical": "上涨3.8%，因子分91，技术面强",
-        "return_d2": 1.78
+        "return_d2": 2.67
       },
       {
         "code": "000960",
@@ -6579,7 +6579,7 @@
         "conviction": 0.73,
         "price_at_rec": 40.34,
         "technical": "今日涨2.8%，放量上行，60日趋势转强",
-        "return_d2": -1.04
+        "return_d2": 0.4
       },
       {
         "code": "002497",
@@ -6588,7 +6588,7 @@
         "conviction": 0.78,
         "price_at_rec": 18.45,
         "technical": "今日涨2.7%，60日平台整理，量价配合良好，短线偏强。",
-        "return_d2": 1.36
+        "return_d2": 3.47
       },
       {
         "code": "002130",
@@ -6597,7 +6597,7 @@
         "conviction": 0.78,
         "price_at_rec": 17.23,
         "technical": "今日涨2.3%，60日平台蓄势，均线逐步转强。",
-        "return_d2": -0.99
+        "return_d2": 0.0
       },
       {
         "code": "002738",
@@ -6606,7 +6606,7 @@
         "conviction": 0.6,
         "price_at_rec": 53.14,
         "technical": "上涨2.2%，因子分91，资源板块强势",
-        "return_d2": 1.64
+        "return_d2": 2.28
       },
       {
         "code": "603686",
@@ -6615,7 +6615,7 @@
         "conviction": 0.65,
         "price_at_rec": 13.26,
         "technical": "上涨3.4%，因子分91，短期强势",
-        "return_d2": 0.83
+        "return_d2": 1.51
       },
       {
         "code": "002270",
@@ -6624,7 +6624,7 @@
         "conviction": 0.72,
         "price_at_rec": 20.17,
         "technical": "今日涨1.4%，趋势向上，换手平稳",
-        "return_d2": 0.15
+        "return_d2": 0.64
       },
       {
         "code": "300850",
@@ -6633,7 +6633,7 @@
         "conviction": 0.75,
         "price_at_rec": 29.32,
         "technical": "60日横向整理，今日放量涨3.4%，短线站上均线，动能转强。",
-        "return_d2": 0.44
+        "return_d2": 0.27
       },
       {
         "code": "600338",
@@ -6642,7 +6642,7 @@
         "conviction": 0.76,
         "price_at_rec": 13.92,
         "technical": "今日涨2.3%，60日横盘后回升，量能温和释放。",
-        "return_d2": 1.15
+        "return_d2": 3.16
       },
       {
         "code": "002756",
@@ -6651,7 +6651,7 @@
         "conviction": 0.75,
         "price_at_rec": 48.54,
         "technical": "今日涨3.6%，底部放量反弹，60日止跌企稳。",
-        "return_d2": 0.62
+        "return_d2": 1.38
       },
       {
         "code": "000700",
@@ -6660,7 +6660,7 @@
         "conviction": 0.73,
         "price_at_rec": 11.78,
         "technical": "今日涨4.4%放量，60日箱体启动迹象，短线强势。",
-        "return_d2": -3.4
+        "return_d2": -2.46
       },
       {
         "code": "600961",
@@ -6669,7 +6669,7 @@
         "conviction": 0.74,
         "price_at_rec": 29.4,
         "technical": "今日涨1.6%，60日震荡偏强，量能平稳。",
-        "return_d2": 0.68
+        "return_d2": 2.62
       },
       {
         "code": "002487",
@@ -6678,7 +6678,7 @@
         "conviction": 0.7,
         "price_at_rec": 42.12,
         "technical": "今日涨3.3%，换手3.7%，量价齐升，趋势向上。",
-        "return_d2": -2.18
+        "return_d2": -0.05
       },
       {
         "code": "300201",
@@ -6687,7 +6687,7 @@
         "conviction": 0.6,
         "price_at_rec": 15.93,
         "technical": "大涨4.9%，因子分91，短线强势",
-        "return_d2": -0.63
+        "return_d2": 1.32
       },
       {
         "code": "000603",
@@ -6696,7 +6696,7 @@
         "conviction": 0.68,
         "price_at_rec": 34.43,
         "technical": "60日盘整后向上，今日收涨，量价健康",
-        "return_d2": 1.71
+        "return_d2": 7.81
       },
       {
         "code": "603063",
@@ -6705,7 +6705,7 @@
         "conviction": 0.7,
         "price_at_rec": 32.97,
         "technical": "今日小幅回调属强势整理，60日趋势维稳",
-        "return_d2": -4.37
+        "return_d2": -2.03
       },
       {
         "code": "002460",
@@ -6714,7 +6714,7 @@
         "conviction": 0.7,
         "price_at_rec": 52.82,
         "technical": "今日涨2.2%，锂价预期修复，60日平台回暖",
-        "return_d2": 1.87
+        "return_d2": 2.48
       },
       {
         "code": "002768",
@@ -6723,7 +6723,7 @@
         "conviction": 0.72,
         "price_at_rec": 58.5,
         "technical": "今日涨4.2%放量，短线突破迹象明显。",
-        "return_d2": -0.26
+        "return_d2": 1.3
       },
       {
         "code": "002315",
@@ -6732,7 +6732,7 @@
         "conviction": 0.72,
         "price_at_rec": 27.3,
         "technical": "今日涨1.9%，60日蓄势，均线多头发散。",
-        "return_d2": 1.06
+        "return_d2": 1.94
       },
       {
         "code": "002472",
@@ -6741,7 +6741,7 @@
         "conviction": 0.7,
         "price_at_rec": 39.28,
         "technical": "今日涨2.6%，量能稳定，上升趋势健康。",
-        "return_d2": -2.01
+        "return_d2": -1.96
       },
       {
         "code": "600366",
@@ -6750,7 +6750,7 @@
         "conviction": 0.7,
         "price_at_rec": 12.25,
         "technical": "今日涨2.3%，60日横盘后短线走强。",
-        "return_d2": 1.39
+        "return_d2": 2.37
       },
       {
         "code": "001248",
@@ -6759,7 +6759,7 @@
         "conviction": 0.7,
         "price_at_rec": 13.18,
         "technical": "今日涨1.1%，60日震荡，换手率5.2%显示活跃。",
-        "return_d2": 0.0
+        "return_d2": 0.15
       },
       {
         "code": "600301",
@@ -6768,7 +6768,7 @@
         "conviction": 0.65,
         "price_at_rec": 50.44,
         "technical": "放量上攻，资源股弹性显现，短线动能较强。",
-        "return_d2": -0.16
+        "return_d2": 0.97
       },
       {
         "code": "300693",
@@ -6777,7 +6777,7 @@
         "conviction": 0.7,
         "price_at_rec": 38.21,
         "technical": "今日放量上涨2.1%，60日平台整理，短线趋势转暖。",
-        "return_d2": 0.24
+        "return_d2": 1.67
       },
       {
         "code": "601975",
@@ -6786,7 +6786,7 @@
         "conviction": 0.7,
         "price_at_rec": 3.71,
         "technical": "今日涨2.2%，60日整理，后续仍有上行空间。",
-        "return_d2": -0.54
+        "return_d2": 0.0
       },
       {
         "code": "601858",
@@ -6795,7 +6795,7 @@
         "conviction": 0.66,
         "price_at_rec": 26.32,
         "technical": "今日放量涨5.8%，突破整理平台，短线强势",
-        "return_d2": 0.57
+        "return_d2": -1.75
       },
       {
         "code": "600363",
@@ -6813,7 +6813,7 @@
         "conviction": 0.65,
         "price_at_rec": 29.42,
         "technical": "价涨量升，换手2.5%相对温和，短期趋势进入修复阶段。",
-        "return_d2": -1.05
+        "return_d2": 0.37
       },
       {
         "code": "002709",
@@ -6822,7 +6822,7 @@
         "conviction": 0.65,
         "price_at_rec": 39.33,
         "technical": "今日涨1.3%，换手2.2%，量能温和，底部逐渐抬升。",
-        "return_d2": -0.41
+        "return_d2": 0.74
       },
       {
         "code": "002083",
@@ -6831,7 +6831,7 @@
         "conviction": 0.66,
         "price_at_rec": 11.72,
         "technical": "今日涨1.4%，换手7.5%明显活跃，资金关注",
-        "return_d2": -0.09
+        "return_d2": 3.41
       },
       {
         "code": "002402",
@@ -6840,7 +6840,7 @@
         "conviction": 0.68,
         "price_at_rec": 21.48,
         "technical": "今日涨2.1%，60日震荡，短线站稳均线。",
-        "return_d2": -0.51
+        "return_d2": 0.42
       },
       {
         "code": "300827",
@@ -6849,7 +6849,7 @@
         "conviction": 0.66,
         "price_at_rec": 25.58,
         "technical": "今日涨4.0%放量反弹，60日底部区域企稳。",
-        "return_d2": -0.12
+        "return_d2": 0.51
       },
       {
         "code": "002192",
@@ -6858,7 +6858,7 @@
         "conviction": 0.66,
         "price_at_rec": 69.49,
         "technical": "今日涨1.3%，60日横盘，短线止跌。",
-        "return_d2": 0.52
+        "return_d2": 1.08
       },
       {
         "code": "002624",
@@ -6867,7 +6867,7 @@
         "conviction": 0.6,
         "price_at_rec": 11.49,
         "technical": "今日放量涨2.5%，换手3.8%，60日平台整理后有短线向上突破迹象。",
-        "return_d2": 0.26
+        "return_d2": 2.09
       },
       {
         "code": "002533",
@@ -6876,7 +6876,7 @@
         "conviction": 0.65,
         "price_at_rec": 11.51,
         "technical": "今日涨3.4%，量价配合较好，短线偏强。",
-        "return_d2": -0.35
+        "return_d2": 0.61
       },
       {
         "code": "000683",
@@ -6894,7 +6894,7 @@
         "conviction": 0.7,
         "price_at_rec": 12.53,
         "technical": "今日大涨6.5%，放量突破，短期强势。",
-        "return_d2": -0.88
+        "return_d2": -0.4
       },
       {
         "code": "300228",
@@ -6903,7 +6903,7 @@
         "conviction": 0.64,
         "price_at_rec": 7.4,
         "technical": "今日涨1.9%，量能温和，60日底部抬升",
-        "return_d2": 0.41
+        "return_d2": 1.49
       },
       {
         "code": "001696",
@@ -6912,7 +6912,7 @@
         "conviction": 0.65,
         "price_at_rec": 15.9,
         "technical": "今日涨4.2%放量上攻，60日平台突破。",
-        "return_d2": -1.76
+        "return_d2": 2.14
       },
       {
         "code": "000833",
@@ -6921,7 +6921,7 @@
         "conviction": 0.65,
         "price_at_rec": 20.22,
         "technical": "今日涨2.2%，60日平台整理，量能待释放。",
-        "return_d2": -0.2
+        "return_d2": 1.83
       },
       {
         "code": "000551",
@@ -6930,7 +6930,7 @@
         "conviction": 0.6,
         "price_at_rec": 13.57,
         "technical": "今日涨3.4%，量能温和放大，短线偏强。",
-        "return_d2": -0.37
+        "return_d2": 0.74
       },
       {
         "code": "603367",
@@ -6939,7 +6939,7 @@
         "conviction": 0.65,
         "price_at_rec": 14.98,
         "technical": "今日涨2.6%，换手2.4%，走势稳健向上。",
-        "return_d2": -0.47
+        "return_d2": -0.53
       },
       {
         "code": "000539",
@@ -6948,7 +6948,7 @@
         "conviction": 0.65,
         "price_at_rec": 6.01,
         "technical": "今日涨3.4%，站上短期均线，量能配合。",
-        "return_d2": -2.5
+        "return_d2": -0.83
       },
       {
         "code": "000823",
@@ -6957,7 +6957,7 @@
         "conviction": 0.62,
         "price_at_rec": 15.14,
         "technical": "60日横盘后今日小幅回暖，换手温和，短线有修复动能",
-        "return_d2": -3.57
+        "return_d2": -1.45
       },
       {
         "code": "688018",
@@ -6966,7 +6966,7 @@
         "conviction": 0.62,
         "price_at_rec": 112.06,
         "technical": "今日涨1.2%，60日高位整理，量能稳定",
-        "return_d2": -1.54
+        "return_d2": -0.95
       },
       {
         "code": "300566",
@@ -6975,7 +6975,7 @@
         "conviction": 0.62,
         "price_at_rec": 26.95,
         "technical": "今日涨3.2%，换手6.2%，资金活跃，短线强势",
-        "return_d2": -1.89
+        "return_d2": 4.68
       },
       {
         "code": "002645",
@@ -6984,7 +6984,7 @@
         "conviction": 0.63,
         "price_at_rec": 19.21,
         "technical": "今日涨1.1%，60日横盘，量能温和。",
-        "return_d2": 1.2
+        "return_d2": 4.63
       },
       {
         "code": "603897",
@@ -6993,7 +6993,7 @@
         "conviction": 0.6,
         "price_at_rec": 26.51,
         "technical": "今日涨2.7%，量能配合一般，短线维持反弹。",
-        "return_d2": -1.13
+        "return_d2": -0.08
       },
       {
         "code": "002048",
@@ -7002,7 +7002,7 @@
         "conviction": 0.65,
         "price_at_rec": 19.4,
         "technical": "今日涨1.8%，60日走平，股价处于相对低位。",
-        "return_d2": -1.55
+        "return_d2": -0.67
       },
       {
         "code": "002534",
@@ -7011,7 +7011,7 @@
         "conviction": 0.65,
         "price_at_rec": 16.11,
         "technical": "今日平盘，60日震荡，有待量能催化。",
-        "return_d2": -1.86
+        "return_d2": -1.43
       },
       {
         "code": "001287",
@@ -7020,7 +7020,7 @@
         "conviction": 0.6,
         "price_at_rec": 23.17,
         "technical": "今日小幅上行，量能温和，60日横盘待选方向",
-        "return_d2": -1.25
+        "return_d2": -0.09
       },
       {
         "code": "002335",
@@ -7029,7 +7029,7 @@
         "conviction": 0.6,
         "price_at_rec": 31.25,
         "technical": "今日涨2.4%，换手适中，60日平台后尝试向上突破。",
-        "return_d2": -1.98
+        "return_d2": 0.1
       },
       {
         "code": "300790",
@@ -7038,7 +7038,7 @@
         "conviction": 0.6,
         "price_at_rec": 17.83,
         "technical": "今日涨1.1%，60日横盘，量能温和。",
-        "return_d2": -3.37
+        "return_d2": -1.85
       },
       {
         "code": "300763",
@@ -7047,7 +7047,7 @@
         "conviction": 0.65,
         "price_at_rec": 62.75,
         "technical": "今日涨1.9%，60日筑底，光伏板块情绪回暖。",
-        "return_d2": -1.8
+        "return_d2": -1.04
       },
       {
         "code": "000949",
@@ -7056,7 +7056,7 @@
         "conviction": 0.6,
         "price_at_rec": 6.56,
         "technical": "今日涨3.9%，量能放大，60日走平后存在向上突破可能。",
-        "return_d2": 0.91
+        "return_d2": 1.37
       },
       {
         "code": "002498",
@@ -7065,7 +7065,7 @@
         "conviction": 0.6,
         "price_at_rec": 6.82,
         "technical": "今日涨3.7%，放量上攻，60日震荡修复。",
-        "return_d2": 0.73
+        "return_d2": 2.79
       },
       {
         "code": "600288",
@@ -7074,7 +7074,7 @@
         "conviction": 0.58,
         "price_at_rec": 11.03,
         "technical": "今日涨2.7%，换手5.7%，短线资金活跃",
-        "return_d2": 1.0
+        "return_d2": 2.36
       },
       {
         "code": "000681",
@@ -7083,7 +7083,7 @@
         "conviction": 0.58,
         "price_at_rec": 18.4,
         "technical": "今日涨0.6%，换手5.5%，高位震荡，短线博弈",
-        "return_d2": -0.98
+        "return_d2": -0.22
       },
       {
         "code": "002922",
@@ -7092,7 +7092,7 @@
         "conviction": 0.6,
         "price_at_rec": 26.03,
         "technical": "今日涨1.8%，60日平台整理，均线粘合。",
-        "return_d2": 0.69
+        "return_d2": 1.0
       },
       {
         "code": "300953",
@@ -7101,7 +7101,7 @@
         "conviction": 0.6,
         "price_at_rec": 101.92,
         "technical": "今日涨1.6%，60日整理，成长股波动特征明显。",
-        "return_d2": -0.6
+        "return_d2": -1.25
       },
       {
         "code": "603985",
@@ -7110,7 +7110,7 @@
         "conviction": 0.55,
         "price_at_rec": 16.84,
         "technical": "60日平台整理，今日涨1.6%，量能温和放大",
-        "return_d2": -0.12
+        "return_d2": 1.25
       },
       {
         "code": "002297",
@@ -7119,7 +7119,7 @@
         "conviction": 0.55,
         "price_at_rec": 19.2,
         "technical": "今日涨2.0%，换手5.0%较高，短线活跃但波动加大。",
-        "return_d2": -1.87
+        "return_d2": -0.31
       },
       {
         "code": "002410",
@@ -7128,7 +7128,7 @@
         "conviction": 0.55,
         "price_at_rec": 9.39,
         "technical": "今日涨3.8%，超跌反弹力度明显。",
-        "return_d2": 1.06
+        "return_d2": 1.6
       },
       {
         "code": "603269",
@@ -7788,5 +7788,651 @@
     "date": "2026-08-10",
     "regime": "unknown",
     "buys": []
+  },
+  {
+    "date": "2026-08-10",
+    "regime": "weak_bear",
+    "buys": [
+      {
+        "code": "300724",
+        "name": "捷佳伟创",
+        "score": 85,
+        "conviction": 0.8,
+        "price_at_rec": 59.6,
+        "technical": "股价上涨1.7%，量价齐升，60日横盘后技术形态良好。"
+      },
+      {
+        "code": "002236",
+        "name": "大华股份",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 16.85,
+        "technical": "股价微涨，60日横盘，技术面蓄势待发。"
+      },
+      {
+        "code": "301219",
+        "name": "腾远钴业",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 52.79,
+        "technical": "股价微跌，60日横盘，技术面中性，等待突破。"
+      },
+      {
+        "code": "000997",
+        "name": "新大陆",
+        "score": 84,
+        "conviction": 0.75,
+        "price_at_rec": 18.42,
+        "technical": "股价上涨1.6%，60日横盘，技术面蓄势。"
+      },
+      {
+        "code": "603556",
+        "name": "海兴电力",
+        "score": 83,
+        "conviction": 0.8,
+        "price_at_rec": 25.61,
+        "technical": "因子分97，技术面极强，虽今日微跌，但趋势向好。"
+      },
+      {
+        "code": "002611",
+        "name": "东方精工",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 16.15,
+        "technical": "股价放量上涨3.3%，突破近期平台，60日横盘后启动，技术面转强。"
+      },
+      {
+        "code": "603799",
+        "name": "华友钴业",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 46.07,
+        "technical": "股价微跌，60日横盘，技术面中性，等待方向选择。"
+      },
+      {
+        "code": "600428",
+        "name": "中远海特",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 11.65,
+        "technical": "股价微跌，60日横盘，换手率低，技术面平稳。"
+      },
+      {
+        "code": "600089",
+        "name": "特变电工",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 21.47,
+        "technical": "股价上涨1.4%，60日持平，换手率1.8%，技术面稳健。"
+      },
+      {
+        "code": "300662",
+        "name": "科锐国际",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 21.12,
+        "technical": "股价小幅上涨，量能温和，60日横盘整理后有望向上突破，技术形态良好。"
+      },
+      {
+        "code": "603588",
+        "name": "高能环境",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 14.69,
+        "technical": "股价上涨，量能配合，60日横盘后有望继续上行，技术面偏强。"
+      },
+      {
+        "code": "600298",
+        "name": "安琪酵母",
+        "score": 82,
+        "conviction": 0.75,
+        "price_at_rec": 43.49,
+        "technical": "股价上涨，量价配合良好，趋势向好。"
+      },
+      {
+        "code": "000100",
+        "name": "TCL科技",
+        "score": 82,
+        "conviction": 0.8,
+        "price_at_rec": 4.87,
+        "technical": "大盘蓝筹，走势平稳，因子分87，显示中期趋势向好。"
+      },
+      {
+        "code": "600531",
+        "name": "豫光金铅",
+        "score": 81,
+        "conviction": 0.75,
+        "price_at_rec": 13.9,
+        "technical": "股价上涨，量能配合，60日横盘后有望继续上行，技术面偏强。"
+      },
+      {
+        "code": "000683",
+        "name": "博源化工",
+        "score": 81,
+        "conviction": 0.75,
+        "price_at_rec": 6.13,
+        "technical": "今日上涨1.2%，因子分96，技术面强。"
+      },
+      {
+        "code": "002948",
+        "name": "青岛银行",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 5.8,
+        "technical": "股价小幅上涨，量能温和，60日横盘整理，走势稳健。"
+      },
+      {
+        "code": "601975",
+        "name": "招商南油",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 3.71,
+        "technical": "股价上涨2.2%，量能配合，60日横盘后有望向上突破。"
+      },
+      {
+        "code": "603367",
+        "name": "辰欣药业",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 14.9,
+        "technical": "股价上涨2.6%，量能放大，60日横盘后向上突破。"
+      },
+      {
+        "code": "002533",
+        "name": "金杯电工",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 11.58,
+        "technical": "股价上涨3.4%，放量突破，60日横盘后启动，技术面强。"
+      },
+      {
+        "code": "002555",
+        "name": "三七互娱",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 19.98,
+        "technical": "股价温和上涨，60日持平，换手率4%活跃，短期有反弹动能。"
+      },
+      {
+        "code": "300274",
+        "name": "阳光电源",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 113.71,
+        "technical": "股价上涨1.2%，60日持平，换手率低，技术面稳健。"
+      },
+      {
+        "code": "300138",
+        "name": "晨光生物",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 11.7,
+        "technical": "股价小幅下跌，但60日横盘，整体趋势平稳，技术面中性偏多。"
+      },
+      {
+        "code": "300850",
+        "name": "新强联",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 29.4,
+        "technical": "股价大涨3.4%，量能放大，60日横盘后突破，技术面强劲。"
+      },
+      {
+        "code": "603897",
+        "name": "长城科技",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 26.49,
+        "technical": "股价上涨，量价齐升，技术形态良好。"
+      },
+      {
+        "code": "600888",
+        "name": "新疆众和",
+        "score": 80,
+        "conviction": 0.7,
+        "price_at_rec": 10.16,
+        "technical": "股价上涨，量能温和，趋势稳健。"
+      },
+      {
+        "code": "603236",
+        "name": "移远通信",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 50.16,
+        "technical": "今日上涨2.1%，因子分91，技术面偏强。"
+      },
+      {
+        "code": "000400",
+        "name": "许继电气",
+        "score": 80,
+        "conviction": 0.75,
+        "price_at_rec": 22.85,
+        "technical": "今日上涨3.4%，因子分88，技术面强。"
+      },
+      {
+        "code": "002756",
+        "name": "永兴材料",
+        "score": 79,
+        "conviction": 0.7,
+        "price_at_rec": 49.21,
+        "technical": "股价大涨3.6%，量能放大，60日横盘后强势突破，技术面强劲。"
+      },
+      {
+        "code": "300443",
+        "name": "金雷股份",
+        "score": 79,
+        "conviction": 0.7,
+        "price_at_rec": 21.28,
+        "technical": "股价上涨，量能温和，60日横盘，技术面偏多。"
+      },
+      {
+        "code": "002497",
+        "name": "雅化集团",
+        "score": 79,
+        "conviction": 0.7,
+        "price_at_rec": 19.09,
+        "technical": "今日上涨2.7%，因子分93，技术面强势。"
+      },
+      {
+        "code": "000960",
+        "name": "锡业股份",
+        "score": 79,
+        "conviction": 0.7,
+        "price_at_rec": 40.5,
+        "technical": "今日上涨2.8%，因子分86，走势向好。"
+      },
+      {
+        "code": "000933",
+        "name": "神火股份",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 27.34,
+        "technical": "股价回调2.3%，短期调整，但60日趋势平稳，无破位迹象。"
+      },
+      {
+        "code": "000589",
+        "name": "贵州轮胎",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 4.4,
+        "technical": "股价平盘，60日横盘，量能稳定，技术面中性偏多。"
+      },
+      {
+        "code": "000690",
+        "name": "宝新能源",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 4.86,
+        "technical": "股价上涨1.2%，60日横盘，量能温和，技术面中性。"
+      },
+      {
+        "code": "000600",
+        "name": "建投能源",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 8.67,
+        "technical": "股价上涨1.3%，60日横盘，技术面平稳。"
+      },
+      {
+        "code": "000065",
+        "name": "北方国际",
+        "score": 78,
+        "conviction": 0.65,
+        "price_at_rec": 9.22,
+        "technical": "股价回调1.9%，短期调整，但60日趋势平稳。"
+      },
+      {
+        "code": "600961",
+        "name": "株冶集团",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 30.17,
+        "technical": "股价小幅上涨，60日横盘后企稳，换手率适中，技术面中性偏多。"
+      },
+      {
+        "code": "002448",
+        "name": "中原内配",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 12.29,
+        "technical": "股价上涨0.6%，60日持平，换手率2.2%，技术面平稳。"
+      },
+      {
+        "code": "002284",
+        "name": "亚太股份",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 9.54,
+        "technical": "股价温和上涨，60日横盘后放量突破迹象，换手率适中，技术面偏强。"
+      },
+      {
+        "code": "600633",
+        "name": "浙数文化",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 11.22,
+        "technical": "股价上涨，量能温和，60日横盘，技术面偏多。"
+      },
+      {
+        "code": "002788",
+        "name": "鹭燕医药",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 11.5,
+        "technical": "股价温和上涨，换手率适中，60日横盘后有望突破。"
+      },
+      {
+        "code": "002539",
+        "name": "云图控股",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 12.8,
+        "technical": "股价平稳，换手率低，筹码稳定。"
+      },
+      {
+        "code": "300435",
+        "name": "中泰股份",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 17.32,
+        "technical": "股价横盘整理，换手率低，60日无趋势，但因子分极高，显示有资金关注迹象。"
+      },
+      {
+        "code": "300628",
+        "name": "亿联网络",
+        "score": 78,
+        "conviction": 0.7,
+        "price_at_rec": 40.03,
+        "technical": "今日上涨0.9%，因子分90，走势稳健。"
+      },
+      {
+        "code": "002941",
+        "name": "新疆交建",
+        "score": 77,
+        "conviction": 0.65,
+        "price_at_rec": 10.89,
+        "technical": "股价大涨3.5%，量能放大，60日横盘后突破，技术面转强。"
+      },
+      {
+        "code": "002452",
+        "name": "长高电气",
+        "score": 77,
+        "conviction": 0.65,
+        "price_at_rec": 11.59,
+        "technical": "股价上涨，量价配合，趋势向上。"
+      },
+      {
+        "code": "002083",
+        "name": "孚日股份",
+        "score": 77,
+        "conviction": 0.65,
+        "price_at_rec": 12.12,
+        "technical": "今日上涨1.4%，换手率7.5%，交投活跃，因子分94。"
+      },
+      {
+        "code": "300773",
+        "name": "拉卡拉",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 16.0,
+        "technical": "股价回调1.2%，短期调整，但60日趋势平稳。"
+      },
+      {
+        "code": "601083",
+        "name": "锦江航运",
+        "score": 76,
+        "conviction": 0.6,
+        "price_at_rec": 11.39,
+        "technical": "股价微涨，60日横盘，技术面中性。"
+      },
+      {
+        "code": "002532",
+        "name": "天山铝业",
+        "score": 76,
+        "conviction": 0.7,
+        "price_at_rec": 13.94,
+        "technical": "股价下跌1.6%，60日横盘，短期回调，但估值低。"
+      },
+      {
+        "code": "002130",
+        "name": "沃尔核材",
+        "score": 76,
+        "conviction": 0.7,
+        "price_at_rec": 17.23,
+        "technical": "股价上涨2.3%，60日横盘，换手率2.7%，技术面走强。"
+      },
+      {
+        "code": "002546",
+        "name": "新联电子",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 8.64,
+        "technical": "股价上涨明显，量能放大，60日横盘后突破，技术面转强。"
+      },
+      {
+        "code": "688169",
+        "name": "石头科技",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 110.63,
+        "technical": "股价小幅上涨，60日横盘，技术面中性偏多。"
+      },
+      {
+        "code": "002605",
+        "name": "姚记科技",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 18.55,
+        "technical": "股价上涨，量能配合，短期趋势向好。"
+      },
+      {
+        "code": "002249",
+        "name": "大洋电机",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 7.44,
+        "technical": "股价上涨，趋势向好，量能配合。"
+      },
+      {
+        "code": "688155",
+        "name": "先惠技术",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 62.05,
+        "technical": "股价上涨，科创板活跃，趋势向好。"
+      },
+      {
+        "code": "002487",
+        "name": "大金重工",
+        "score": 76,
+        "conviction": 0.65,
+        "price_at_rec": 42.1,
+        "technical": "今日上涨3.3%，放量上攻，因子分86，短线动能强。"
+      },
+      {
+        "code": "002772",
+        "name": "众兴菌业",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 10.93,
+        "technical": "股价上涨1.3%，60日横盘，技术面中性偏多。"
+      },
+      {
+        "code": "002266",
+        "name": "浙富控股",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 5.18,
+        "technical": "股价上涨3.0%，放量反弹，60日横盘后启动。"
+      },
+      {
+        "code": "300456",
+        "name": "赛微电子",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 31.47,
+        "technical": "股价小幅上涨，60日持平，换手率低，技术面中性。"
+      },
+      {
+        "code": "600711",
+        "name": "盛屯矿业",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 12.74,
+        "technical": "股价下跌1%，60日持平，短期调整，但基本面支撑。"
+      },
+      {
+        "code": "601789",
+        "name": "宁波建工",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 4.37,
+        "technical": "股价上涨，量能配合良好，60日横盘后有望延续反弹，技术面偏多。"
+      },
+      {
+        "code": "301500",
+        "name": "飞南资源",
+        "score": 75,
+        "conviction": 0.65,
+        "price_at_rec": 24.68,
+        "technical": "股价上涨，量能温和，趋势偏强。"
+      },
+      {
+        "code": "600909",
+        "name": "华安证券",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 8.24,
+        "technical": "股价微跌，但券商板块整体活跃，有补涨机会。"
+      },
+      {
+        "code": "002033",
+        "name": "丽江股份",
+        "score": 75,
+        "conviction": 0.6,
+        "price_at_rec": 8.83,
+        "technical": "今日上涨0.9%，因子分90，走势稳健。"
+      },
+      {
+        "code": "002154",
+        "name": "报喜鸟",
+        "score": 74,
+        "conviction": 0.55,
+        "price_at_rec": 4.28,
+        "technical": "股价上涨3.1%，放量反弹，60日横盘后启动。"
+      },
+      {
+        "code": "600982",
+        "name": "宁波能源",
+        "score": 74,
+        "conviction": 0.65,
+        "price_at_rec": 5.2,
+        "technical": "股价上涨1%，60日横盘，换手率2.3%，技术面中性。"
+      },
+      {
+        "code": "000551",
+        "name": "创元科技",
+        "score": 74,
+        "conviction": 0.65,
+        "price_at_rec": 13.67,
+        "technical": "股价大涨3.4%，60日横盘，换手率2.3%，技术面转强。"
+      },
+      {
+        "code": "002283",
+        "name": "天润工业",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 9.07,
+        "technical": "股价上涨，但PE偏高，需关注持续性。"
+      },
+      {
+        "code": "600686",
+        "name": "金龙汽车",
+        "score": 74,
+        "conviction": 0.6,
+        "price_at_rec": 12.12,
+        "technical": "股价下跌，但基本面良好，可逢低关注。"
+      },
+      {
+        "code": "600352",
+        "name": "浙江龙盛",
+        "score": 73,
+        "conviction": 0.65,
+        "price_at_rec": 13.99,
+        "technical": "股价下跌1.5%，60日持平，换手率2%，技术面回调。"
+      },
+      {
+        "code": "002572",
+        "name": "索菲亚",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 8.31,
+        "technical": "股价上涨1.6%，60日持平，换手率低，技术面企稳。"
+      },
+      {
+        "code": "600338",
+        "name": "西藏珠峰",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 14.36,
+        "technical": "股价上涨2.3%，60日横盘，换手率3.2%，短期活跃。"
+      },
+      {
+        "code": "300505",
+        "name": "川金诺",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 19.55,
+        "technical": "股价平稳，换手率较高，短期有活跃迹象。"
+      },
+      {
+        "code": "300533",
+        "name": "冰川网络",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 15.51,
+        "technical": "股价上涨，换手率较高，活跃度提升。"
+      },
+      {
+        "code": "000582",
+        "name": "北部湾港",
+        "score": 72,
+        "conviction": 0.6,
+        "price_at_rec": 13.28,
+        "technical": "股价上涨，量能放大，突破迹象。"
+      },
+      {
+        "code": "300259",
+        "name": "新天科技",
+        "score": 70,
+        "conviction": 0.6,
+        "price_at_rec": 4.36,
+        "technical": "股价微涨，60日横盘，换手率低，技术面无明显趋势。"
+      },
+      {
+        "code": "605088",
+        "name": "冠盛股份",
+        "score": 70,
+        "conviction": 0.6,
+        "price_at_rec": 21.52,
+        "technical": "股价大涨3.4%，60日持平，换手率低，短期强势。"
+      },
+      {
+        "code": "300358",
+        "name": "楚天科技",
+        "score": 70,
+        "conviction": 0.55,
+        "price_at_rec": 9.18,
+        "technical": "股价微跌，但整体处于低位，有反弹空间。"
+      },
+      {
+        "code": "300453",
+        "name": "三鑫医疗",
+        "score": 70,
+        "conviction": 0.55,
+        "price_at_rec": 9.71,
+        "technical": "股价平稳，换手率适中，底部区域。"
+      }
+    ]
   }
 ]
