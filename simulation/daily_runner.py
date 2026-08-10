@@ -739,6 +739,19 @@ async def phase1_analyze(
                         from agent.evolution.daily_review import review_decision, extract_experience
                         _review = await review_decision(_rec, _today_stats, _today_pct)
                         if _review:
+                            # v5.4 组合级反事实: 用昨日持仓快照 + 今日个股涨跌, 验证"移除拖累票"改善
+                            try:
+                                from agent.evolution.portfolio_counterfactual import portfolio_level_counterfactual
+                                _sret = {}
+                                if "pct_change" in df.columns and "symbol" in df.columns:
+                                    _sub = df[["symbol", "pct_change"]].dropna(subset=["pct_change"])
+                                    _sret = dict(zip(_sub["symbol"], pd.to_numeric(_sub["pct_change"], errors="coerce")))
+                                _pcf = portfolio_level_counterfactual(
+                                    _rec.positions_snapshot, _sret, date=_rec.date)
+                                if _pcf is not None:
+                                    _review["portfolio_cf"] = _pcf.to_dict()
+                            except Exception as _pce:
+                                logger.warning(f"组合级反事实失败: {_pce}")
                             _journal.update_review(_rec.date, _review)
                             _exp = extract_experience(_rec, _review)
                             if _exp and _memory is not None:
@@ -820,6 +833,25 @@ async def phase1_analyze(
         try:
             from agent.evolution.decision_journal import DecisionRecord
             _snap = _build_market_snapshot(df, _regime)
+            # v5.4 组合级反事实: 记录当日持仓快照 (PIT 正确, 供次日复盘算个股级贡献)
+            _pf_snap = []
+            _pf_pos_val = 0.0
+            try:
+                _ih = PortfolioManager().state
+                for _sym, _p in _ih.positions.items():
+                    _val = float(_p.market_value)
+                    _pf_pos_val += _val
+                    _pf_snap.append({
+                        "symbol": _sym, "name": _p.name,
+                        "qty": int(_p.quantity),
+                        "price": round(float(_p.current_price or _p.avg_cost), 3),
+                        "value": round(_val, 2), "weight": 0.0,
+                    })
+                _ih_total = float(_ih.cash) + _pf_pos_val
+            except Exception:
+                _ih_total = _pf_pos_val
+            for _s in _pf_snap:
+                _s["weight"] = round(_s["value"] / _ih_total, 4) if _ih_total > 0 else 0.0
             _rec = DecisionRecord(
                 date=today,
                 market_phase=market_diag.get("market_phase", "unknown"),
@@ -837,6 +869,8 @@ async def phase1_analyze(
                 regime=_regime,
                 crowding_score=_snap.get("crowding_score", 50.0),
                 crowding_signal=_snap.get("crowding_signal", "unknown"),
+                positions_snapshot=_pf_snap,
+                total_value=_ih_total,
             )
             _journal.record(_rec)
             logger.info(f"[进化系统] 决策日志已写入: {_rec.dominant_master} / {_rec.market_phase}")

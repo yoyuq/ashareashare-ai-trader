@@ -1118,6 +1118,23 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                             _yesterday_rec, _today_stats, _mkt_move
                         )
                         if _review is not None:
+                            # v5.4 组合级反事实: 用 T-1 持仓快照 + T 日个股涨跌幅,
+                            # 验证"移除当天拖累最大的持仓"是否真能改善组合. 后视信号, 附入 review.
+                            try:
+                                from agent.evolution.portfolio_counterfactual import portfolio_level_counterfactual
+                                _pcf_col = "pctChg" if "pctChg" in df_cs.columns else "pct_change"
+                                _stock_ret = {}
+                                if _pcf_col in df_cs.columns and "symbol" in df_cs.columns:
+                                    _sub = df_cs[["symbol", _pcf_col]].dropna(subset=[_pcf_col])
+                                    _stock_ret = dict(zip(_sub["symbol"],
+                                                          pd.to_numeric(_sub[_pcf_col], errors="coerce")))
+                                _pcf = portfolio_level_counterfactual(
+                                    _yesterday_rec.positions_snapshot, _stock_ret,
+                                    date=_yesterday_rec.date)
+                                if _pcf is not None:
+                                    _review["portfolio_cf"] = _pcf.to_dict()
+                            except Exception as _pce:
+                                logger.warning(f"组合级反事实失败: {_pce}")
                             _journal.update_review(_yesterday_rec.date, _review)
                             total_llm_calls += 1
                             # 提取经验存入记忆库
@@ -1493,6 +1510,23 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 if _journal is not None:
                     from agent.evolution.decision_journal import DecisionRecord
                     _snap = _compute_day_stat(df_cs)
+                    # v5.4 组合级反事实: 记录当日持仓快照 (用 T 日 t1_close PIT 正确).
+                    # total = cash + Σ持仓市值 (指数书是市场代理, 不参与个股权衡, 略去).
+                    _pf_snap = []
+                    _pf_pos_val = 0.0
+                    for _sym, _p in pf.positions.items():
+                        _px = t1_close.get(_sym, _p.get("entry_price", 0.0))
+                        _val = float(_p.get("qty", 0)) * float(_px)
+                        _pf_pos_val += _val
+                        _pf_snap.append({
+                            "symbol": _sym, "name": _p.get("name", ""),
+                            "qty": int(_p.get("qty", 0)),
+                            "price": round(float(_px), 3),
+                            "value": round(_val, 2), "weight": 0.0,
+                        })
+                    _pf_total = pf.cash + _pf_pos_val
+                    for _s in _pf_snap:
+                        _s["weight"] = round(_s["value"] / _pf_total, 4) if _pf_total > 0 else 0.0
                     _rec = DecisionRecord(
                         date=T,
                         market_phase=_diag.get("market_phase", "unknown"),
@@ -1507,6 +1541,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                         regime=regime,
                         crowding_score=float(_crowd.get("score", 0)),
                         crowding_signal=str(_crowd.get("signal", "")),
+                        positions_snapshot=_pf_snap,
+                        total_value=_pf_total,
                     )
                     _journal.record(_rec)
                     _diag_count += 1

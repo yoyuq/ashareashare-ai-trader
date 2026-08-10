@@ -39,6 +39,11 @@ class DecisionRecord:
     crowding_score: float = 0.0        # 拥挤度分数
     crowding_signal: str = ""          # 拥挤度信号
 
+    # v5.4 组合级反事实 — 当日持仓快照 (PIT 正确, 供次日复盘算个股级贡献)
+    # 每项: {symbol, name, qty, price(T日收盘), value, weight(占总资产)}
+    positions_snapshot: list = field(default_factory=list)
+    total_value: float = 0.0           # T日组合总资产 (现金+持仓+指数书)
+
     # 复盘结果（T+1填写）
     review: Optional[dict] = None      # {verdict, actual_outcome, correct_factors, missed_factors, lesson}
 

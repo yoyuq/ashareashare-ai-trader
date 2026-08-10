@@ -9,9 +9,12 @@ E. 大师阶段防御 — market_phase 防御触发减仓弱股
 """
 
 import asyncio
+import json
+from dataclasses import asdict
 from datetime import date
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 
@@ -433,3 +436,144 @@ def test_memory_format_regime_filters_aggressive(tmp_path):
     mem.items = [_exp("trend_up", conf=0.9), _exp("trend_down", conf=0.6)]
     top = mem.retrieve(current_date="2021-02-05", top_k=1, regime="weak_bear")
     assert top[0].scenario_type == "trend_down", "熊市注入应优先防守经验"
+
+
+# ═══════════════════════════════════════════════════════════════
+# v5.4 组合级反事实 (P1 #26) — 移除拖累票, 组合真的会更好吗?
+# ═══════════════════════════════════════════════════════════════
+
+from agent.evolution.portfolio_counterfactual import (
+    compute_stock_contributions, portfolio_level_counterfactual,
+    StockContribution, summarize_verified,
+)
+
+
+def _snap(*items):
+    """构造持仓快照: (symbol, value, weight). name 用 symbol."""
+    return [{"symbol": s, "name": s, "qty": 100, "value": v, "weight": w}
+            for s, v, w in items]
+
+
+def test_contributions_weighted_by_return():
+    """贡献 = weight × day_return; 涨票正贡献, 跌票负贡献."""
+    snap = _snap(("sh.A", 5000, 0.5), ("sh.B", 5000, 0.5))
+    rets = {"sh.A": 2.0, "sh.B": -1.0}
+    cs = compute_stock_contributions(snap, rets)
+    by = {c.symbol: c for c in cs}
+    assert by["sh.A"].contribution_pct == pytest.approx(1.0)   # 0.5*2
+    assert by["sh.B"].contribution_pct == pytest.approx(-0.5)  # 0.5*(-1)
+
+
+def test_contributions_skip_unmatched_stock():
+    """无次日收益的持仓跳过 (停牌/无数据), 不崩."""
+    snap = _snap(("sh.A", 5000, 0.5), ("sh.B", 5000, 0.5))
+    cs = compute_stock_contributions(snap, {"sh.A": 1.0})
+    assert [c.symbol for c in cs] == ["sh.A"]
+
+
+def test_portfolio_cf_identifies_worst_drag():
+    """组合实际收益 = Σ贡献; 最差票贡献最负; 移除它反事实更好."""
+    snap = _snap(("sh.GOOD", 6000, 0.6), ("sh.BAD", 4000, 0.4))
+    rets = {"sh.GOOD": 3.0, "sh.BAD": -5.0}
+    r = portfolio_level_counterfactual(snap, rets, date="2021-01-05")
+    assert r is not None
+    assert r.portfolio_return_pct == pytest.approx(0.6*3 + 0.4*(-5))  # -0.2%
+    assert r.worst_stock.symbol == "sh.BAD"
+    assert r.worst_contribution_pct == pytest.approx(-2.0)  # 0.4*(-5)
+    # 移除 BAD 后: 只留 GOOD 贡献 1.8; 反事实 -0.2 - (-2.0) = 1.8
+    assert r.counterfactual_return_pct == pytest.approx(1.8)
+    assert r.improvement_pct == pytest.approx(2.0)
+    assert r.verified is True
+
+
+def test_portfolio_cf_not_verified_when_worst_not_negative():
+    """最差票贡献非负 (组合里没有拖累票) → 不移除, verified=False."""
+    snap = _snap(("sh.A", 5000, 0.5), ("sh.B", 5000, 0.5))
+    rets = {"sh.A": 1.0, "sh.B": 0.5}
+    r = portfolio_level_counterfactual(snap, rets, date="2021-01-05")
+    assert r is not None
+    assert r.worst_stock.symbol == "sh.B"
+    assert r.improvement_pct == pytest.approx(-0.25)  # 移除反而更差
+    assert r.verified is False
+
+
+def test_portfolio_cf_volatility_normalized_threshold():
+    """大波动日: 改善门槛抬高, 小拖累不判定为"该扔掉" (防浅层后视)."""
+    # 组合整体大涨 5% → 阈值 = max(0.05, 5*0.15)=0.75; 最差票贡献 -0.5 不够
+    snap = _snap(("sh.A", 9000, 0.9), ("sh.B", 1000, 0.1))
+    rets = {"sh.A": 5.5, "sh.B": -5.0}   # 组合收益 ≈ 0.9*5.5 + 0.1*(-5) = 4.45%
+    r = portfolio_level_counterfactual(snap, rets, date="2021-01-05")
+    assert r.portfolio_return_pct == pytest.approx(4.45)
+    assert r.worst_stock.symbol == "sh.B"
+    assert r.worst_contribution_pct == pytest.approx(-0.5)
+    # improvement=0.5 < 阈值 0.75 → 不 verified
+    assert r.verified is False
+
+
+def test_portfolio_cf_empty_returns_none():
+    """空持仓/无匹配 → None (不崩)."""
+    assert portfolio_level_counterfactual([], {}, date="2021-01-05") is None
+    assert portfolio_level_counterfactual(
+        _snap(("sh.A", 5000, 1.0)), {}, date="2021-01-05") is None
+
+
+def test_portfolio_cf_summary_counts():
+    """汇总统计: verified 计数 + 最差票频次."""
+    recs = [
+        portfolio_level_counterfactual(_snap(("sh.A", 6000, 0.6), ("sh.B", 4000, 0.4)),
+                                       {"sh.A": 3.0, "sh.B": -5.0}, date="d1"),  # verified
+        portfolio_level_counterfactual(_snap(("sh.A", 5000, 0.5), ("sh.B", 5000, 0.5)),
+                                       {"sh.A": 1.0, "sh.B": 0.5}, date="d2"),   # not
+    ]
+    s = summarize_verified(recs)
+    assert s["total"] == 2
+    assert s["verified"] == 1
+    assert s["worst_symbols"][0][0] == "sh.B"  # 被标记为拖累票
+
+
+def test_portfolio_cf_summary_empty():
+    assert summarize_verified([]) == {
+        "total": 0, "verified": 0, "verified_rate": 0.0,
+        "avg_improvement_pct": 0.0, "worst_symbols": []}
+
+
+def test_decision_record_roundtrip_keeps_positions_snapshot():
+    """journal 往返: positions_snapshot + total_value 保留; 旧记录(无字段)不崩."""
+    from agent.evolution.decision_journal import DecisionRecord
+    rec = DecisionRecord(date="2021-01-05", market_phase="trend_up",
+                         dominant_master="live", secondary_master="",
+                         risk_level=3, position_multiplier=0.9, max_positions_adj=0,
+                         positions_snapshot=[{"symbol": "sh.600519", "name": "x",
+                                              "qty": 100, "price": 2000.0,
+                                              "value": 200000.0, "weight": 0.5}],
+                         total_value=400000.0)
+    back = DecisionRecord.from_json(rec.to_json())
+    assert back.positions_snapshot == rec.positions_snapshot
+    assert back.total_value == pytest.approx(400000.0)
+
+    # 旧格式记录 (无 positions_snapshot 字段) → 默认 [], 不崩
+    old = DecisionRecord(date="2020-01-01", market_phase="r", dominant_master="m",
+                         secondary_master="", risk_level=3, position_multiplier=1.0,
+                         max_positions_adj=0)
+    old_cfg = json.dumps(asdict(old), ensure_ascii=False)
+    assert DecisionRecord.from_json(old_cfg).positions_snapshot == []
+
+
+def test_review_linkage_computes_portfolio_cf():
+    """复盘链路: 用昨日持仓快照 + 今日截面涨跌, 算出 portfolio_cf 附到 review."""
+    from agent.evolution.decision_journal import DecisionRecord
+    import pandas as pd
+    rec = DecisionRecord(date="2021-01-05", market_phase="trend_up",
+                         dominant_master="m", secondary_master="", risk_level=3,
+                         position_multiplier=0.9, max_positions_adj=0,
+                         positions_snapshot=_snap(("sh.GOOD", 6000, 0.6),
+                                                  ("sh.BAD", 4000, 0.4)))
+    # 模拟 T 日截面: 每只票当日涨跌
+    df = pd.DataFrame({"symbol": ["sh.GOOD", "sh.BAD"], "pctChg": [3.0, -5.0]})
+    sret = dict(zip(df["symbol"], pd.to_numeric(df["pctChg"], errors="coerce")))
+    review = {"verdict": "wrong", "lesson_title": "t", "lesson_detail": "d"}
+    pcf = portfolio_level_counterfactual(rec.positions_snapshot, sret, date=rec.date)
+    assert pcf is not None and pcf.verified
+    review["portfolio_cf"] = pcf.to_dict()
+    assert review["portfolio_cf"]["worst_stock"]["symbol"] == "sh.BAD"
+    assert review["portfolio_cf"]["improvement_pct"] == pytest.approx(2.0)
