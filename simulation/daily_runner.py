@@ -576,7 +576,17 @@ async def phase1_analyze(
             try:
                 _d = json.loads(_cache.read_text(encoding="utf-8"))
                 df = pd.DataFrame(_d.get("data", []))
-                logger.warning(f"使用全市场缓存快照 {_d.get('date', '?')} ({len(df)} 只)")
+                _snap_date = str(_d.get("date", ""))
+                logger.warning(f"使用全市场缓存快照 {_snap_date} ({len(df)} 只)")
+                # v5.4 数据新鲜度告警 (纸面实盘链路): 缓存滞后 >3 自然日 → 标注, 提醒交易时段/代理可用时运行
+                try:
+                    from datetime import date as _dcls
+                    _lag = (_dcls.today() - date.fromisoformat(_snap_date)).days
+                    if _lag > 3:
+                        logger.warning(f"⚠ 数据滞后 {_lag} 天 (快照 {_snap_date}) — 建议在交易时段/代理可用时运行, "
+                                       f"否则决策基于过期行情")
+                except Exception:
+                    pass
             except Exception as e:
                 logger.error(f"缓存快照加载失败: {e}")
     if df.empty:
