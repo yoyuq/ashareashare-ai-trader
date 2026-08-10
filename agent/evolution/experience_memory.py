@@ -43,10 +43,17 @@ class ExperienceMemory:
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        def _default(o):
+            if hasattr(o, "item"):
+                try:
+                    return o.item()
+                except Exception:
+                    pass
+            raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump(
                 {"items": [it.to_dict() for it in self.items]},
-                f, ensure_ascii=False, indent=2
+                f, ensure_ascii=False, indent=2, default=_default
             )
 
     def add(self, item: ExperienceItem) -> bool:
@@ -128,8 +135,17 @@ class ExperienceMemory:
         lines = ["## 你的历史经验（从过去的复盘中学到的）"]
         for i, it in enumerate(items, 1):
             verdict_cn = {"correct": "✅ 正确经验", "wrong": "❌ 错误教训", "partial": "⚠️ 部分正确"}.get(it.verdict, it.verdict)
+            # v5.5 P1-7: 输出经验置信度 + 反事实验证标记, 让 LLM 知道你有多确定这条经验
+            _conf_badge = f"置信度{it.confidence:.0%}"
+            if "high_confidence" in it.tags:
+                _conf_badge += " ★高置信"
+            elif "cf_verified" in it.tags:
+                _conf_badge += " ✓反事实验证通过"
+            elif any(t in it.tags for t in ("组合拖累票", "portfolio_cf")):
+                _conf_badge += " ⚠组合拖累警示"
             lines.append(
-                f"{i}. [{it.date}] {verdict_cn} | {it.master_used} | {it.lesson_title}\n"
+                f"{i}. [{it.date}] {verdict_cn} | {it.master_used} | {_conf_badge}\n"
+                f"   {it.lesson_title}\n"
                 f"   → {it.lesson_detail}"
             )
         lines.append("")  # 空行分隔

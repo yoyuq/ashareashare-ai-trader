@@ -92,11 +92,16 @@ def load_macro_context() -> Optional[str]:
         return None
 
 
-def _init_evolution_system():
+def _init_evolution_system(name: str = "diag"):
     """初始化自我进化系统 (journal / memory / evolution)。
 
     数据文件存放在 simulation_data/ 下，与 portfolio.json 同级。
     返回 (journal, memory, evolution) 三元组。
+
+    v5.5 P1-6: 参数 name 隔离不同路径的进化状态.
+      默认 "diag" = daily_runner 的市场级诊断闭环 (含持仓快照/市场统计, 供次日复盘).
+      workflow.py 单股分析路径用 "analysis", 避免把"无持仓快照的退化记录"污染进
+      diag_journal, 导致次日复盘拿到空持仓 (portfolio_cf 失真).
     """
     from agent.evolution.decision_journal import DecisionJournal
     from agent.evolution.experience_memory import ExperienceMemory
@@ -105,9 +110,9 @@ def _init_evolution_system():
     base = Path(__file__).parent.parent / "simulation_data"
     base.mkdir(parents=True, exist_ok=True)
 
-    journal = DecisionJournal(base / "diag_journal.jsonl")
-    memory = ExperienceMemory(base / "diag_memory.json")
-    evolution = EvolutionManager(base / "diag_evolution.json", period_days=7)
+    journal = DecisionJournal(base / f"{name}_journal.jsonl")
+    memory = ExperienceMemory(base / f"{name}_memory.json")
+    evolution = EvolutionManager(base / f"{name}_evolution.json", period_days=7)
 
     return journal, memory, evolution
 
@@ -563,6 +568,8 @@ async def phase1_analyze(
         '总市值':'total_mv','量比':'vol_ratio','60日涨跌幅':'pct_60d','振幅':'amplitude'
     }
     df = pd.DataFrame()
+    _data_source = "live"
+    _data_lag_days = 0
     try:
         import akshare as ak
         _raw = ak.stock_zh_a_spot_em()
@@ -577,16 +584,17 @@ async def phase1_analyze(
                 _d = json.loads(_cache.read_text(encoding="utf-8"))
                 df = pd.DataFrame(_d.get("data", []))
                 _snap_date = str(_d.get("date", ""))
+                _data_source = "cache"
                 logger.warning(f"使用全市场缓存快照 {_snap_date} ({len(df)} 只)")
-                # v5.4 数据新鲜度告警 (纸面实盘链路): 缓存滞后 >3 自然日 → 标注, 提醒交易时段/代理可用时运行
+                # v5.4 数据新鲜度 (纸面实盘链路): 缓存滞后自然日 → 供 run_full_day 判定是否降级只读
                 try:
                     from datetime import date as _dcls
-                    _lag = (_dcls.today() - date.fromisoformat(_snap_date)).days
-                    if _lag > 3:
-                        logger.warning(f"⚠ 数据滞后 {_lag} 天 (快照 {_snap_date}) — 建议在交易时段/代理可用时运行, "
-                                       f"否则决策基于过期行情")
+                    _data_lag_days = (_dcls.today() - date.fromisoformat(_snap_date)).days
+                    if _data_lag_days > 3:
+                        logger.warning(f"⚠ 数据滞后 {_data_lag_days} 天 (快照 {_snap_date}) — 建议在交易时段/代理可用时运行, "
+                                       f"决策基于过期行情, 将降级为只读不真交易")
                 except Exception:
-                    pass
+                    _data_lag_days = 0
             except Exception as e:
                 logger.error(f"缓存快照加载失败: {e}")
     if df.empty:
@@ -744,6 +752,15 @@ async def phase1_analyze(
                 _today_stats = _build_market_snapshot(df, _regime)
                 # v5.1 市场涨跌用中位数(鲁棒于单只异动股), 避免 cross-sectional mean 被个别涨停/跌停扭曲反事实
                 _today_pct = float(df['pct_change'].median()) if 'pct_change' in df.columns else 0.0
+                # v5.5 P1-4: 组合级反事实闭环 — 持久化拖累票历史, 反复被验证的票 → 写经验回流
+                _pcf_hist_path = Path(__file__).parent.parent / "simulation_data" / "portfolio_cf_history.json"
+                _pcf_history = {}
+                if _pcf_hist_path.exists():
+                    try:
+                        _pcf_history = json.loads(_pcf_hist_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        _pcf_history = {}
+                _pcf_verified_today = []
                 for _rec in _unreviewed:
                     try:
                         from agent.evolution.daily_review import review_decision, extract_experience
@@ -751,7 +768,9 @@ async def phase1_analyze(
                         if _review:
                             # v5.4 组合级反事实: 用昨日持仓快照 + 今日个股涨跌, 验证"移除拖累票"改善
                             try:
-                                from agent.evolution.portfolio_counterfactual import portfolio_level_counterfactual
+                                from agent.evolution.portfolio_counterfactual import (
+                                    portfolio_level_counterfactual, accumulate_drag_history,
+                                )
                                 _sret = {}
                                 if "pct_change" in df.columns and "symbol" in df.columns:
                                     _sub = df[["symbol", "pct_change"]].dropna(subset=["pct_change"])
@@ -760,6 +779,9 @@ async def phase1_analyze(
                                     _rec.positions_snapshot, _sret, date=_rec.date)
                                 if _pcf is not None:
                                     _review["portfolio_cf"] = _pcf.to_dict()
+                                    # v5.5 闭环: 收集 verified 拖累票 → 累积进历史
+                                    if _pcf.verified and _pcf.worst_stock is not None:
+                                        _pcf_verified_today.append(_pcf)
                             except Exception as _pce:
                                 logger.warning(f"组合级反事实失败: {_pce}")
                             _journal.update_review(_rec.date, _review)
@@ -815,6 +837,29 @@ async def phase1_analyze(
                     except Exception as _re:
                         logger.debug(f"  复盘 {_rec.date} 失败: {_re}")
 
+                # v5.5 P1-4 闭环: 累积今日 verified 拖累票 → 持久化 → 反复被标记的写经验回流
+                if _pcf_verified_today:
+                    try:
+                        from agent.evolution.portfolio_counterfactual import (
+                            accumulate_drag_history, drag_experiences,
+                        )
+                        _pcf_history = accumulate_drag_history(
+                            _pcf_history, _pcf_verified_today, today)
+                        _pcf_hist_path.parent.mkdir(parents=True, exist_ok=True)
+                        _pcf_hist_path.write_text(
+                            json.dumps(_pcf_history, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+                        _drag_items = drag_experiences(_pcf_history, today)
+                        if _drag_items and _memory is not None:
+                            for _di in _drag_items:
+                                _added = _memory.add(_di)
+                            _memory.save()
+                            logger.warning(
+                                f"[组合反事实闭环] {len(_drag_items)} 只票被反复验证为拖累, 已写入经验回流"
+                                f" → LLM 将对其降权/谨慎")
+                    except Exception as _pcfe:
+                        logger.warning(f"[组合反事实闭环] 失败: {_pcfe}")
+
     # 1e-2. 今日市场诊断
     try:
         _mc = load_macro_context()
@@ -827,8 +872,19 @@ async def phase1_analyze(
                 _prev_rec = _journal._cache[_sorted_dates[-1]]
                 _prev_risk = _prev_rec.risk_level
 
+        # v5.5 P1-5: 实盘诊断喂真实拥挤度 (与回放同一 market_crowding, 回退 cross-sectional 换手)
+        _crowd_live = None
+        try:
+            from analysis.crowding import market_crowding
+            _crowd_live = market_crowding(df)
+            if _crowd_live.get("signal") not in (None, "cool") or _crowd_live.get("score", 50) >= 40:
+                logger.info(f"[拥挤度] {_crowd_live.get('signal')} (score {_crowd_live.get('score',50):.0f}, hot {_crowd_live.get('hot_ratio',0):.2%})")
+        except Exception as _cr:
+            logger.warning(f"拥挤度计算失败: {_cr}")
+
         market_diag = await get_market_diagnostic(
             df, _regime,
+            crowding=_crowd_live,
             macro_context=_mc,
             memory=_memory,
             evolution=_evolution,
@@ -928,6 +984,9 @@ async def phase1_analyze(
         # v3.5 规则排序后的 Top 股 (诊断模式下直接用, 转 records 便于 JSON 序列化)
         "df_top": df_top.to_dict("records") if hasattr(df_top, "to_dict") else df_top,
         "elapsed_seconds": round(time.time() - t0, 1),
+        # v5.5 数据新鲜度: 供 run_full_day 判定是否降级只读 (缓存滞后>3天不真交易)
+        "data_source": _data_source,
+        "data_lag_days": int(_data_lag_days),
     }
     outpath = REPORT_DIR / f"deep_analysis_top100.json"
     outpath.parent.mkdir(parents=True, exist_ok=True)
@@ -1211,6 +1270,31 @@ async def _load_index_close() -> Optional[pd.Series]:
         return None
 
 
+def _index_benchmark_ret(index_close, analysis_date: str, review_date: str) -> float:
+    """同期基准收益 (v5.5, P0-2): 上证指数从 analysis_date 到 review_date 的累计涨跌幅.
+
+    取两个日期各自最后一个 ≤ 该日的收盘计算。解决 decision_log 的 benchmark 恒为 0
+    (alpha 被度量成"是否正收益"而非"是否跑赢大盘")。无数据/异常 → 回退 0.0 (不回归旧行为).
+    """
+    if index_close is None or len(index_close) == 0:
+        return 0.0
+    try:
+        s = index_close
+        if not isinstance(s.index, pd.DatetimeIndex):
+            return 0.0
+        a_series = s[s.index <= pd.Timestamp(analysis_date)]
+        r_series = s[s.index <= pd.Timestamp(review_date)]
+        if a_series.empty or r_series.empty:
+            return 0.0
+        a_close = float(pd.to_numeric(a_series.iloc[-1], errors="coerce"))
+        r_close = float(pd.to_numeric(r_series.iloc[-1], errors="coerce"))
+        if not a_close or a_close <= 0:
+            return 0.0
+        return (r_close / a_close) - 1.0
+    except Exception:
+        return 0.0
+
+
 def _detect_regime(df: pd.DataFrame, index_close: Optional[pd.Series] = None) -> Dict:
     """市场状态检测.
 
@@ -1425,9 +1509,39 @@ def _limit_pct_for_code(code: str) -> float:
     """按代码返回板块涨跌幅限制(%) — 主板±10%, 创业板/科创板±20%, 北交所±30%"""
     if code.startswith("30") or code.startswith("68"):
         return 20.0
-    if code.startswith("8") or code.startswith("4"):
+    if code.startswith("8") or code.startswith("4") or code.startswith("920"):
         return 30.0
     return 10.0
+
+
+def _tencent_prefix(code: str) -> str:
+    """v5.5 P0-3: 板块 → 腾讯行情前缀. 北交所正确判据是 8/4/920 开头 (原 startswith('9') 取错行情)."""
+    if code.startswith("6"):
+        return "sh"
+    if code.startswith("8") or code.startswith("4") or code.startswith("920"):
+        return "bj"
+    return "sz"
+
+
+def _effective_dry_run_for_lag(analysis, base_dry_run: bool, skip_analyze: bool, _logger=None) -> bool:
+    """v5.5 数据脱节拦截: 缓存滞后>3天 → 强制 dry-run (只读, 不真交易).
+
+    防"Phase1 用过期缓存定仓位, Phase2 用实时价成交"的脱节。
+    数据新鲜(lag<=3天)或已显式 --dry-run 时, 维持原值。
+    """
+    if base_dry_run:
+        return True
+    if skip_analyze or not isinstance(analysis, dict):
+        return False
+    lag = int(analysis.get("data_lag_days", 0) or 0)
+    if lag > 3:
+        if _logger is not None:
+            _logger.warning(
+                f"⚠ 数据滞后 {lag} 天 → Phase2 降级为 dry-run (只分析不交易), "
+                f"避免基于过期行情真交易。数据新鲜时(交易时段/代理可用)自动恢复正常交易。"
+            )
+        return True
+    return False
 
 
 async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -> Dict[str, Any]:
@@ -1862,7 +1976,7 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
 # Phase 3: 总结
 # ═══════════════════════════════════════════════════════════════
 
-def phase3_summary() -> Dict[str, Any]:
+async def phase3_summary() -> Dict[str, Any]:
     """生成持仓总结 + v3.1 决策结果闭环记录"""
     from simulation.portfolio import PortfolioManager
     from simulation.paper_trader import PaperTradingEngine
@@ -1907,6 +2021,16 @@ def phase3_summary() -> Dict[str, Any]:
         if unreviewed:
             logger.info(f"[决策回顾] 发现{len(unreviewed)}条待回顾的决策")
 
+            # v5.5 P0-2: 基准用真实上证指数同期收益 (替代恒 0). 取一次序列, 逐条算对应该决策持有期.
+            try:
+                _bench_idx = await _load_index_close()
+            except Exception:
+                _bench_idx = None
+            if _bench_idx is not None and len(_bench_idx) > 0:
+                logger.info("[决策回顾] benchmark 接入上证指数同期收益")
+            else:
+                logger.warning("[决策回顾] 基准指数不可用, benchmark 回退 0.0 (不影响交易)")
+
             for record in unreviewed:
                 normalized = record.symbol
                 if "." not in normalized:
@@ -1922,13 +2046,16 @@ def phase3_summary() -> Dict[str, Any]:
                     short = sym.replace("sh.", "").replace("sz.", "")
                     if short == record.symbol or sym == record.symbol:
                         realized_return = (pos.current_price / pos.avg_cost - 1) if pos.avg_cost > 0 else 0
-                        benchmark_return = 0.0  # TODO: 对接 CSI300 同期数据
+                        # v5.5 P0-2: 真实大盘基准 (决策日→回顾日), 让 alpha 反映"是否跑赢大盘"
+                        benchmark_return = _index_benchmark_ret(
+                            _bench_idx, record.analysis_date, today
+                        )
                         dl.log_outcome(
                             log_id=record.log_id,
                             realized_return=round(realized_return, 4),
-                            benchmark_return=benchmark_return,
+                            benchmark_return=round(benchmark_return, 4),
                             review_date=today,
-                            notes=f"自动回顾: {record.final_signal}@{record.confidence:.0%}置信度 → 持仓收益{realized_return:+.2%}",
+                            notes=f"自动回顾: {record.final_signal}@{record.confidence:.0%}置信度 → 持仓收益{realized_return:+.2%} vs 上证{benchmark_return:+.2%}",
                         )
                         break
 
@@ -1982,11 +2109,13 @@ async def run_full_day(
         logger.info("Phase 1 跳过 (--skip-analyze)")
 
     # Phase 2: 执行交易
-    trade_result = await phase2_execute(dry_run=dry_run)
+    # v5.5 数据脱节拦截: 基于过期缓存(lag>3天)的分析 → 降级只读, 不真交易, 防"旧行情定仓位/新价成交"脱节
+    _effective_dry_run = _effective_dry_run_for_lag(analysis, dry_run, skip_analyze, logger)
+    trade_result = await phase2_execute(dry_run=_effective_dry_run)
     logger.info(f"Phase 2 完成: 卖出{trade_result.get('sold',0)} | 买入{trade_result.get('bought',0)}")
 
     # Phase 3: 总结
-    summary = phase3_summary()
+    summary = await phase3_summary()
     logger.info(f"Phase 3 完成: {summary['position_count']}只持仓 | 总资产 RMB{summary['total_value']:,.2f}")
 
     # v3.1: 日终通知推送
@@ -2043,7 +2172,7 @@ async def run_full_day(
                         code = r.get("code", "")
                         # 获取当时价格 (v3.0: 复用统一行情 helper, 修复未导入 requests 的 F821)
                         try:
-                            prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
+                            prefix = _tencent_prefix(code)
                             price, _pct = _tencent_quote(f"{prefix}.{code}")
                         except Exception:
                             price = 0
@@ -2070,7 +2199,7 @@ async def run_full_day(
             for b in old_entry.get("buys", []):
                 try:
                     code = b["code"]
-                    prefix = "sh" if code.startswith("6") else ("bj" if code.startswith("9") else "sz")
+                    prefix = _tencent_prefix(code)
                     # v3.0: 复用统一行情 helper (修复此前未导入 requests 的 F821 NameError)
                     cur_price, _pct = _tencent_quote(f"{prefix}.{code}")
                     rec_price = b.get("price_at_rec", 0)

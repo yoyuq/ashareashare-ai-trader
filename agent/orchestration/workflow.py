@@ -62,8 +62,10 @@ class AnalysisWorkflow:
         编排路径与 daily_runner 共享同一套进化闭环, 不再两条路径分叉。
         """
         if self._evo_journal is None:
+            # v5.5 P1-6: 单股分析路径用独立进化状态 (analysis_*), 不复用 diag_*.
+            # 否则"无持仓快照的退化记录"污染 diag_journal, 次日复盘拿空持仓 (portfolio_cf 失真).
             from simulation.daily_runner import _init_evolution_system
-            self._evo_journal, self._evo_memory, self._evo = _init_evolution_system()
+            self._evo_journal, self._evo_memory, self._evo = _init_evolution_system(name="analysis")
 
     def _init_decision_logger(self):
         """v3.1: 延迟初始化 DecisionLogger"""

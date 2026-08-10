@@ -185,3 +185,81 @@ def summarize_verified(records: list[PortfolioCounterfactualResult]) -> dict:
         "avg_improvement_pct": round(sum(r.improvement_pct for r in recs) / n, 3),
         "worst_symbols": sym_freq.most_common(5),
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# v5.5 P1-4: 组合级反事实闭环 — 拖累票信号回流成记忆 (保守, 非硬规则)
+# ═══════════════════════════════════════════════════════════════
+# 此前 #26 只"记录不回流": verified/worst_symbols 附在 review + 统计, 从不影响后续决策.
+# 这里把"反复被验证为拖累的票"累积成历史, 达到阈值后写入经验记忆, 经已有 memory 检索
+# 注入诊断 prompt, 让 LLM 对该票降权/谨慎. 是学习信号, 不改交易方向, 不做硬规则.
+
+REPEAT_FLAG_MIN = 2   # 同一票被验证为拖累 >= 2 次才写经验 (防单次偶然)
+
+
+def accumulate_drag_history(history: dict, verified_results: list, current_date: str) -> dict:
+    """把一组 verified 组合级反事实的拖累票计入历史计数 (纯函数, 可测).
+
+    Args:
+        history: dict {symbol: {'count': int, 'avg_improvement_pct': float, 'last_name': str}}
+        verified_results: PortfolioCounterfactualResult 列表 (仅 verified 的计入).
+        current_date: 本次复盘日期 (ISO).
+    Returns:
+        更新的 history (原地修改并返回).
+    """
+    for r in verified_results:
+        if r is None or not r.verified or r.worst_stock is None:
+            continue
+        sym = r.worst_stock.symbol
+        entry = history.get(sym) or {
+            "count": 0, "avg_improvement_pct": 0.0,
+            "last_name": r.worst_stock.name, "last_date": current_date,
+        }
+        entry["count"] += 1
+        entry["last_date"] = current_date
+        if r.worst_stock.name:
+            entry["last_name"] = r.worst_stock.name
+        # 累计平均: 用新均值 (count 次里含本次)
+        entry["avg_improvement_pct"] = (
+            (entry["avg_improvement_pct"] * (entry["count"] - 1) + r.improvement_pct)
+            / entry["count"]
+        )
+        history[sym] = entry
+    return history
+
+
+def drag_experiences(
+    history: dict,
+    current_date: str,
+    min_count: int = REPEAT_FLAG_MIN,
+    master: str = "利弗莫尔",
+) -> list:
+    """把反复(>=min_count)被标记为拖累票的 symbol 转成经验条目 (供记忆注入).
+
+    保守: 只有同票被验证 >= min_count 次才写, 单次偶然不写. 不改交易方向.
+    """
+    from .daily_review import ExperienceItem
+    items = []
+    for sym, e in history.items():
+        if e.get("count", 0) < min_count:
+            continue
+        name = e.get("last_name", "") or sym
+        count = e["count"]
+        avg_imp = e.get("avg_improvement_pct", 0.0)
+        items.append(ExperienceItem(
+            id=f"pcf-{sym}-{current_date}",
+            date=current_date,
+            scenario_type="range",   # 组合拖累与市场阶段关系弱, 用中性场景避免误跨界惩罚
+            verdict="wrong",
+            lesson_title=f"组合拖累票: {sym}({name}) 反复被验证为拖累",
+            lesson_detail=(
+                f"该票在最近 {count} 次组合级反事实中被验证为拖累 (移除平均释放 {avg_imp:+.2f}pp), "
+                f"建议对 {sym} 保持谨慎/降权, 避免高权重孤注一掷."
+            ),
+            master_used=master,
+            risk_level_given=3,
+            actual_outcome="移除该票后组合次日收益显著改善",
+            confidence=min(0.9, 0.5 + 0.1 * count),
+            tags=["组合拖累票", "portfolio_cf", "downweight"],
+        ))
+    return items

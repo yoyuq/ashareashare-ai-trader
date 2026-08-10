@@ -21,22 +21,43 @@ import pandas as pd
 
 
 def market_crowding(df_cs: pd.DataFrame, extreme_thr: float = 0.95) -> dict:
-    """全市场拥挤度: turn_pct_60d > extreme_thr 的股票占比 (过热广度).
+    """全市场拥挤度: 极端活跃广度 → hot/warm/cool.
+
+    优先用 turn_pct_60d (自身60日换手分位, 回放/PIT 安全)。
+    实盘实时截面无 60 日历史分位时, 回退用 cross-sectional 换手 (turnover)
+    的 95 分位广度 (同样度量"在场交易过热"), 保持 实盘/回放 同一函数、同一输出形状.
 
     Args:
-        df_cs: 当日全市场截面, 需含 turn_pct_60d (自身60日换手分位, 0-1).
-        extreme_thr: 视为"极端活跃"的自身换手分位阈值.
+        df_cs: 当日全市场截面, 需含 turn_pct_60d (自身60日换手分位, 0-1) 或 turnover (换手率).
+        extreme_thr: 视为"极端活跃"的分位阈值.
 
     Returns:
         {score (0-100, >60=过热), signal (hot/warm/cool), hot_ratio (极端活跃占比)}
         数据不足时返回中性 (score=50, signal=cool), 调用方降级为原策略.
     """
-    if df_cs is None or df_cs.empty or "turn_pct_60d" not in df_cs.columns:
+    if df_cs is None or df_cs.empty:
         return {"score": 50.0, "signal": "cool", "hot_ratio": 0.0}
-    tp = pd.to_numeric(df_cs["turn_pct_60d"], errors="coerce").dropna()
-    if len(tp) < 100:
+    # 优先: 自身60日换手分位 (PIT 安全, 回放用)
+    if "turn_pct_60d" in df_cs.columns:
+        tp = pd.to_numeric(df_cs["turn_pct_60d"], errors="coerce").dropna()
+        if len(tp) >= 100:
+            hot = float((tp > extreme_thr).mean())
+        else:
+            hot = 0.0
+    # 回退: cross-sectional 换手率 (实盘实时截面, v5.5 P1-5).
+    # 秩分位天然封顶 ~(1-thr), 无法表达"绝对过热" → 改用高换手占比直接度量拥挤广度.
+    elif "turnover" in df_cs.columns:
+        tv = pd.to_numeric(df_cs["turnover"], errors="coerce").dropna()
+        if len(tv) < 100:
+            return {"score": 50.0, "signal": "cool", "hot_ratio": 0.0}
+        # 高换手占比: 日换手 > 15% 视为极端活跃 (过热广度). 无 60 日历史时的合理代理.
+        _high_turn_thr = 15.0
+        hot = float((tv > _high_turn_thr).mean())
+    else:
         return {"score": 50.0, "signal": "cool", "hot_ratio": 0.0}
-    hot = float((tp > extreme_thr).mean())
+    if hot is None:
+        return {"score": 50.0, "signal": "cool", "hot_ratio": 0.0}
+    hot = float(hot)
     # hot_ratio 0.06 ≈ score 55 (warm), 0.10 ≈ 85 (hot). 线性放大, 封顶 100.
     score = float(np.clip(hot * 800.0, 0, 100))
     if score >= 60:

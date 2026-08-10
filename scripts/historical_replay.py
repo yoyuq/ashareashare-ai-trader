@@ -372,6 +372,10 @@ class ReplayPortfolio:
         return self.cash + pos_val + idx_val
 
     def buy(self, symbol, name, price, qty, date_str, stop=None, take=None):
+        # 强转数值类型: df 列是 float32, 若直接入账会把 self.cash 污染成 float32,
+        # 导致组合市值/持仓快照 weight 变成 float32 → JSON 序列化失败 (v5.5 端到端验证暴露).
+        price = float(price)
+        qty = int(qty)
         if symbol in self.positions or qty <= 0 or price <= 0:
             return False
         cost = price * qty
@@ -379,7 +383,8 @@ class ReplayPortfolio:
             return False
         self.cash -= cost
         self.positions[symbol] = {"qty": qty, "entry_price": price, "entry_date": date_str,
-                                  "name": name, "stop": stop, "take": take}
+                                  "name": name, "stop": stop, "take": take,
+                                  "peak": price}  # v5.5 P2-8: 移动止损峰值跟踪 (与实盘一致)
         self.trades.append({"date": date_str, "symbol": symbol, "side": "buy",
                             "price": price, "qty": qty})
         return True
@@ -388,10 +393,11 @@ class ReplayPortfolio:
         pos = self.positions.pop(symbol, None)
         if pos is None:
             return False
+        price = float(price)  # 同 buy: 防 float32 污染 cash
         self.cash += pos["qty"] * price
         self.trades.append({"date": date_str, "symbol": symbol, "side": "sell",
                             "price": price, "qty": pos["qty"],
-                            "pnl_pct": (price / pos["entry_price"] - 1) * 100, "reason": reason})
+                            "pnl_pct": (price / float(pos["entry_price"]) - 1) * 100, "reason": reason})
         return True
 
 
@@ -838,6 +844,9 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
         if _macro_txt:
             user_msg += f"\n\n【宏观背景】\n{_macro_txt}"
         user_msg += "\n\n先判断市场阶段，选最适合的大师主导，再给出诊断。"
+        # v5.5 P2-8: 对抗票 — 与实盘 daily_runner 一致, 请再给出一个"观点相反大师"的 risk_level
+        # (adversarial_risk_level), 用于分歧裁决. 分歧>=2级时系统会向保守收敛.
+        user_msg += "\n另外请从一位与你选择的主导大师观点相反的对抗大师视角，给出 adversarial_risk_level（1-5整数）。"
 
         client = AsyncOpenAI(
             api_key=os.getenv("DEEPSEEK_API_KEY"),
@@ -899,6 +908,18 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
             "dominant_master": diag.get("dominant_master", "unknown"),
             "secondary_master": diag.get("secondary_master", ""),
         }
+        # v5.5 P2-8: 对抗票一致 — 复用实盘 _apply_adversarial_gate, 分歧>=2级向保守收敛.
+        # 回放此前无对抗票, 与实盘行为不一致 → 回放基准不能代表实盘.
+        try:
+            _adv_raw = diag.get("adversarial_risk_level")
+            if _adv_raw is not None:
+                result["adversarial_risk_level"] = max(1, min(5, int(_adv_raw)))
+                from simulation.daily_runner import _apply_adversarial_gate
+                _apply_adversarial_gate(result)
+                risk_level = result["risk_level"]
+                pos_mult = result["position_multiplier"]
+        except (TypeError, ValueError):
+            pass
         logger.info(
             f"[市场诊断] 风险={risk_level}/5  仓位×{pos_mult:.2f}  "
             f"持仓{max_adj:+d}  风险{len(key_risks)}个"
@@ -1106,10 +1127,11 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                     _yesterday_rec = _unreviewed[-1]  # 最近的那条
                     # 今天的市场统计（作为"次日实际结果"）
                     _today_stats = _compute_day_stat(df_cs)
-                    # 计算市场涨跌幅（用指数代理或截面均值）
+                    # v5.5 P2-8: 复盘口径统一为 中位数 (与 daily_runner 一致).
+                    # 均值被个别涨停/跌停扭曲, 中位数鲁棒; 之前回放用均值、实盘用中位数 → 反事实/复盘口径不一致.
                     pct_col = "pctChg" if "pctChg" in df_cs.columns else "pct_change"
                     if pct_col in df_cs.columns:
-                        _mkt_move = float(pd.to_numeric(df_cs[pct_col], errors="coerce").mean())
+                        _mkt_move = float(pd.to_numeric(df_cs[pct_col], errors="coerce").median())
                     else:
                         _mkt_move = 0.0
                     try:
@@ -1440,6 +1462,12 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             buy_candidates.sort(key=lambda r: r.get("final_score", 0), reverse=True)
             regime_mult = {"strong_bull": 1.0, "weak_bull": 0.8, "range_bound": 0.5,
                            "weak_bear": 0.3, "strong_bear": 0.1, "crisis": 0.0}.get(regime, 0.5)
+            # v5.5 P2-8: 单票仓位上限统一到与实盘 REGIME_LIMITS 一致 (实盘 single_pct:
+            # strong_bull20/weak_bull15/range_bound12/weak_bear10/strong_bear5/crisis5).
+            # 之前回放旧模式硬封顶10%、自由模式20%, 与实盘各体制上限不一致 → 回放不能代表实盘.
+            _REGIME_POS_CAP = {"strong_bull": 0.20, "weak_bull": 0.15, "range_bound": 0.12,
+                               "weak_bear": 0.10, "strong_bear": 0.05, "crisis": 0.05}
+            _pos_cap = _REGIME_POS_CAP.get(regime, 0.12)
 
             # v3.5 自由模式: 去除所有硬约束, 让 LLM 自主决定仓位和持仓数.
             # regime_mult/timing_mult/crowding_mult 全部取消, 由 conviction 直接驱动.
@@ -1598,13 +1626,13 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 px1 = t1_open.get(sym)
                 if px1 is None or px1 <= 0:
                     continue
-                # v3.5 自由模式: 仓位 = 确信度 × 市场风险目标 (LLM每日显式承诺), 封顶20%
+                # v3.5 自由模式: 仓位 = 确信度 × 市场风险目标 (LLM每日显式承诺), 封顶 = 体制上限 _pos_cap
                 if free_mode:
-                    # conviction 0.5→7.5%, 1.0→15%, 封顶 20%. 高确信就重仓, 低确信轻仓
-                    pct = min(0.20, r.get("conviction", 0.5) * 0.15) * _risk_target
+                    # conviction 0.5→7.5%, 1.0→15%, 上限 _pos_cap (与实盘 REGIME_LIMITS 一致). 高确信就重仓, 低确信轻仓
+                    pct = min(_pos_cap, r.get("conviction", 0.5) * 0.15) * _risk_target
                 else:
-                    # 旧模式: 等权 × 确信度 × 体制 × 择时, 封顶 10%
-                    pct = min(0.10, 0.03 + r.get("conviction", 0.5) * 0.05) * regime_mult * timing_mult
+                    # v5.5 P2-8: 旧模式单票硬上限从固定10%改为体制上限 _pos_cap (与实盘一致)
+                    pct = min(_pos_cap, 0.03 + r.get("conviction", 0.5) * 0.05) * regime_mult * timing_mult
                 min_pct = 100 * px1 / pf.cash  # 1 手占资金比例
                 if pct < min_pct:
                     pct = min(min_pct, 0.10)   # 资金允许则至少买 1 手
@@ -1639,6 +1667,39 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                         "cash": round(pf.cash, 2),
                                         "positions": len(pf.positions),
                                         "index_book": round(pf.index_value(_idx_lv), 2) if _idx_lv else 0.0})
+
+                # v5.5 P2-8: 移动止损 (trailing) — 与实盘一致, 只向上收紧, 绝不放宽.
+                # 用当日收盘 t1_close 更新持仓 stop, 供下一交易日开盘检查 (PIT 安全:
+                # 本日 T+1 收盘在下一交易日 T+2 开盘前已知, 无未来函数).
+                if t1_close:
+                    for sym in list(pf.positions.keys()):
+                        _pos = pf.positions[sym]
+                        _c_now = t1_close.get(sym)
+                        if _c_now is None or _c_now <= 0:
+                            continue
+                        _pk = float(_pos.get("peak") or _pos["entry_price"])
+                        if _c_now > _pk:
+                            _pk = float(_c_now)
+                            _pos["peak"] = _pk
+                        # 2×ATR (PIT: 只用 ≤ 今日的数据), 与买入时 ATR 口径一致
+                        _g = data.get(sym)
+                        _atr_t = 0.0
+                        if _g is not None and "high" in _g.columns and "close" in _g.columns:
+                            try:
+                                _dts = pd.to_datetime(_g["date"])
+                                _mask = _dts <= pd.Timestamp(next_T)
+                                if _mask.any():
+                                    _gsub = _g[_mask].iloc[-30:]
+                                    _h, _l, _c = (_gsub["high"], _gsub["low"], _gsub["close"])
+                                    _pc = _c.shift(1)
+                                    _tr = pd.concat([_h - _l, (_h - _pc).abs(), (_l - _pc).abs()], axis=1).max(axis=1)
+                                    _atr_t = float(_tr.rolling(20).mean().iloc[-1]) if len(_tr) >= 20 else 0.0
+                            except Exception:
+                                _atr_t = 0.0
+                        if _atr_t > 0:
+                            _new_stop = _pk - 2 * _atr_t
+                            if _new_stop > float(_pos.get("stop") or 0):
+                                _pos["stop"] = _new_stop
             day_logs.append({"date": T, "regime": regime, "screened": len(df_cs),
                              "top": len(deep),
                              "buy": sum(1 for r in deep if r.get("action") == "BUY"),

@@ -48,7 +48,15 @@ class DecisionRecord:
     review: Optional[dict] = None      # {verdict, actual_outcome, correct_factors, missed_factors, lesson}
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False)
+        # numpy 标量 (float32 等) → 原生 float, 保证任意数值可 JSON 序列化
+        def _default(o):
+            if hasattr(o, "item"):
+                try:
+                    return o.item()
+                except Exception:
+                    pass
+            raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+        return json.dumps(asdict(self), ensure_ascii=False, default=_default)
 
     @classmethod
     def from_json(cls, s: str) -> "DecisionRecord":
