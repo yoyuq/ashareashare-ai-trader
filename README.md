@@ -276,9 +276,11 @@ python -c "from knowledge.manager import KnowledgeManager; km=KnowledgeManager()
 | `DEEPSEEK_API_KEY` | 是 | DeepSeek API Key |
 | `DEEPSEEK_BASE_URL` | 否 | API 地址 (默认 https://api.deepseek.com/v1) |
 | `DEEPSEEK_FLASH_MODEL` | 否 | 模型名 (默认 deepseek-v4-flash; v3.0 起全量统一 flash) |
-| `API_KEY` | 否 | REST API 认证密码 (自定义, 经 `X-API-Key` 请求头传递; 未设置时默认拒绝访问) |
+| `API_KEY` | 否 | REST API 认证密码 (自定义, 经 `X-API-Key` 请求头传递; 支持逗号分隔多 key 滚动轮换; 未设置时默认拒绝访问) |
 | `API_ALLOW_INSECURE_NO_AUTH` | 否 | 未设 API_KEY 时允许无认证访问 (仅本地开发, 默认 false) |
-| `CORS_ORIGINS` | 否 | CORS 来源白名单 (逗号分隔, 默认 `*`) |
+| `CORS_ORIGINS` | 否 | CORS 来源白名单 (逗号分隔, 默认关闭跨域) |
+| `RATE_LIMIT_PER_MINUTE` | 否 | 每 IP 每分钟基准速率 (默认 60, 用于滑动窗口限频) |
+| `RATE_LIMIT_BURST` | 否 | 每 IP 60s 滑动窗口最大请求数 (默认 120, 超限返回 429) |
 | `POSTGRES_HOST/PORT/DB/USER/PASSWORD` | 否 | 数据库连接 |
 | `REDIS_HOST/PORT/DB` | 否 | Redis 连接 |
 
