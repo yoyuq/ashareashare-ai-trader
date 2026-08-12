@@ -308,7 +308,8 @@ def test_p28_replay_buy_sets_peak_for_trailing():
     pf.cash = 100000
     ok = pf.buy("sz.000001", "平安", 10.0, 100, "2026-08-09", stop=9.3, take=11.2)
     assert ok
-    assert pf.positions["sz.000001"]["peak"] == 10.0
+    # peak = 入场价 (含默认滑点) → 10.0 * (1+10bp) = 10.01
+    assert pf.positions["sz.000001"]["peak"] == pytest.approx(10.01, abs=1e-6)
     assert pf.positions["sz.000001"]["stop"] == 9.3
 
 

@@ -125,7 +125,8 @@ class EventDrivenBacktestEngine:
 
     def __init__(self, config: BacktestConfig, deferred_execution: bool = True):
         self.config = config
-        self.broker = AShareBroker(initial_capital=config.initial_capital)
+        self.broker = AShareBroker(initial_capital=config.initial_capital,
+                               slippage_pct=config.slippage_pct)  # v5.6 接线滑点
         # A股默认 T+1 延迟执行: T日收盘信号 → T+1日开盘价成交 (传 False 恢复当日成交)
         self.broker.deferred_execution = deferred_execution
         self._data: Dict[str, pd.DataFrame] = {}

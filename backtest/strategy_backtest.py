@@ -141,6 +141,7 @@ async def run_strategy_backtests(
         sname = STRATEGY_NAMES.get(sid, sid)
         all_trades = []
         stock_details = []
+        stock_returns = []  # 单票复利收益(%) — 用于稳健汇总"总收益"
         total_wins = 0
         total_trades_count = 0
         success_count = 0
@@ -174,6 +175,10 @@ async def run_strategy_backtests(
                 if raw_trades:
                     all_trades.extend(raw_trades)
                     n_wins = sum(1 for t in raw_trades if t > 0)
+                    # 单票复利收益(%) — 该票逐笔按时间顺序复利 (v3.1 修正口径)
+                    stock_returns.append(
+                        (float(np.prod(1 + np.array(raw_trades, dtype=float) / 100)) - 1) * 100
+                    )
                 else:
                     n_wins = int(n_trades * wr)
                     n_losses = n_trades - n_wins
@@ -192,17 +197,25 @@ async def run_strategy_backtests(
                 logger.debug(f"  {sym}: {e}")
                 continue
 
-        # 汇总
+        # ── 汇总 (v3.1 修正统计口径) ──
+        # 逐笔净收益为「跨股票截面」且无统一时间轴, 因此:
+        #   - 夏普不得用 √n_trades "年化" (会按笔数放大, 曾把夏普虚增到 3.95);
+        #     正确口径为每笔收益的截面夏普 = mean/std (小数, 不年化)。
+        #   - "总收益"不得对逐笔收益简单求和 (2168% 无经济意义); 改用中位数单票复利收益。
+        #   - "最大回撤"不得对逐笔收益做 cumsum 伪净值; 改用中位数单票最大回撤。
         n = total_trades_count
         if n > 0:
-            arr = np.array(all_trades)
+            arr = np.array(all_trades, dtype=float)
+            dec = arr / 100.0
             avg_return = float(np.mean(arr))
             win_rate_agg = total_wins / n
-            total_return = float(np.sum(arr))
-            sharpe = float(np.mean(arr) / (np.std(arr) + 1e-9) * np.sqrt(n))
-            cumulative = np.cumsum(arr)
-            peak = np.maximum.accumulate(cumulative)
-            max_dd = float(np.min(cumulative - peak))
+            total_return = float(np.median(stock_returns)) if stock_returns else 0.0
+            sharpe = float(np.mean(dec) / (np.std(dec) + 1e-9))
+            per_stock_dd = [
+                s["max_dd"] for s in stock_details
+                if isinstance(s.get("max_dd"), (int, float))
+            ]
+            max_dd = float(np.median(per_stock_dd)) if per_stock_dd else 0.0
             profit_factor = abs(float(np.sum(arr[arr > 0])) / (np.sum(arr[arr < 0]) + 1e-9))
         else:
             avg_return = win_rate_agg = total_return = sharpe = max_dd = profit_factor = 0
@@ -232,6 +245,16 @@ async def run_strategy_backtests(
         # v3.0: 明确标注幸存者偏差 — 股票池来自当前上市快照, 不含退市股,
         # 胜率/夏普/盈亏比均系统性乐观, 仅作相对比较, 不可视为绝对预期
         "survivorship_bias": "HIGH — 股票池为当前上市快照, 退市股被排除, 回测表现系统性高估",
+        # v3.1: 明确标注口径 — 本报告为「信号级」逐股回测汇总, 非事件驱动组合回测。
+        # 组合级事件回测由 backtest/engine.py (EventDrivenBacktestEngine) 承担,
+        # 被 strategy_executor/api/dashboard/benchmark 使用。
+        "methodology": (
+            "signal-level per-stock ranking (simplified backtesters), "
+            "NOT event-driven portfolio simulation. "
+            "sharpe = per-trade mean/std (cross-sectional, not annualized); "
+            "total_return_pct = median per-stock compounded return; "
+            "max_drawdown = median per-stock max drawdown."
+        ),
         "results": strategy_results,
     }
 
@@ -449,8 +472,9 @@ def _grade(win_rate: float, sharpe: float, max_dd: float, pf: float) -> str:
     score = 0
     if win_rate > 0.55: score += 1
     if win_rate > 0.60: score += 1
-    if sharpe > 0.5: score += 1
-    if sharpe > 1.0: score += 1
+    # v3.1: sharpe 现为「每笔收益截面夏普」(非年化), 阈值按该尺度重校 (原 0.5/1.0 针对年化夏普)
+    if sharpe > 0.2: score += 1
+    if sharpe > 0.4: score += 1
     if max_dd > -10: score += 1
     if max_dd > -5: score += 1
     if pf > 1.5: score += 1

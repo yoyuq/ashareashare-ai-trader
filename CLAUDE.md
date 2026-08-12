@@ -76,7 +76,7 @@ Each node is a sub-agent in `agent/sub_agents/`. The workflow runs via `Analysis
 ### Simulation & Paper Trading
 
 - `simulation/daily_runner.py` — orchestrates daily flow: Phase 1 (scan+analyze markets), Phase 2 (execute buy/sell), Phase 3 (snapshot+summarize)
-- `simulation/paper_trader.py` — paper trading engine with T+1 settlement, price limits, A-shares fees (commission ¥3/10k, stamp duty ¥5/10k sell-only, transfer fee ¥1/10k)
+- `simulation/paper_trader.py` — paper trading engine with T+1 settlement, price limits, A-shares fees (commission ¥3/10k, stamp duty ¥5/10k sell-only, transfer fee ¥0.1/10k = 0.00001)
 - `simulation/portfolio.py` — JSON-persisted portfolio at `simulation_data/portfolio.json`, contains `daily_snapshots` array used for equity curve and drawdown charts
 - `agent/sub_agents/validator.py` — DecisionValidator: pre-execution hard-constraint checks (price limits, T+1, position caps, lot size, industry concentration) + rejection journal at `simulation_data/validation_journal.jsonl`
 

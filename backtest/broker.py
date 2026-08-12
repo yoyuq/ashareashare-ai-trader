@@ -140,13 +140,15 @@ class AShareBroker:
     STAMP_DUTY_RATE = 0.0005       # 印花税: 0.05% (仅卖出)
     TRANSFER_FEE_RATE = 0.00001    # 过户费: 0.001% (沪深两市, 2015年起均收)
 
-    def __init__(self, initial_capital: float = 100000.0):
+    def __init__(self, initial_capital: float = 100000.0, slippage_pct: float = 0.001):
         self.account = Account(initial_capital=initial_capital)
         self.account.cash = initial_capital
         self.orders: List[Order] = []
         self.trade_log: List[Dict] = []
         self._cur_date: Optional[date] = None
         self._cur_prices: Dict[str, pd.Series] = {}  # {symbol: daily_bar}
+        # v5.6 纸盘面: 滑点 (此前 slippage_pct 在 config 定义但从未接线, 现真正用于成交价)
+        self.slippage_pct = float(slippage_pct or 0.0)
         # T+1 延迟执行: True 时 buy/sell 只入队挂单, 由 execute_pending_orders()
         # 在次日以开盘价执行 (消除"收盘价决策+收盘价成交"的时序乐观偏差)
         self.deferred_execution: bool = False
@@ -420,6 +422,7 @@ class AShareBroker:
             order.status = OrderStatus.REJECTED
             self.orders.append(order)
             return
+        exec_price = exec_price * (1 + self.slippage_pct)  # v5.6 滑点: 买入加滑点
 
         if self._is_sealed_at_open(symbol, OrderSide.BUY):  # 开盘涨停封死买不进
             order.status = OrderStatus.REJECTED
@@ -494,6 +497,7 @@ class AShareBroker:
             order.status = OrderStatus.REJECTED
             self.orders.append(order)
             return
+        exec_price = exec_price * (1 - self.slippage_pct)  # v5.6 滑点: 卖出减滑点
 
         qty = min(order.quantity, pos.quantity)
         amount = qty * exec_price
