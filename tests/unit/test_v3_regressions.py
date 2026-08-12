@@ -65,7 +65,7 @@ def test_api_sensitive_endpoints_require_auth(monkeypatch, tmp_path):
     from api import server
     from fastapi.testclient import TestClient
 
-    monkeypatch.setattr(server, "_API_KEY", "testkey123")
+    monkeypatch.setattr(server, "_API_KEYS", {"testkey123"})
     monkeypatch.setattr(
         server, "_AUTH_WHITELIST",
         {"/health", "/docs", "/openapi.json", "/redoc", "/api/v1/realtime/market"},
@@ -84,6 +84,40 @@ def test_api_sensitive_endpoints_require_auth(monkeypatch, tmp_path):
     # 正确 X-API-Key 头 → 200
     r = client.get("/api/v1/portfolio/mtm", headers={"X-API-Key": "testkey123"})
     assert r.status_code == 200
+
+
+def test_api_multi_key_rotation(monkeypatch, tmp_path):
+    """P0-8: 多 key 轮换 — 任一有效 key 均可通过 (滚动轮换过渡期)"""
+    from api import server
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(server, "_API_KEYS", {"oldkey", "newkey"})
+    monkeypatch.setattr(server, "_AUTH_WHITELIST", {"/health"})
+    monkeypatch.setattr(server, "_rate_hits", {})
+    monkeypatch.setenv("PORTFOLIO_PATH", str(tmp_path / "portfolio.json"))
+
+    client = TestClient(server.app)
+    assert client.get("/api/v1/portfolio/mtm", headers={"X-API-Key": "oldkey"}).status_code == 200
+    assert client.get("/api/v1/portfolio/mtm", headers={"X-API-Key": "newkey"}).status_code == 200
+    assert client.get("/api/v1/portfolio/mtm", headers={"X-API-Key": "bad"}).status_code == 401
+
+
+def test_api_rate_limit(monkeypatch, tmp_path):
+    """P0-8: 认证通过后按 IP 限频 — 超过 burst 返回 429"""
+    from api import server
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(server, "_API_KEYS", {"k"})
+    monkeypatch.setattr(server, "_AUTH_WHITELIST", {"/health"})
+    monkeypatch.setattr(server, "_RATE_LIMIT_BURST", 2)
+    monkeypatch.setattr(server, "_rate_hits", {})
+    monkeypatch.setenv("PORTFOLIO_PATH", str(tmp_path / "portfolio.json"))
+
+    client = TestClient(server.app)
+    headers = {"X-API-Key": "k"}
+    codes = [client.get("/api/v1/portfolio/mtm", headers=headers).status_code
+             for _ in range(3)]
+    assert codes == [200, 200, 429]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -136,6 +170,86 @@ def test_get_stock_list_all_error_raises():
     router.register(_FakeProvider(err_df, DataSource.TENCENT), priority=1)
     with pytest.raises(RuntimeError):
         asyncio.run(router.get_stock_list())
+
+
+def test_router_per_symbol_degradation_isolates_delisted_stock():
+    """P0-7: 单只退市/新股标的连续失败只降级该标的, 不误伤整个源; 过期窗口重置计数"""
+    from datetime import timedelta
+    from data.router import DataRouter
+    from data.providers.base import DataSource, DataFrequency, DataRequest, DataResult
+    from timeutil import now_cn_naive
+
+    class _SymbolProvider:
+        source = DataSource.AKSHARE
+        name = "akshare"
+
+        def __init__(self):
+            self._healthy = True
+
+        def is_healthy(self):
+            return self._healthy
+
+        async def get_daily_kline(self, request):
+            if request.symbol == "sz.999999":
+                raise RuntimeError("退市标的无数据")
+            return DataResult(
+                symbol=request.symbol, source=self.source,
+                frequency=DataFrequency.DAILY,
+                data=pd.DataFrame({
+                    "date": pd.date_range("2026-01-01", periods=10),
+                    "open": [1.0] * 10, "high": [1.0] * 10,
+                    "low": [1.0] * 10, "close": [1.0] * 10,
+                }),
+            )
+
+        def _validate_response(self, df, request):
+            return not df.empty
+
+        async def get_minute_kline(self, request):
+            return DataResult(symbol=request.symbol, source=self.source,
+                              frequency=DataFrequency.MIN1, data=pd.DataFrame())
+
+        async def get_stock_list(self):
+            return pd.DataFrame({"error": ["x"]})
+
+        async def get_realtime_quote(self, symbols):
+            return pd.DataFrame({"error": ["x"]})
+
+        async def health_check(self):
+            return True
+
+    router = DataRouter(cross_validation=False)
+    prov = _SymbolProvider()
+    router.register(prov, priority=0)
+
+    def _req(sym):
+        return DataRequest(symbol=sym, start_date=date(2026, 1, 1),
+                           end_date=date(2026, 1, 10),
+                           frequency=DataFrequency.DAILY, adjust="qfq")
+
+    async def _fetch(sym):
+        try:
+            return await router.get_daily_kline(_req(sym))
+        except RuntimeError:
+            return None
+
+    # 退市标的连续失败 3 次 → 仅该标的降级
+    for _ in range(3):
+        assert asyncio.run(_fetch("sz.999999")) is None
+    assert DataSource.AKSHARE not in router._active_sources("sz.999999"), \
+        "退市标的连续失败后, 该标度应从活动源排除"
+    # 健康标的未被误伤
+    assert DataSource.AKSHARE in router._active_sources("sh.600519")
+    res = asyncio.run(_fetch("sh.600519"))
+    assert res is not None and len(res.data) == 10
+
+    # 降级窗口过期 → 计数重置, 下次失败从 1 重新累计 (不再立即永久降级)
+    router._downgraded_until[(DataSource.AKSHARE, "sz.999999")] = \
+        now_cn_naive() - timedelta(minutes=1)
+    asyncio.run(_fetch("sz.999999"))
+    assert router._failure_counts.get((DataSource.AKSHARE, "sz.999999"), 0) == 1
+    assert DataSource.AKSHARE in router._active_sources("sz.999999"), \
+        "过期窗口重置后, 单次失败不应立即再降级"
 
 
 # ═══════════════════════════════════════════════════════════════
