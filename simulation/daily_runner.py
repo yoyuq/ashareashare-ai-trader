@@ -236,6 +236,7 @@ async def get_market_diagnostic(
     evolution = None,
     current_date: Optional[str] = None,
     prev_risk_level: Optional[int] = None,
+    adv_mode: str = "same",
 ) -> Dict[str, Any]:
     """v4.0 市场诊断官 — 5位大师 + 自我进化.
 
@@ -405,8 +406,21 @@ async def get_market_diagnostic(
             key_risks = []
         diagnosis = str(diag.get("diagnosis", ""))[:200]
 
-        # v5.2 对抗票 — 主导 vs 对抗 分歧裁决 (打破"假多元化")
-        # 一次调用产出的两个独立视角, 分歧>=2级时朝保守方向收
+        # v5.2 / v5.6 对抗票 — 主导 vs 对抗 分歧裁决 (打破"假多元化")
+        # 一次调用产出的两个独立视角, 分歧>=2级时朝保守方向收.
+        # v5.6 adv_mode: off=无对抗(闸门基线) / same=单completion role-play(现状) /
+        #                independent=独立二次LLM调用(打破假多元化).
+        _adv_raw = diag.get("adversarial_risk_level", risk_level)
+        if adv_mode == "independent":
+            from agent.evolution.adversarial import adversarial_risk
+            _adv_raw = await adversarial_risk(
+                client, snapshot_txt,
+                dominant_master=str(diag.get("dominant_master", "unknown")),
+                regime=str(diag.get("market_phase", "unknown")),
+                macro_txt=macro_context,
+            ) or risk_level
+        elif adv_mode == "off":
+            _adv_raw = risk_level  # 无对抗 → 分歧0, 闸门永不触发
         _diag = {
             "risk_level": risk_level,
             "position_multiplier": pos_mult,
@@ -414,7 +428,7 @@ async def get_market_diagnostic(
             "market_phase": diag.get("market_phase", "unknown"),
             "dominant_master": diag.get("dominant_master", "unknown"),
             "secondary_master": diag.get("secondary_master", ""),
-            "adversarial_risk_level": diag.get("adversarial_risk_level", risk_level),
+            "adversarial_risk_level": _adv_raw,
         }
         _diag = _apply_adversarial_gate(_diag)
         risk_level = int(_diag.get("risk_level", risk_level))
@@ -1710,6 +1724,22 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
         if code_short in sell_codes:
             # v3.0: 传入涨跌幅, 跌停封板时拒绝卖出
             _px, _pct = _tencent_quote(sym)
+            # v5.6 P0-5: SELL 侧校验 t1_pending (当日买入不可卖) — 与 execute_sell
+            # 硬阻断互补, 落 journal 可审计 (warning 级, 不阻断主流程)
+            try:
+                from agent.sub_agents.validator import DecisionValidator
+                _sv = DecisionValidator()
+                await _sv.run(_sv._start_context(
+                    task_id=f"daily_runner_sell_{today}",
+                    trading_params={},
+                    stock_recommendations={sym: {"action": "SELL"}},
+                    market_data={},
+                    portfolio={"positions": {
+                        sym: {"buy_date": getattr(pos, "buy_date", "")}
+                    }},
+                ))
+            except Exception:
+                pass
             trade = engine.execute_sell(
                 symbol=sym, exit_reason="AI卖出信号",
                 pct_change=_pct,
@@ -1721,6 +1751,34 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
     if sold:
         manager.save()
         logger.info(f"已卖出 {len(sold)} 只")
+
+    # ── v5.6 回撤断路器真实减仓 (此前仅 halt_buys, 从不减存量) ──
+    # 触发 -8% → 每仓减 50%, -15%/危机 → 清仓。T+1 当日买入与跌停封板由 execute_sell 拒绝。
+    if risk_state is not None and (risk_state.circuit_breaker_active or risk_state.crisis_mode):
+        _target_mult = risk_state.risk_multiplier
+        _liquidate = _target_mult <= 0.05
+        _reduce = (not _liquidate) and _target_mult <= 0.5
+        _forced = []
+        for sym, pos in list(state.positions.items()):
+            if pos.quantity <= 0:
+                continue
+            _px, _pct = _tencent_quote(sym)
+            if _liquidate:
+                qty, reason = None, "回撤断路器清仓"
+            elif _reduce:
+                qty, reason = max(100, (pos.quantity // 100 // 2) * 100), "回撤断路器减仓50%"
+            else:
+                continue
+            trade = engine.execute_sell(symbol=sym, quantity=qty, exit_reason=reason, pct_change=_pct)
+            if trade:
+                _forced.append({"symbol": sym, "name": pos.name, "qty": trade.quantity, "price": trade.price})
+                logger.info(f"  [风控] {reason} {pos.name}({sym}) x{trade.quantity} @{trade.price:.2f} pnl={trade.pnl:+.2f}")
+        if _forced:
+            manager.save()
+            logger.warning(
+                f"[风控] 回撤断路器已减仓 {len(_forced)} 只持仓 "
+                f"(DD={risk_state.drawdown_pct:.1f}%, mult={_target_mult:.2f})"
+            )
 
     # 2b. 买入Top BUY信号
     executed = []
@@ -1801,10 +1859,22 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
 
         # ── v3.1-deerflow: DecisionValidator 执行前硬约束校验 ──
         # 用与 execute_buy 相同的仓位/止损止盈参数校验, 拒绝则跳过并落 journal
+        # v5.6 P0-5: 补传 market_data + portfolio, 让 limit_unbuyable/lot_too_small
+        # 等硬约束真正生效 (此前 market_data={} 且无 portfolio → 只剩参数校验)。
         try:
             from agent.sub_agents.validator import DecisionValidator
             _pos_pct = min(limits["single_pct"] * risk_mult, 0.20)
             _vd = DecisionValidator()
+            # 构造 2 行收盘价 (昨收=price/(1+pct), 今收=price), 供涨跌停可行性校验
+            _prev_close = price / (1 + pct_change / 100) if pct_change not in (None, -100.0) else price
+            _market_df = pd.DataFrame({"close": [round(_prev_close, 3), round(price, 3)]})
+            _portfolio = {
+                "capital": state.total_value,
+                "positions": {
+                    s: {"quantity": p.quantity, "buy_date": getattr(p, "buy_date", "")}
+                    for s, p in state.positions.items()
+                },
+            }
             _v_res = await _vd.run(_vd._start_context(
                 task_id=f"daily_runner_{today}",
                 trading_params={sym_full: {
@@ -1814,7 +1884,8 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
                     "position_pct": round(_pos_pct, 3),
                 }},
                 stock_recommendations={sym_full: {"action": "BUY", "conviction": conv}},
-                market_data={},  # 涨跌停可行性已用实时 pct_change + sealed_limit_up 判断
+                market_data={sym_full: _market_df},
+                portfolio=_portfolio,
             ))
             _vrec = (
                 _v_res.data.get("validation_results", {}).get(sym_full, {})

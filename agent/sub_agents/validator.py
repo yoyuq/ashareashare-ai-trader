@@ -5,7 +5,7 @@ DeerFlow「Validator」角色: 在交易计划持久化/执行前, 用硬约束�
 确保推荐计划可执行、可风控。纯规则引擎, 无LLM成本。
 
 校验维度 (A股硬约束 + 项目风控参数):
-  1. missing_params  — BUY/SELL 缺少交易参数 (entry/stop/take/position)
+  1. missing_params  — BUY 缺少交易参数 (entry/stop/take/position; SELL 只需有效持仓)
   2. bad_stop        — 止损 >= 入场价 (止损无效)
   3. bad_take        — 止盈 <= 入场价 (止盈无效)
   4. position_range  — 仓位比例超出 [3%, 20%] 区间
@@ -127,38 +127,39 @@ class DecisionValidator(BaseAgent):
             take = self._num(tp.get("take_profit"))
             pos = self._num(tp.get("position_pct"))
 
-            # 1. missing_params
-            checks += 1
-            if not (entry and entry > 0 and stop and take and pos is not None):
-                violations.append(ValidationViolation(
-                    code="missing_params", severity="critical", symbol=sym,
-                    message=f"{action} 推荐缺少完整交易参数 (entry/stop/take/position)",
-                    evidence=f"trading_params={tp}",
-                ))
-            else:
-                # 2. bad_stop / 3. bad_take / 4. position_range
+            # 1-4. 参数类校验 (仅 BUY 需要完整交易参数; SELL 只需有效持仓)
+            if action == "BUY":
                 checks += 1
-                if stop >= entry:
+                if not (entry and entry > 0 and stop and take and pos is not None):
                     violations.append(ValidationViolation(
-                        code="bad_stop", severity="critical", symbol=sym,
-                        message=f"止损({stop}) >= 入场价({entry}), 止损无效",
-                        evidence=f"stop_loss={stop} entry_price={entry}",
+                        code="missing_params", severity="critical", symbol=sym,
+                        message=f"{action} 推荐缺少完整交易参数 (entry/stop/take/position)",
+                        evidence=f"trading_params={tp}",
                     ))
-                checks += 1
-                if take <= entry:
-                    violations.append(ValidationViolation(
-                        code="bad_take", severity="critical", symbol=sym,
-                        message=f"止盈({take}) <= 入场价({entry}), 止盈无效",
-                        evidence=f"take_profit={take} entry_price={entry}",
-                    ))
-                checks += 1
-                if not (MIN_POSITION_PCT <= pos <= MAX_POSITION_PCT):
-                    violations.append(ValidationViolation(
-                        code="position_range", severity="high", symbol=sym,
-                        message=(f"仓位比例 {pos:.1%} 超出 [{MIN_POSITION_PCT:.0%}, "
-                                 f"{MAX_POSITION_PCT:.0%}] 风控区间"),
-                        evidence=f"position_pct={pos}",
-                    ))
+                else:
+                    # 2. bad_stop / 3. bad_take / 4. position_range
+                    checks += 1
+                    if stop >= entry:
+                        violations.append(ValidationViolation(
+                            code="bad_stop", severity="critical", symbol=sym,
+                            message=f"止损({stop}) >= 入场价({entry}), 止损无效",
+                            evidence=f"stop_loss={stop} entry_price={entry}",
+                        ))
+                    checks += 1
+                    if take <= entry:
+                        violations.append(ValidationViolation(
+                            code="bad_take", severity="critical", symbol=sym,
+                            message=f"止盈({take}) <= 入场价({entry}), 止盈无效",
+                            evidence=f"take_profit={take} entry_price={entry}",
+                        ))
+                    checks += 1
+                    if not (MIN_POSITION_PCT <= pos <= MAX_POSITION_PCT):
+                        violations.append(ValidationViolation(
+                            code="position_range", severity="high", symbol=sym,
+                            message=(f"仓位比例 {pos:.1%} 超出 [{MIN_POSITION_PCT:.0%}, "
+                                     f"{MAX_POSITION_PCT:.0%}] 风控区间"),
+                            evidence=f"position_pct={pos}",
+                        ))
 
             # 5. limit_unbuyable — 用上一收盘 vs 最新收盘判断是否已封板
             # 注意: 不能用 `a or b` (DataFrame 的 or 触发歧义真值错误)

@@ -41,7 +41,27 @@ REPLAY_DIR.mkdir(exist_ok=True)
 # 复用 daily_runner 的 LLM 函数 (忠实复现分析逻辑)
 from simulation.daily_runner import (  # noqa: E402
     _flash_screen, _deepseek_analyze, _detect_regime, build_market_ctx, load_macro_context,
+    _limit_pct_for_code,  # v5.6 纸盘面: 涨跌停判定复用实盘板别限制
 )
+
+
+# v5.7 第二模型复验开关 — 缓解"单模型"局限 (3. 复验).
+# 设置 REPLAY_LLM_BASE_URL/API_KEY/MODEL (OpenAI 兼容) 则回放全部 LLM 调用改用该模型,
+# 用于用第二家模型复验进化净效应是否模型无关. 默认不设置 → 行为与现状完全一致 (deepseek).
+# 用法:
+#   REPLAY_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4 \
+#   REPLAY_LLM_API_KEY=$ZHIPU_API_KEY REPLAY_LLM_MODEL=glm-4-flash \
+#   python scripts/historical_replay.py --evolution ...
+def _llm_cfg():
+    """返回 (api_key, base_url, model) 覆盖; 未设 REPLAY_LLM_BASE_URL 时返回 None (deepseek 现状)."""
+    base = os.getenv("REPLAY_LLM_BASE_URL")
+    if not base:
+        return None
+    return (
+        os.getenv("REPLAY_LLM_API_KEY", os.getenv("DEEPSEEK_API_KEY")),
+        base,
+        os.getenv("REPLAY_LLM_MODEL"),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -295,10 +315,73 @@ def reconstruct_cross_section(data: dict, basic: dict, T: str) -> pd.DataFrame:
 # 回放主循环
 # ═══════════════════════════════════════════════════════════════
 
+# ── v5.6 真实成交摩擦 (Part A 纸盘面) ──
+# 回放此前无滑点/费用/涨跌停/流动性上限 → 偏乐观, 不能代表实盘.
+# 与 simulation/paper_trader.py 的费用口径一致; 涨跌停判定复用 daily_runner._limit_pct_for_code.
+# v5.7 经查证确认 (2026-08-12, 财政部/中国结算/券商公开费率):
+#   印花税 0.05% 卖出单边 = 财政部/税务总局公告2023年第39号 (2023-08-28起由0.1%减半, 至今有效)
+#   过户费 0.01‰(=0.00001) 双向 = 中国结算 2022-04-29 起沪深A股下调至成交金额0.01‰
+#   佣金 双向 最高≤0.3% 每笔最低¥5(A股强制) = 证监发[2002]21号; 万3为市场常见保守值(上限内)
+#   规费(经手费+证管费≈0.541‰) 已含在佣金内, 客户不单列 → 代码不单列正确
+COMMISSION_RATE = 0.0003      # 万3 (市场常见保守, 监管上限0.3%内)
+MIN_COMMISSION = 5.0          # 最低佣金 ¥5 (监管确定, A股强制)
+STAMP_DUTY_RATE = 0.0005      # 卖出印花税 0.05% (财政部2023第39号, 法定确定)
+TRANSFER_FEE_RATE = 0.00001   # 过户费 0.01‰ 双向 (中国结算2022.4.29, 法定确定)
+DEFAULT_SLIPPAGE_BPS = 10     # 10bp — 无官方标准, 行业通用保守(查证: 蓝筹小额1-5bp/中等5-15bp/小盘20bp+; 统一10bp适中)
+IMPACT_CAP_PCT = 0.01         # 单笔成交额 ≤ 1% × 当日成交额(amount), 超限拒单 (流动性)
+IMPACT_ETA = 0.05             # 冲击平方根律系数 (百万级测试, 保守)
+
+
+def _buy_fee(amount: float) -> float:
+    """买入费用: 佣金 + 过户费 (无印花税)."""
+    return max(amount * COMMISSION_RATE, MIN_COMMISSION) + amount * TRANSFER_FEE_RATE
+
+
+def _sell_fee(amount: float) -> float:
+    """卖出费用: 佣金 + 印花税 + 过户费."""
+    return max(amount * COMMISSION_RATE, MIN_COMMISSION) + amount * STAMP_DUTY_RATE + amount * TRANSFER_FEE_RATE
+
+
+def _limit_blocked(side: str, pct_chg, code: str) -> bool:
+    """涨跌停成交拦截: BUY 拒绝已涨停(一字/封板, 买不进), SELL 拒绝已跌停(卖不出).
+    复用 daily_runner._limit_pct_for_code 的板别限制 (主10/创业科创20/北交所30)."""
+    if pct_chg is None or code is None:
+        return False
+    try:
+        lim = _limit_pct_for_code(code)
+    except Exception:
+        return False
+    try:
+        pc = float(pct_chg)
+    except (TypeError, ValueError):
+        return False
+    if side == "buy" and pc >= lim - 0.2:
+        return True
+    if side == "sell" and pc <= -(lim - 0.2):
+        return True
+    return False
+
+
+def _impact_bps(notional: float, day_amount: float) -> float:
+    """冲击成本 (平方根律): eta * sigma * sqrt(占比). 高于流动性上限时由调用方拒单;
+    这里只对未超限但较大的单加轻微冲击, 模拟平均执行成本."""
+    if notional <= 0:
+        return 0.0
+    if day_amount is None or day_amount <= 0:
+        return 0.0
+    ratio = notional / day_amount
+    if ratio <= 1e-4:
+        return 0.0
+    # 占比 0.01% 以下几乎无冲击; 走高则平方根放大
+    return min(50.0, IMPACT_ETA * 100.0 * (ratio * 1000.0) ** 0.5)
+
+
 class ReplayPortfolio:
     """回放持仓 (轻量): {symbol: {qty, entry_price, entry_date, stop, take}}
-    v3.3 混合结构: index_units 是"市场指数书" (risk_on 时部分资金持市场代理)."""
-    def __init__(self, capital=100000.0):
+    v3.3 混合结构: index_units 是"市场指数书" (risk_on 时部分资金持市场代理).
+    v5.6 成交摩擦: slippage_bps 滑点 + fees 费用 (默认开启, 反映真实成交)."""
+    def __init__(self, capital=100000.0, slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
+                 fees: bool = True):
         self.capital = capital
         self.cash = capital
         self.positions = {}
@@ -308,6 +391,10 @@ class ReplayPortfolio:
         self.index_units = 0.0       # 分配给市场指数书的资金
         self.index_base = 0.0        # 进入指数书时的市场代理水平
         self.index_entry_date = ""
+        self.slippage_bps = float(slippage_bps or 0.0)
+        self.fees = bool(fees)
+        self.fees_paid = 0.0         # 累计成交费用 (报告里量化真实拖累)
+        self.blocked_orders = 0      # 因涨跌停/流动性被拒的单数
 
     def to_dict(self) -> dict:
         return {"capital": self.capital, "cash": self.cash,
@@ -371,6 +458,15 @@ class ReplayPortfolio:
         idx_val = self.index_value(index_level) if index_level else 0.0
         return self.cash + pos_val + idx_val
 
+    def _exec_price(self, price: float, side: str) -> float:
+        """滑点: BUY 在基准价上加滑点, SELL 减滑点 (A股限价单保守 10bp)."""
+        if not self.slippage_bps:
+            return price
+        bps = self.slippage_bps / 1e4
+        if side == "buy":
+            return price * (1 + bps)
+        return price * (1 - bps)
+
     def buy(self, symbol, name, price, qty, date_str, stop=None, take=None):
         # 强转数值类型: df 列是 float32, 若直接入账会把 self.cash 污染成 float32,
         # 导致组合市值/持仓快照 weight 变成 float32 → JSON 序列化失败 (v5.5 端到端验证暴露).
@@ -378,15 +474,19 @@ class ReplayPortfolio:
         qty = int(qty)
         if symbol in self.positions or qty <= 0 or price <= 0:
             return False
-        cost = price * qty
+        exec_price = self._exec_price(price, "buy")
+        amount = exec_price * qty
+        fee = _buy_fee(amount) if self.fees else 0.0
+        cost = amount + fee
         if cost > self.cash:
             return False
         self.cash -= cost
-        self.positions[symbol] = {"qty": qty, "entry_price": price, "entry_date": date_str,
+        self.fees_paid += fee
+        self.positions[symbol] = {"qty": qty, "entry_price": exec_price, "entry_date": date_str,
                                   "name": name, "stop": stop, "take": take,
-                                  "peak": price}  # v5.5 P2-8: 移动止损峰值跟踪 (与实盘一致)
+                                  "peak": exec_price}  # v5.5 P2-8: 移动止损峰值跟踪 (与实盘一致)
         self.trades.append({"date": date_str, "symbol": symbol, "side": "buy",
-                            "price": price, "qty": qty})
+                            "price": exec_price, "qty": qty, "fee": round(fee, 2)})
         return True
 
     def sell(self, symbol, price, date_str, reason=""):
@@ -394,10 +494,14 @@ class ReplayPortfolio:
         if pos is None:
             return False
         price = float(price)  # 同 buy: 防 float32 污染 cash
-        self.cash += pos["qty"] * price
+        exec_price = self._exec_price(price, "sell")
+        amount = pos["qty"] * exec_price
+        fee = _sell_fee(amount) if self.fees else 0.0
+        self.cash += amount - fee
+        self.fees_paid += fee
         self.trades.append({"date": date_str, "symbol": symbol, "side": "sell",
-                            "price": price, "qty": pos["qty"],
-                            "pnl_pct": (price / float(pos["entry_price"]) - 1) * 100, "reason": reason})
+                            "price": exec_price, "qty": pos["qty"], "fee": round(fee, 2),
+                            "pnl_pct": (exec_price / float(pos["entry_price"]) - 1) * 100, "reason": reason})
         return True
 
 
@@ -419,9 +523,10 @@ async def _market_risk_decision(market_ctx_txt: str) -> dict:
     from openai import AsyncOpenAI
     import os
     try:
+        _cfg = _llm_cfg()
         client = AsyncOpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            api_key=_cfg[0] if _cfg else os.getenv("DEEPSEEK_API_KEY"),
+            base_url=_cfg[1] if _cfg else os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             timeout=60.0,
         )
         sys = (
@@ -434,7 +539,7 @@ async def _market_risk_decision(market_ctx_txt: str) -> dict:
         prompt = (f"【今日市场快照】\n{market_ctx_txt}\n\n"
                   f"依据快照中的拥挤度/估值分位/指数位置, 输出今日风险目标与持仓上限 (JSON)。")
         resp = await client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+            model=_cfg[2] if _cfg else os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
             messages=[{"role": "system", "content": sys}, {"role": "user", "content": prompt}],
             temperature=0.0, max_tokens=300,
             extra_body={"thinking": {"type": "disabled"}},
@@ -494,7 +599,8 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
                              memory = None,
                              evolution = None,
                              current_date: str = None,
-                             prev_risk_level: int = None) -> dict:
+                             prev_risk_level: int = None,
+                             adv_mode: str = "same") -> dict:
     """v4.0 自我进化市场诊断官.
 
     进化历程:
@@ -844,17 +950,20 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
         if _macro_txt:
             user_msg += f"\n\n【宏观背景】\n{_macro_txt}"
         user_msg += "\n\n先判断市场阶段，选最适合的大师主导，再给出诊断。"
-        # v5.5 P2-8: 对抗票 — 与实盘 daily_runner 一致, 请再给出一个"观点相反大师"的 risk_level
-        # (adversarial_risk_level), 用于分歧裁决. 分歧>=2级时系统会向保守收敛.
-        user_msg += "\n另外请从一位与你选择的主导大师观点相反的对抗大师视角，给出 adversarial_risk_level（1-5整数）。"
+        # v5.5 P2-8 / v5.6: 对抗票.
+        # same 模式: 单 completion role-play (现状基线) — 请主导同时给对抗大师的 risk_level.
+        # off/independent 模式: 不在此注入 role-play (off=无对抗, independent=独立二次调用替代).
+        if adv_mode == "same":
+            user_msg += "\n另外请从一位与你选择的主导大师观点相反的对抗大师视角，给出 adversarial_risk_level（1-5整数）。"
 
+        _cfg = _llm_cfg()
         client = AsyncOpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            api_key=_cfg[0] if _cfg else os.getenv("DEEPSEEK_API_KEY"),
+            base_url=_cfg[1] if _cfg else os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             timeout=45.0,
         )
         resp = await client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+            model=_cfg[2] if _cfg else os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
             messages=[{"role": "system", "content": sys_prompt},
                       {"role": "user", "content": user_msg}],
             temperature=0.4, max_tokens=800,
@@ -908,18 +1017,31 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
             "dominant_master": diag.get("dominant_master", "unknown"),
             "secondary_master": diag.get("secondary_master", ""),
         }
-        # v5.5 P2-8: 对抗票一致 — 复用实盘 _apply_adversarial_gate, 分歧>=2级向保守收敛.
+        # v5.5 P2-8 / v5.6: 对抗票 — 复用实盘 _apply_adversarial_gate, 分歧>=2级向保守收敛.
         # 回放此前无对抗票, 与实盘行为不一致 → 回放基准不能代表实盘.
-        try:
-            _adv_raw = diag.get("adversarial_risk_level")
-            if _adv_raw is not None:
-                result["adversarial_risk_level"] = max(1, min(5, int(_adv_raw)))
-                from simulation.daily_runner import _apply_adversarial_gate
-                _apply_adversarial_gate(result)
-                risk_level = result["risk_level"]
-                pos_mult = result["position_multiplier"]
-        except (TypeError, ValueError):
-            pass
+        # v5.6 adv_mode: off=无对抗(闸门基线) / same=单completion role-play(现状) /
+        #                independent=独立二次调用(打破假多元化).
+        if adv_mode != "off":
+            try:
+                _adv_raw = diag.get("adversarial_risk_level")
+                if adv_mode == "independent":
+                    # 独立第二次 LLM 调用 — 与主导不同样本, 消除 role-play 耦合
+                    from agent.evolution.adversarial import adversarial_risk
+                    _adv_raw = await adversarial_risk(
+                        client, snapshot_txt,
+                        dominant_master=str(diag.get("dominant_master", "unknown")),
+                        regime=str(diag.get("market_phase", "unknown")),
+                        macro_txt=_macro_txt,
+                        model=_cfg[2] if _cfg else None,
+                    )
+                if _adv_raw is not None:
+                    result["adversarial_risk_level"] = max(1, min(5, int(_adv_raw)))
+                    from simulation.daily_runner import _apply_adversarial_gate
+                    _apply_adversarial_gate(result)
+                    risk_level = result["risk_level"]
+                    pos_mult = result["position_multiplier"]
+            except (TypeError, ValueError):
+                pass
         logger.info(
             f"[市场诊断] 风险={risk_level}/5  仓位×{pos_mult:.2f}  "
             f"持仓{max_adj:+d}  风险{len(key_risks)}个"
@@ -948,7 +1070,9 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      diagnostic_top_n: int = 20,
                      diagnostic_dynamic: bool = False,
                      flash_diag_mode: bool = False,
-                     evolution_mode: bool = False) -> dict:
+                     evolution_mode: bool = False,
+                     slippage: bool = True,
+                     adv_mode: str = "same") -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -1012,7 +1136,11 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
     if len(window) < days:
         logger.warning(f"可用交易日 {len(window)} < {days}, 按实际窗口跑")
 
-    pf = ReplayPortfolio(capital)
+    # v5.6 纸盘面: 真实成交摩擦开关. 默认 ON (滑点/费用/涨跌停/流动性), 反映真实模型.
+    # A/B"有/无摩擦"对比用于量化真实拖累. 用 slippage_bps 传 0 关闭滑点, fees=False 关费用.
+    slippage_enabled = bool(slippage)
+    pf = ReplayPortfolio(capital, slippage_bps=DEFAULT_SLIPPAGE_BPS if slippage_enabled else 0.0,
+                         fees=slippage_enabled)
     day_logs = []
     total_llm_calls = 0
     t0 = time.time()
@@ -1320,7 +1448,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                                  memory=_memory,
                                                  evolution=_evolution,
                                                  current_date=T,
-                                                 prev_risk_level=_prev_risk)
+                                                 prev_risk_level=_prev_risk,
+                                                 adv_mode=adv_mode)
                 total_llm_calls += 1
                 # 存今日统计入历史队列 (保留近5天)
                 _today_stat = _compute_day_stat(df_cs)
@@ -1363,7 +1492,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                                  history_5d=_diag_history,
                                                  memory=_memory,
                                                  evolution=_evolution,
-                                                 current_date=T)
+                                                 current_date=T,
+                                                 adv_mode=adv_mode)
                 total_llm_calls += 1
                 # 存今日统计入历史队列
                 _today_stat = _compute_day_stat(df_cs)
@@ -1427,6 +1557,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             next_T = _next_trading_day(data, T)
             t1_open = {}
             t1_close = {}
+            t1_pct = {}      # v5.6 纸盘面: T+1 涨跌幅 (涨跌停判定)
+            t1_amount = {}   # v5.6 纸盘面: T+1 成交额 (流动性上限/冲击)
             if next_T:
                 for sym, df in data.items():
                     d = pd.to_datetime(df["date"])
@@ -1437,6 +1569,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                     if r1["is_trade"] == 1:
                         t1_open[sym] = r1["open"]
                         t1_close[sym] = r1["close"]
+                        _pc = r1.get("pctChg")
+                        t1_pct[sym] = float(_pc) if _pc is not None else None
+                        _am = r1.get("amount")
+                        t1_amount[sym] = float(_am) if _am is not None else None
 
             sell_signals = {str(r.get("code")): r for r in deep if r.get("action") == "SELL"}
             for sym in list(pf.positions.keys()):
@@ -1452,6 +1588,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                     reason = "止损"
                 elif pos.get("take") and px1 >= pos["take"]:
                     reason = "止盈"
+                # v5.6 纸盘面: 跌停卖不出 → 暂缓, 不算成交 (真实约束)
+                if reason and slippage_enabled and _limit_blocked("sell", t1_pct.get(sym), code):
+                    pf.blocked_orders += 1
+                    reason = None
                 if reason:
                     pf.sell(sym, px1, next_T, reason)
                     _recently_sold[code] = pd.Timestamp(T)  # v3.5 记录卖出日, 再买冷却
@@ -1626,6 +1766,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 px1 = t1_open.get(sym)
                 if px1 is None or px1 <= 0:
                     continue
+                # v5.6 纸盘面: 涨停买不进 (一字/封板) → 跳过, 换更可成交的标的
+                if slippage_enabled and _limit_blocked("buy", t1_pct.get(sym), code):
+                    pf.blocked_orders += 1
+                    continue
                 # v3.5 自由模式: 仓位 = 确信度 × 市场风险目标 (LLM每日显式承诺), 封顶 = 体制上限 _pos_cap
                 if free_mode:
                     # conviction 0.5→7.5%, 1.0→15%, 上限 _pos_cap (与实盘 REGIME_LIMITS 一致). 高确信就重仓, 低确信轻仓
@@ -1639,6 +1783,17 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 qty = int(pf.cash * pct / px1 / 100) * 100
                 if qty < 100 or pf.cash * pct > pf.cash * 0.25:
                     continue
+                # v5.6 纸盘面: 流动性上限 (单笔 ≤ 1%×当日成交额, 防小盘股大仓位过乐观)
+                # + 冲击成本 (平方根律, 大单加轻微冲击)
+                fill_px = px1
+                if slippage_enabled:
+                    _amt_d = t1_amount.get(sym)
+                    _notional = px1 * qty
+                    if _amt_d and _amt_d > 0 and _notional > IMPACT_CAP_PCT * _amt_d:
+                        pf.blocked_orders += 1
+                        logger.debug(f"  ⨯ {sym} 单笔¥{_notional:,.0f} > 1%×成交额¥{_amt_d:,.0f} 超流动性, 跳过")
+                        continue
+                    fill_px = px1 * (1 + _impact_bps(_notional, _amt_d) / 1e4)
                 # v3.3 ATR 缩放止损: 高波动股放宽, 低波动股收紧 (2×ATR, 限5-10%)
                 _g = data.get(sym)
                 _stop_pct = 0.07
@@ -1652,7 +1807,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                 stop = px1 * (1 - _stop_pct)
                 # v3.3 回退: 止盈A/B证明 regime 自适应净负, 回到固定 +12%
                 take = px1 * (1 + 0.12)
-                if pf.buy(sym, r.get("name", sym), px1, qty, next_T, stop=stop, take=take):
+                if pf.buy(sym, r.get("name", sym), fill_px, qty, next_T, stop=stop, take=take):
                     pass
 
             # ── 6. T+1 收盘市值快照 (含指数书) ──
@@ -1801,6 +1956,11 @@ def main():
                     help="Flash诊断模式 (v3.5): Flash精筛选股 + 诊断官调仓, 无深度分析 (中等成本)")
     ap.add_argument("--evolution", action="store_true",
                     help="v4.0 自我进化模式: 诊断官每天复盘昨日决策, 积累经验记忆, 每10天进化总结")
+    ap.add_argument("--no-slippage", action="store_true",
+                    help="v5.6 关闭成交摩擦 (0滑点/0费用/无涨跌停/无流动性上限) — 用于A/B量化真实拖累")
+    ap.add_argument("--adv-mode", type=str, default="same", choices=["same", "independent", "off"],
+                    help="v5.6 对抗票模式: same=单completion role-play(现状基线) / "
+                         "independent=独立二次LLM调用(打破假多元化) / off=无对抗(闸门基线)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -1817,7 +1977,9 @@ def main():
                            diagnostic_top_n=args.diag_top_n,
                            diagnostic_dynamic=args.diag_dynamic,
                            flash_diag_mode=args.flash_diag,
-                           evolution_mode=args.evolution))
+                           evolution_mode=args.evolution,
+                           slippage=not args.no_slippage,
+                           adv_mode=args.adv_mode))
 
 
 if __name__ == "__main__":
