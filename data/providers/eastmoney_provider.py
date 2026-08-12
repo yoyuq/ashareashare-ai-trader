@@ -271,8 +271,10 @@ class EastMoneyProvider(DataProvider):
                     })
                 return pd.DataFrame(rows)
             return pd.DataFrame()
-        except Exception:
-            return pd.DataFrame()
+        except Exception as e:
+            # v5.6 P0-6: 静默失败分离 — 异常不再吞成空表, 抛出让路由层计入失败并降级
+            self._healthy = False
+            raise RuntimeError(f"EastMoney获取股票列表失败: {e}") from e
 
     async def health_check(self) -> bool:
         """健康检查: 测试API连通性"""

@@ -35,13 +35,17 @@ class DataRouter:
     - v2.1: 关键数据(回测用)双源交叉验证
     """
 
+    _GLOBAL_KEY = "*"  # v5.6 P0-7: 非标的维度 (股票列表/实时行情) 的失败键
+
     def __init__(self, cross_validation: bool = True):
         self.cross_validation = cross_validation
         self._providers: Dict[DataSource, DataProvider] = {}
         self._priority: List[DataSource] = []
         self._priorities: Dict[DataSource, int] = {}  # v3.0: 记录注册优先级 (越小越优先)
-        self._failure_counts: Dict[DataSource, int] = {}
-        self._downgraded_until: Dict[DataSource, datetime] = {}
+        # v5.6 P0-7: 失败计数/降级窗口按 (source, symbol) 记录, 避免单只退市/
+        # 新股/北交所标的的连续失败误伤整个健康源; 非标的维度用 _GLOBAL_KEY。
+        self._failure_counts: Dict[Tuple[DataSource, str], int] = {}
+        self._downgraded_until: Dict[Tuple[DataSource, str], datetime] = {}
         self._max_failures = 3
         self._downgrade_duration = timedelta(minutes=5)
         self.last_used_source: str = ""  # v2.10: 追踪实际使用的数据源
@@ -85,6 +89,11 @@ class DataRouter:
                 if not df.empty and "error" not in df.columns:
                     self._on_success(source)
                     return self._normalize_stock_list(df)
+                # v5.6 P0-6: 空数据/错误占位表与"确实无数据"分离 — 计入失败,
+                # 触发熔断降级而非静默吞掉 (Tencent 不支持股票列表属永久缺能力,
+                # 仍计入但由 5 分钟降级窗口限频, 不会影响其实时行情/K线等已支持维度)。
+                logger.warning(f"{source.value} 股票列表返回空/错误占位表")
+                self._on_failure(source)
             except Exception as e:
                 logger.warning(f"{source.value} 获取股票列表失败: {e}")
                 self._on_failure(source)
@@ -137,6 +146,9 @@ class DataRouter:
                 if not df.empty and "error" not in df.columns:
                     self._on_success(source)
                     return df
+                # v5.6 P0-6: 空/错误占位表计入失败 (静默失败分离)
+                logger.warning(f"{source.value} 实时行情返回空/错误占位表")
+                self._on_failure(source)
             except Exception as e:
                 logger.warning(f"{source.value} 获取实时行情失败: {e}")
                 self._on_failure(source)
@@ -161,7 +173,7 @@ class DataRouter:
                 return cached_result
 
         errors = []
-        for source in self._active_sources():
+        for source in self._active_sources(request.symbol):
             provider = self._providers.get(source)
             if provider is None:
                 continue
@@ -175,56 +187,79 @@ class DataRouter:
                         is_valid = provider._validate_response(result.data, request)
                         if not is_valid:
                             errors.append(f"{source.value}: 数据校验失败")
-                            self._on_failure(source)
+                            self._on_failure(source, request.symbol)
                             continue
-                    self._on_success(source)
+                    self._on_success(source, request.symbol)
                     self.last_used_source = source.value
                     self._cache[cache_key] = (now_cn_naive(), result)  # 缓存
                     return result
                 else:
                     errors.append(f"{source.value}: 返回空数据")
-                    self._on_failure(source)  # v3.0: 空响应同样触发熔断降级
+                    self._on_failure(source, request.symbol)  # v3.0: 空响应同样触发熔断降级
             except asyncio.TimeoutError:
                 logger.warning(f"{source.value}.{method}({request.symbol}) 超时(30s)")
                 errors.append(f"{source.value}: 超时")
-                self._on_failure(source)
+                self._on_failure(source, request.symbol)
             except Exception as e:
                 logger.warning(f"{source.value}.{method}({request.symbol}) 失败: {e}")
                 errors.append(f"{source.value}: {e}")
-                self._on_failure(source)
+                self._on_failure(source, request.symbol)
                 continue
 
         raise RuntimeError(
             f"所有数据源均无法获取{request.symbol}的{method}数据: {'; '.join(errors)}"
         )
 
-    def _active_sources(self) -> List[DataSource]:
-        """返回当前可用的数据源列表(已排除降级中的)"""
+    def _active_sources(self, symbol: Optional[str] = None) -> List[DataSource]:
+        """返回当前可用的数据源列表(已排除降级中的)
+
+        v5.6 P0-7: 传 symbol 时, 仅该 symbol 被标度降级的源被排除; 全局降级
+        (股票列表/实时行情等非标的维度) 始终生效。避免单只退市/新股标的的
+        连续失败把整个健康源降级。
+        """
         now = now_cn_naive()
         active = []
         for source in self._priority:
             if source not in self._providers:
                 continue
-            # 检查是否在降级期间
-            until = self._downgraded_until.get(source)
-            if until and now < until:
+            # 全局降级 (方法级失败)
+            until_global = self._downgraded_until.get((source, self._GLOBAL_KEY))
+            if until_global and now < until_global:
                 continue
+            # 标度降级 (仅该 symbol 请求)
+            if symbol:
+                until_sym = self._downgraded_until.get((source, symbol))
+                if until_sym and now < until_sym:
+                    continue
             active.append(source)
         return active
 
-    def _on_success(self, source: DataSource):
+    def _on_success(self, source: DataSource, symbol: Optional[str] = None):
         """数据源成功——重置失败计数"""
-        self._failure_counts[source] = 0
+        key = (source, symbol or self._GLOBAL_KEY)
+        self._failure_counts[key] = 0
+        self._downgraded_until.pop(key, None)
 
-    def _on_failure(self, source: DataSource):
-        """数据源失败——累计失败计数,超过阈值则降级"""
-        count = self._failure_counts.get(source, 0) + 1
-        self._failure_counts[source] = count
+    def _on_failure(self, source: DataSource, symbol: Optional[str] = None):
+        """数据源失败——累计失败计数,超过阈值则降级
+
+        v5.6 P0-7: 按 (source, symbol) 记失败; 降级窗口过期后重置计数,
+        给源一个全新重试周期 (修复"脆弱源实际永久降级")。
+        """
+        key = (source, symbol or self._GLOBAL_KEY)
+        # 降级窗口已过期 → 清计数, 重新累计 (否则下次失败会立即再触发降级)
+        until = self._downgraded_until.get(key)
+        if until and now_cn_naive() >= until:
+            self._downgraded_until.pop(key, None)
+            self._failure_counts[key] = 0
+        count = self._failure_counts.get(key, 0) + 1
+        self._failure_counts[key] = count
         if count >= self._max_failures:
-            self._downgraded_until[source] = now_cn_naive() + self._downgrade_duration
+            self._downgraded_until[key] = now_cn_naive() + self._downgrade_duration
+            _scope = f"标的 {symbol}" if symbol else "全局"
             logger.warning(
-                f"数据源 {source.value} 连续失败{count}次,降级至"
-                f" {self._downgraded_until[source].strftime('%H:%M:%S')}"
+                f"数据源 {source.value}[{_scope}] 连续失败{count}次,降级至"
+                f" {self._downgraded_until[key].strftime('%H:%M:%S')}"
             )
 
     # ═══════════════════════════════════════════════════════════════
@@ -329,15 +364,21 @@ class DataRouter:
 
     @property
     def status(self) -> Dict[str, Any]:
-        """返回所有数据源状态"""
-        return {
-            source.value: {
-                "healthy": self._providers[source].is_healthy(),
-                "failures": self._failure_counts.get(source, 0),
-                "downgraded_until": str(self._downgraded_until.get(source, "-")),
+        """返回所有数据源状态 (v5.6 P0-7: 含标度降级明细)"""
+        out: Dict[str, Any] = {}
+        for source in self._providers:
+            gkey = (source, self._GLOBAL_KEY)
+            sym_downgrades = {
+                s: str(t) for (src, s), t in self._downgraded_until.items()
+                if src == source and s != self._GLOBAL_KEY
             }
-            for source in self._providers
-        }
+            out[source.value] = {
+                "healthy": self._providers[source].is_healthy(),
+                "failures": self._failure_counts.get(gkey, 0),
+                "downgraded_until": str(self._downgraded_until.get(gkey, "-")),
+                "symbol_downgrades": sym_downgrades,
+            }
+        return out
 
 
 # ═══════════════════════════════════════════════════════════════

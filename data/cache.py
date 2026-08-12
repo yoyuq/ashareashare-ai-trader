@@ -251,10 +251,13 @@ class CacheLayer:
         logger.debug(f"缓存未命中: {key},回源获取")
         df = await fetch_func(*args, **kwargs)
 
-        # 3. 写入缓存
-        if isinstance(df, pd.DataFrame) and not df.empty:
+        # 3. 写入缓存 (v5.6 P0-6: 空表/错误占位表不缓存, 避免把静默失败当成功)
+        def _is_cacheable(d: pd.DataFrame) -> bool:
+            return isinstance(d, pd.DataFrame) and not d.empty and "error" not in d.columns
+
+        if _is_cacheable(df):
             await self.set(key, df, ttl=ttl)
-        elif hasattr(df, "data") and isinstance(df.data, pd.DataFrame):
+        elif hasattr(df, "data") and _is_cacheable(getattr(df, "data", None)):
             await self.set(key, df.data, ttl=ttl)
 
         return df

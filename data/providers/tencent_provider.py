@@ -216,4 +216,11 @@ class TencentFinanceProvider(DataProvider):
             return False
 
     def _validate_response(self, df: pd.DataFrame, request: DataRequest) -> bool:
-        return not df.empty
+        # v5.6 P0-6: 严格于"仅非空" — 排除错误占位表并校验 OHLC 列齐全
+        # (基类还要求 >=5 行, 对短期区间过严, 故此处放宽行数但保留列/占位校验)
+        if df is None or df.empty:
+            return False
+        if "error" in df.columns:
+            return False
+        required_cols = {"date", "open", "high", "low", "close"}
+        return required_cols.issubset(set(df.columns))
