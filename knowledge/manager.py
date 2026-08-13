@@ -50,6 +50,35 @@ def _stable_hash_embed(text: str, dim: int = 256) -> List[float]:
     return [x / norm for x in vec] if norm else vec
 
 
+_EMBED_DIM = 1024  # 硅基流动 BAAI/bge-m3 输出维度
+_LEARNED_COLLECTION = "learned_knowledge_sem"  # 语义向量集合 (bge-m3); 旧 hash 集合 learned_knowledge 保留不动
+
+
+def _semantic_embed(text: str) -> List[float]:
+    """硅基流动 BAAI/bge-m3 语义向量 (1024维), 用于 learned_knowledge 语义查重。
+
+    全程零模拟: 调真实 embedding API; 失败即抛异常 (由调用方记录/降级), 绝不伪造向量。
+    与 _stable_hash_embed (256维 n-gram hash) 维度不同, 两者不可混用于同一集合。
+    """
+    import os
+    import requests
+    key = os.getenv("SILICONFLOW_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("SILICONFLOW_API_KEY 未配置, 无法生成语义向量")
+    r = requests.post(
+        "https://api.siliconflow.cn/v1/embeddings",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={"model": "BAAI/bge-m3", "input": [text], "encoding_format": "float"},
+        timeout=30,
+    )
+    r.raise_for_status()
+    data = r.json()
+    emb = (data.get("data") or [{}])[0].get("embedding") or []
+    if len(emb) != _EMBED_DIM:
+        raise RuntimeError(f"embedding 维度异常: {len(emb)} != {_EMBED_DIM}")
+    return [float(x) for x in emb]
+
+
 # 参考文档 → regime 打标关键词 (用于 regime 感知检索)
 REGIME_TAG_KEYWORDS = {"牛": "bull", "熊": "bear", "危机": "crisis", "震荡": "range",
                        "通用": "general", "通用原则": "general"}
@@ -136,6 +165,85 @@ def _cn_tokens(text: str) -> List[str]:
             for i in range(len(chunk) - size + 1):
                 tokens.add(chunk[i:i + size])
     return list(tokens)
+
+
+# 知识库向量索引版本号: 分块/嵌入策略变更时递增, 自动触发旧 collection 重建 (三层联动)
+KB_INDEX_VERSION = "3"
+
+# 规则 YAML 键 → 中文标签 (仅用于向量索引富化, 不改动规则数据)
+# 自研哈希向量 + 关键词混合检索对英文键 (fees/stamp_duty 等) 天然失明,
+# 中文标签路径让中文查询能命中英文键, 否则 "印花税" 永远检索不到 fees.stamp_duty。
+_RULE_KEY_LABELS = {
+    # trading_rules.yaml
+    "trading_hours": "交易时间", "morning": "上午", "afternoon": "下午",
+    "call_auction_morning": "早盘集合竞价", "call_auction_afternoon": "尾盘集合竞价",
+    "settlement": "交收制度 T+1 交易", "type": "类型",
+    "price_limits": "涨跌停限制", "main_board": "主板", "chinext": "创业板",
+    "star_market": "科创板", "beijing": "北交所", "st_stock": "ST股",
+    "new_stock_first_day": "新股首日",
+    "fees": "交易费用", "stamp_duty": "印花税", "commission": "佣金",
+    "transfer_fee": "过户费", "sell_only": "仅卖出", "rate": "费率",
+    "lot_size": "交易单位 手数", "min_lot": "最小买入单位",
+    "trading_signals": "交易信号口径", "volume_expansion": "放量",
+    "volume_contraction": "缩量", "limit_up_lock": "封板", "limit_up_crack": "炸板",
+    "ma_golden_cross": "均线金叉", "ma_death_cross": "均线死叉",
+    "rsi_overbought": "RSI超买", "rsi_oversold": "RSI超卖",
+    "circuit_breaker": "熔断机制",
+    # indicator_guide.yaml
+    "indicators": "技术指标", "candlestick_patterns": "K线形态",
+    "MA": "移动平均线", "MACD": "MACD指数平滑异同", "RSI": "相对强弱指标",
+    "BollingerBands": "布林带", "ATR": "平均真实波幅", "OBV": "能量潮",
+    "overbought": "超买", "oversold": "超卖", "thresholds": "阈值",
+    # registry.yaml 策略 id
+    "strategies": "策略", "dual_ma_trend": "双均线趋势", "macd_trend": "MACD趋势",
+    "turtle_trend": "海龟突破", "bollinger_reversal": "布林带均值回归",
+    "rsi_mean_reversion": "RSI均值回归", "momentum_breakout": "动量突破",
+    "limit_up_chase": "涨停追击", "multi_factor": "多因子", "low_volatility": "低波动",
+    "northbound_follow": "北向资金跟随",
+}
+
+
+def _zh_path(path: str) -> str:
+    """dot 路径 → 中文标签路径 (未知段保留原文), 供 _chunk_yaml 富化检索文本。"""
+    parts = path.replace("[", ".").replace("]", "").split(".")
+    return " ".join(_RULE_KEY_LABELS.get(p, p) for p in parts if p)
+
+
+def _chunk_yaml(data: Any, doc_name: str, max_len: int = 800) -> List[tuple]:
+    """v3.4: 把 YAML 规则扁平化为可检索 chunk (每个「标量字典/标量列表/叶子」一条)。
+
+    返回 [(section, chunk_text)]。chunk_text 形如
+      "交易费用 印花税 | fees.stamp_duty: {\"rate\": 0.0005, \"side\": \"sell_only\"}"
+    中文标签路径保证中文查询命中英文键; 值里的中文描述/注释一并进入哈希嵌入。
+    """
+    out: List[tuple] = []
+
+    def section_of(path: str) -> str:
+        return path.split(".")[0] if path else doc_name
+
+    def walk(node: Any, path: str) -> None:
+        if isinstance(node, dict):
+            if node and all(not isinstance(v, (dict, list)) for v in node.values()):
+                body = json.dumps(node, ensure_ascii=False, sort_keys=True)
+                out.append((section_of(path),
+                            f"{_zh_path(path)} | {path}: {body}" if path else body))
+            else:
+                for k, v in node.items():
+                    walk(v, f"{path}.{k}" if path else str(k))
+        elif isinstance(node, list):
+            if node and all(not isinstance(v, (dict, list)) for v in node):
+                body = json.dumps(node, ensure_ascii=False)
+                out.append((section_of(path),
+                            f"{_zh_path(path)} | {path}: {body}"))
+            else:
+                for i, v in enumerate(node):
+                    walk(v, f"{path}[{i}]")
+        else:
+            out.append((section_of(path),
+                        f"{_zh_path(path)} | {path}: {node}"))
+
+    walk(data, "")
+    return [(h, c[:max_len]) for h, c in out if c and len(c) > 2]
 
 
 class KnowledgeManager:
@@ -400,6 +508,43 @@ class KnowledgeManager:
     def get_all_rules(self, rule_set: str) -> Optional[Dict]:
         """获取整个规则集"""
         return self._load_yaml(f"rules/{rule_set}.yaml")
+
+    def validate_rules_schema(self) -> Dict[str, Any]:
+        """v3.4: 校验 trading_rules.yaml 结构是否锁定 (JSON Schema)。
+
+        trading_rules.yaml 强调「禁止 LLM 定义口径」却无 schema 锁定 → 任何人可破坏
+        结构 (删 key/改类型) 而不报错。这里用 jsonschema 校验其符合
+        knowledge/rules/trading_rules.schema.json。
+
+        Returns:
+            {ok: bool, errors: [str], validated_schema: bool}
+            validated_schema=False 表示 jsonschema 未安装或 schema 文件缺失 (未真正校验)。
+        """
+        try:
+            import jsonschema
+        except ImportError:
+            logger.warning("jsonschema 未安装, 跳过规则 schema 校验")
+            return {"ok": True, "errors": [], "validated_schema": False}
+
+        schema_path = self.root / "rules" / "trading_rules.schema.json"
+        if not schema_path.exists():
+            return {"ok": False, "errors": [f"schema 文件缺失: {schema_path}"],
+                    "validated_schema": False}
+
+        data = self._load_yaml("rules/trading_rules.yaml")
+        if data is None:
+            return {"ok": False, "errors": ["trading_rules.yaml 加载失败或缺失"],
+                    "validated_schema": True}
+
+        try:
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            errors = [
+                f"{'/'.join(str(p) for p in e.absolute_path) or '(root)'}: {e.message}"
+                for e in jsonschema.Draft7Validator(schema).iter_errors(data)
+            ]
+            return {"ok": not errors, "errors": errors, "validated_schema": True}
+        except Exception as e:
+            return {"ok": False, "errors": [f"schema 校验异常: {e}"], "validated_schema": True}
 
     def get_hardened_definition(self, concept: str) -> Optional[Dict]:
         """
@@ -798,13 +943,25 @@ class KnowledgeManager:
             existing = [c.name for c in self._chroma_client.list_collections()]
             if name in existing:
                 col = self._chroma_client.get_collection(name)
+                # 三层联动: 分块/索引策略升级 (KB_INDEX_VERSION) → 旧 collection 自动重建
+                if (col.metadata or {}).get("index_version") != KB_INDEX_VERSION:
+                    logger.info(f"[ChromaDB] 索引版本 {KB_INDEX_VERSION} != "
+                                f"{(col.metadata or {}).get('index_version')}, 重建...")
+                    self._chroma_client.delete_collection(name)
+                    col = self._chroma_client.create_collection(
+                        name=name,
+                        metadata={"description": "Reference docs + YAML rules RAG index (hash_v2)",
+                                  "hnsw:space": "cosine", "index_version": KB_INDEX_VERSION},
+                    )
+                    self._seed_knowledge_base_v2(col)
+                    return col
                 if col.count() == 0:
                     self._seed_knowledge_base_v2(col)
                 return col
             col = self._chroma_client.create_collection(
                 name=name,
-                metadata={"description": "Reference docs RAG index v3.3 (section+regime, hash_v2)",
-                          "hnsw:space": "cosine"},  # 余弦距离
+                metadata={"description": "Reference docs + YAML rules RAG index (hash_v2)",
+                          "hnsw:space": "cosine", "index_version": KB_INDEX_VERSION},  # 余弦距离
             )
             self._seed_knowledge_base_v2(col)
             return col
@@ -812,10 +969,18 @@ class KnowledgeManager:
             logger.warning(f"[ChromaDB] knowledge_base_v2 初始化失败: {e}")
             return None
 
-    def _seed_knowledge_base_v2(self, col) -> None:
-        """v3.3: 按节分块 + regime 打标 播种参考文档 RAG。"""
-        reference_dir = self.root / "reference"
+    def _seed_knowledge_base_v2(self, col) -> int:
+        """v3.4: 按节分块 + regime 打标 播种参考文档 RAG; 同时索引 YAML 规则层 (三层联动)。
+
+        此前仅索引 reference/*.md, 改 YAML 规则不进向量库 → 向量检索找不到任何规则定义。
+        现一并索引 rules/*.yaml、strategies/registry.yaml、hardened_definitions.yaml。
+
+        Returns: 播种的 chunk 总数。
+        """
         ids, docs, embeds, metas = [], [], [], []
+
+        # ── 1. 参考文档层 (markdown) ──
+        reference_dir = self.root / "reference"
         if reference_dir.exists():
             for md_file in sorted(reference_dir.glob("*.md")):
                 text = md_file.read_text(encoding="utf-8")
@@ -831,9 +996,65 @@ class KnowledgeManager:
                         "regime": _regime_from_header(header) or "general",
                         "doc_type": "regime_playbook" if "regime_playbook" in md_file.name else "reference",
                     })
+
+        # ── 2. 规则层 (YAML) ──
+        yaml_sources = [
+            ("rules/trading_rules.yaml", "rule", "trading_rules"),
+            ("rules/indicator_guide.yaml", "rule", "indicator_guide"),
+            ("strategies/registry.yaml", "strategy", "registry"),
+            ("hardened_definitions.yaml", "hardened_definition", "hardened_definitions"),
+        ]
+        for rel, doc_type, id_prefix in yaml_sources:
+            data = self._load_yaml(rel)
+            if not data:
+                continue
+            fname = rel.split("/")[-1]
+            for j, (section, chunk) in enumerate(_chunk_yaml(data, fname)):
+                ids.append(f"{id_prefix}_{j}")
+                docs.append(chunk)
+                embeds.append(_stable_hash_embed(chunk))
+                metas.append({
+                    "source": fname, "chunk": j,
+                    "section": section,
+                    "regime": "general",
+                    "doc_type": doc_type,
+                })
+
         if ids:
             col.add(ids=ids, embeddings=embeds, documents=docs, metadatas=metas)
-            logger.info(f"[ChromaDB] Seeded knowledge_base_v2 ({len(ids)} chunks, section+regime)")
+            logger.info(f"[ChromaDB] Seeded knowledge_base_v2 ({len(ids)} chunks: md+yaml)")
+        return len(ids)
+
+    def rebuild_knowledge_index(self) -> int:
+        """v3.4: 显式重建知识库向量索引 (删除旧 collection → 全量重播种 md + YAML)。
+
+        供「改 YAML → 重建向量库」联动流程调用 (scripts/rebuild_knowledge_index.py)。
+        幂等: 内容完全由 knowledge/ 源文件决定, 无网络依赖。
+
+        Returns: 重新索引的 chunk 总数 (失败返回 0)。
+        """
+        try:
+            if self._chroma_client is None:
+                import chromadb
+                store_path = self.root / "vector_store" / "chroma"
+                store_path.mkdir(parents=True, exist_ok=True)
+                self._chroma_client = chromadb.PersistentClient(path=str(store_path))
+            name = "knowledge_base_v2"
+            try:
+                self._chroma_client.delete_collection(name)
+            except Exception:
+                pass  # collection 不存在时忽略
+            col = self._chroma_client.create_collection(
+                name=name,
+                metadata={"description": "Reference docs + YAML rules RAG index (hash_v2)",
+                          "hnsw:space": "cosine", "index_version": KB_INDEX_VERSION},
+            )
+            n = self._seed_knowledge_base_v2(col)
+            logger.info(f"[ChromaDB] 知识库索引重建完成: {n} chunks")
+            return n
+        except Exception as e:
+            logger.warning(f"[ChromaDB] 重建知识库索引失败: {e}")
+            return 0
 
     def index_document(self, md_path: Path, doc_type: str = "reference") -> bool:
         """v3.3: 把新生成的 md (如 trade_lessons.md) 按节分块索引进 knowledge_base_v2。
@@ -1043,6 +1264,131 @@ class KnowledgeManager:
         # ── hybrid: 加权 RRF 融合 — 关键词权重 2× (金融术语精确匹配强, 基准验证) ──
         return self._rrf_fuse([vec_items, kw_items[: top_k * 3]], top_k,
                               weights=[1.0, 2.0])
+
+    def retrieve(self, query: str, top_k: int = 5, regime: Optional[str] = None,
+                 mode: str = "hybrid") -> List[Dict]:
+        """v3.4: 公开检索接口 — 返回结构化排名列表 (供离线 recall@k 评测复用)。
+
+        与 _retrieve 同语义; 单独暴露便于评测脚本/测试直接取 {id, source, doc, sim}。
+        """
+        return self._retrieve(query, top_k=top_k, regime=regime, mode=mode)
+
+    # ═══════════════════════════════════════════════════════════════
+    # 自主学习闭环: 历史知识向量库 (learned_knowledge)
+    # ═══════════════════════════════════════════════════════════════
+
+    def _ensure_learned_knowledge_collection(self) -> Optional[Any]:
+        """v5.9: 自主学习闭环 — 历史知识向量库集合 (learned_knowledge)。
+
+        存"学过的知识 + 留/删结论(verdict)", 供 RAG 查重(学过没, 复用旧结论)。
+        独立于 knowledge_base_v2(静态规则/reference 索引), 互不影响。
+        """
+        try:
+            if self._chroma_client is None:
+                import chromadb
+                store_path = self.root / "vector_store" / "chroma"
+                store_path.mkdir(parents=True, exist_ok=True)
+                self._chroma_client = chromadb.PersistentClient(path=str(store_path))
+            name = _LEARNED_COLLECTION
+            existing = [c.name for c in self._chroma_client.list_collections()]
+            if name in existing:
+                return self._chroma_client.get_collection(name)
+            col = self._chroma_client.create_collection(
+                name=name,
+                metadata={"description": "自主学习闭环: 学过的知识 + 留/删结论 (bge_m3_v1)",
+                          "hnsw:space": "cosine"},
+            )
+            logger.info(f"[ChromaDB] 创建 {name} 集合")
+            return col
+        except Exception as e:
+            logger.warning(f"[ChromaDB] learned_knowledge 初始化失败: {e}")
+            return None
+
+    def record_learned(self, concept: str, claim: str, verdict: str,
+                       category: str = "rule", meta: Optional[Dict] = None) -> bool:
+        """v5.9: 写入一条学过的知识 + 留/删结论 (幂等: 按 concept 覆盖旧结论)。"""
+        try:
+            col = self._ensure_learned_knowledge_collection()
+            if col is None:
+                return False
+            doc = f"{concept}\n{claim}"[:800]
+            md = dict(meta or {})
+            md.update({"concept": concept, "category": category, "verdict": verdict})
+            # ChromaDB 元数据只接受标量 (str/int/float/bool); 嵌套 dict/list 序列化为 JSON 字符串
+            def _scalar(v):
+                if v is None or isinstance(v, (str, int, float, bool)):
+                    return v
+                import json as _json
+                return _json.dumps(v, ensure_ascii=False, default=str)
+            md = {k: _scalar(v) for k, v in md.items()}
+            try:
+                col.delete(ids=[f"learned_{concept}"])
+            except Exception:
+                pass
+            col.add(ids=[f"learned_{concept}"], embeddings=[_semantic_embed(doc)],
+                    documents=[doc], metadatas=[md])
+            return True
+        except Exception as e:
+            logger.warning(f"[ChromaDB] record_learned 失败: {e}")
+            return False
+
+    def recall_learned(self, query: str, top_k: int = 5) -> List[Dict]:
+        """v5.9: 在 learned_knowledge 里向量召回 (哈希向量余弦), 返回 [{concept, doc, verdict, category, sim}]。"""
+        try:
+            col = self._ensure_learned_knowledge_collection()
+            if col is None or col.count() == 0:
+                return []
+            n = min(max(top_k * 3, 1), col.count())
+            vr = col.query(query_embeddings=[_semantic_embed(query)], n_results=n,
+                           include=["documents", "metadatas", "distances"])
+            items: List[Dict] = []
+            if vr and vr.get("ids") and vr["ids"][0]:
+                docs_arr = vr.get("documents", [[]])[0]
+                metas_arr = vr.get("metadatas", [[]])[0]
+                dists_arr = vr.get("distances", [[]])[0]
+                for i in range(len(vr["ids"][0])):
+                    meta = metas_arr[i] if i < len(metas_arr) and metas_arr[i] else {}
+                    doc = docs_arr[i] if i < len(docs_arr) else ""
+                    dist = dists_arr[i] if i < len(dists_arr) else 1.0
+                    items.append({
+                        "concept": meta.get("concept", ""), "doc": doc or "",
+                        "verdict": meta.get("verdict", ""), "category": meta.get("category", ""),
+                        "confidence": meta.get("confidence", 0.5),
+                        "sim": max(0.0, min(1.0, 1 - dist)),
+                    })
+            return items[:top_k]
+        except Exception as e:
+            logger.warning(f"[ChromaDB] recall_learned 失败: {e}")
+            return []
+
+    def list_learned(self, categories: Optional[List[str]] = None,
+                     verdicts: Optional[List[str]] = None) -> List[Dict]:
+        """v5.9: 列出已学知识全量记录 (含完整 metadata, 供滚动重测/复盘)。
+
+        与 recall_learned 不同, 这里返回原始 metadata (template/params/revalidations/
+        windows_tested 等标量字段), 用于重测时复用同一条规则映射。
+        """
+        try:
+            col = self._ensure_learned_knowledge_collection()
+            if col is None or col.count() == 0:
+                return []
+            got = col.get(include=["documents", "metadatas"])
+            items: List[Dict] = []
+            docs = got.get("documents") or []
+            metas = got.get("metadatas") or []
+            for i in range(len(metas)):
+                md = metas[i] or {}
+                if categories and md.get("category") not in categories:
+                    continue
+                if verdicts and md.get("verdict") not in verdicts:
+                    continue
+                items.append({"concept": md.get("concept", ""),
+                              "doc": docs[i] if i < len(docs) else "",
+                              "meta": md})
+            return items
+        except Exception as e:
+            logger.warning(f"[ChromaDB] list_learned 失败: {e}")
+            return []
 
     def _keyword_match_klines(self, query: str, top_k: int = 5) -> List[Dict]:
         """v3.1: Fallback keyword matching for K-line pattern search.

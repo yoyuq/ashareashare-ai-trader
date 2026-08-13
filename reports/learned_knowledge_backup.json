@@ -1,0 +1,445 @@
+[
+  {
+    "concept": "动量策略",
+    "claim": "动量策略需设置严格止损，防止动量崩溃",
+    "verdict": "rejected",
+    "category": "rule",
+    "meta": {
+      "metric_delta": "{\"improved_windows\": 0, \"total_windows\": 3, \"per_window\": [{\"window\": \"2020-06-01_2021-02-28\", \"sharpe_delta\": -0.03600000000000003, \"dd_delta\": -0.4900000000000002, \"return_delta\": -0.3799999999999999}, {\"window\": \"2024-01-01_2024-12-31\", \"sharpe_delta\": -0.03699999999999992, \"dd_delta\": -0.25, \"return_delta\": -0.25}, {\"window\": \"2025-10-08_2026-07-31\", \"sharpe_delta\": -0.030999999999999917, \"dd_delta\": -1.5399999999999991, \"return_delta\": -0.8200000000000003}]}",
+      "source": "llm_prior",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "category": "rule",
+      "windows_tested": "[\"2020-06-01_2021-02-28\", \"2024-01-01_2024-12-31\", \"2025-10-08_2026-07-31\"]",
+      "date": "2026-08-13",
+      "verdict": "rejected",
+      "concept": "动量策略",
+      "confidence": 0.7
+    }
+  },
+  {
+    "concept": "固定百分比止损",
+    "claim": "设置固定百分比止损是控制单笔交易风险的基本方法。",
+    "verdict": "rejected",
+    "category": "rule",
+    "meta": {
+      "metric_delta": "{\"improved_windows\": 0, \"total_windows\": 3, \"per_window\": [{\"window\": \"2020-06-01_2021-02-28\", \"sharpe_delta\": -0.09300000000000003, \"dd_delta\": -0.8599999999999994, \"return_delta\": -1.0200000000000005}, {\"window\": \"2024-01-01_2024-12-31\", \"sharpe_delta\": -0.02300000000000002, \"dd_delta\": -0.1899999999999995, \"return_delta\": 0.08000000000000007}, {\"window\": \"2025-10-08_2026-07-31\", \"sharpe_delta\": -0.16099999999999992, \"dd_delta\": -2.119999999999999, \"return_delta\": -2.21}]}",
+      "concept": "固定百分比止损",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "confidence": 0.8,
+      "verdict": "rejected",
+      "category": "rule",
+      "source": "llm_prior",
+      "windows_tested": "[\"2020-06-01_2021-02-28\", \"2024-01-01_2024-12-31\", \"2025-10-08_2026-07-31\"]",
+      "date": "2026-08-13"
+    }
+  },
+  {
+    "concept": "ATR止损",
+    "claim": "使用平均真实波幅（ATR）设置止损，能适应市场波动性。",
+    "verdict": "rejected",
+    "category": "rule",
+    "meta": {
+      "windows_tested": "[\"2020-06-01_2021-02-28\", \"2024-01-01_2024-12-31\", \"2025-10-08_2026-07-31\"]",
+      "verdict": "rejected",
+      "concept": "ATR止损",
+      "date": "2026-08-13",
+      "category": "rule",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "confidence": 0.7,
+      "metric_delta": "{\"improved_windows\": 0, \"total_windows\": 3, \"per_window\": [{\"window\": \"2020-06-01_2021-02-28\", \"sharpe_delta\": -0.496, \"dd_delta\": -2.6799999999999997, \"return_delta\": -5.65}, {\"window\": \"2024-01-01_2024-12-31\", \"sharpe_delta\": -0.050999999999999934, \"dd_delta\": -0.7000000000000011, \"return_delta\": -0.3999999999999986}, {\"window\": \"2025-10-08_2026-07-31\", \"sharpe_delta\": -0.856, \"dd_delta\": -7.179999999999998, \"return_delta\": -8.66}]}",
+      "source": "llm_prior"
+    }
+  },
+  {
+    "concept": "支撑位止损",
+    "claim": "将止损设置在关键支撑位下方，可减少被正常波动扫损的概率。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "category": "rule",
+      "confidence": 0.75,
+      "windows_tested": "[]",
+      "reason": "规则依赖主观识别'显著支撑位'，无法由固定模板参数忠实表达，且不属于固定或移动止损模板。",
+      "date": "2026-08-13",
+      "verdict": "not_yet_testable",
+      "source": "llm_prior",
+      "metric_delta": "{}",
+      "concept": "支撑位止损"
+    }
+  },
+  {
+    "concept": "移动止损",
+    "claim": "随着股价上涨，移动止损可锁定利润并保护已有收益。",
+    "verdict": "rejected",
+    "category": "rule",
+    "meta": {
+      "reason": "0/3 窗口改善, 规则无增益",
+      "metric_delta": "{\"improved_windows\": 0, \"total_windows\": 3, \"per_window\": [{\"window\": \"2020-06-01_2021-02-28\", \"sharpe_delta\": -0.049000000000000044, \"dd_delta\": 0.2699999999999996, \"return_delta\": -0.7800000000000002}, {\"window\": \"2024-01-01_2024-12-31\", \"sharpe_delta\": -0.37299999999999994, \"dd_delta\": -0.9100000000000001, \"return_delta\": -6.869999999999999}, {\"window\": \"2025-10-08_2026-07-31\", \"sharpe_delta\": -0.254, \"dd_delta\": -3.110000000000001, \"return_delta\": -2.3100000000000005}]}",
+      "verdict": "rejected",
+      "windows_tested": "[\"2020-06-01_2021-02-28\", \"2024-01-01_2024-12-31\", \"2025-10-08_2026-07-31\"]",
+      "confidence": 0.7,
+      "category": "rule",
+      "concept": "移动止损",
+      "source": "llm_prior",
+      "date": "2026-08-13"
+    }
+  },
+  {
+    "concept": "时间止损",
+    "claim": "若持仓在设定时间内未达到预期涨幅，应止损离场以释放资金。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "date": "2026-08-13",
+      "verdict": "not_yet_testable",
+      "source": "llm_prior",
+      "category": "rule",
+      "concept": "时间止损",
+      "confidence": 0.6,
+      "windows_tested": "[]",
+      "reason": "规则是时间条件触发的固定卖出规则，不属于任何可用模板（均线、RSI、估值、动量、止损等）的忠实表达。",
+      "metric_delta": "{}"
+    }
+  },
+  {
+    "concept": "低估值价值投资",
+    "claim": "价值投资应分散持仓以降低个股风险",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "verdict": "not_yet_testable",
+      "confidence": 0.75,
+      "source": "llm_prior",
+      "date": "2026-08-13",
+      "metric_delta": "{}",
+      "windows_tested": "[]",
+      "category": "rule",
+      "concept": "低估值价值投资",
+      "reason": "规则涉及行业分散和仓位上限，属于组合构建/仓位管理，无法由单一模板忠实表达。"
+    }
+  },
+  {
+    "concept": "A股涨跌停制度",
+    "claim": "沪深主板股票当日涨跌幅限制为±10%，ST股为±5%，创业板和科创板为±20%。",
+    "verdict": "verified",
+    "category": "fact",
+    "meta": {
+      "verdict": "verified",
+      "category": "fact",
+      "confidence": 0.9,
+      "metric_delta": "{}",
+      "date": "2026-08-13",
+      "windows_tested": "[]",
+      "source": "llm_prior",
+      "reason": "外部知识关于主板±10%、ST±5%、创业板/科创板±20%的涨跌幅限制与规则库中glossary.md和competition_rules.md的表述完全一致。",
+      "concept": "A股涨跌停制度"
+    }
+  },
+  {
+    "concept": "涨停板买入策略",
+    "claim": "当个股首次触及涨停且封单量大于流通市值的2%时，可于次日开盘竞价买入，若次日高开超过3%则持有，若低开则止损离场。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "confidence": 0.6,
+      "reason": "规则涉及涨停、封单量、流通市值等非模板覆盖的复杂事件与条件，无法由现有模板忠实表达。",
+      "metric_delta": "{}",
+      "category": "rule",
+      "windows_tested": "[]",
+      "date": "2026-08-13",
+      "verdict": "not_yet_testable",
+      "source": "llm_prior",
+      "concept": "涨停板买入策略"
+    }
+  },
+  {
+    "concept": "跌停板卖出规则",
+    "claim": "若持仓个股盘中跌停且封单量持续增加，应于跌停价挂单卖出，若未能成交则次日开盘无条件清仓。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "reason": "规则涉及跌停封单量、挂单卖出与次日开盘卖出的成交价和滑点比较，属于事件驱动和微观结构分析，无法由现有模板忠实表达。",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "metric_delta": "{}",
+      "confidence": 0.7,
+      "date": "2026-08-13",
+      "concept": "跌停板卖出规则",
+      "windows_tested": "[]",
+      "source": "llm_prior"
+    }
+  },
+  {
+    "concept": "集合竞价规则",
+    "claim": "A股开盘集合竞价（9:15-9:25）可撤单，但9:20-9:25不可撤单；收盘集合竞价（14:57-15:00）不可撤单。",
+    "verdict": "inconclusive",
+    "category": "fact",
+    "meta": {
+      "metric_delta": "{}",
+      "source": "llm_prior",
+      "concept": "集合竞价规则",
+      "confidence": 0.9,
+      "category": "fact",
+      "windows_tested": "[]",
+      "verdict": "inconclusive",
+      "reason": "规则库仅列出集合竞价时间范围，未提及撤单规则，外部知识关于可撤单/不可撤单的细节未被覆盖。",
+      "date": "2026-08-13"
+    }
+  },
+  {
+    "concept": "T+1交易制度",
+    "claim": "A股实行T+1交易，当日买入的股票最早次日才能卖出；但资金T+0可用（卖出后当日可再买入）。",
+    "verdict": "inconclusive",
+    "category": "fact",
+    "meta": {
+      "verdict": "inconclusive",
+      "confidence": 0.85,
+      "source": "llm_prior",
+      "reason": "规则库提及T+1交易，未覆盖资金T+0可用维度",
+      "category": "fact",
+      "concept": "T+1交易制度"
+    }
+  },
+  {
+    "concept": "价值投资定义",
+    "claim": "价值投资是一种以市场价格低于内在价值为买入依据的长期投资策略。",
+    "verdict": "inconclusive",
+    "category": "fact",
+    "meta": {
+      "date": "2026-08-13",
+      "confidence": 0.9,
+      "concept": "价值投资定义",
+      "reason": "规则库未提及价值投资的定义或内在价值概念，外部知识属于未覆盖维度。",
+      "source": "https://www.youfanx.com/baike/683222440066679547.html",
+      "category": "fact",
+      "windows_tested": "[]",
+      "verdict": "inconclusive",
+      "metric_delta": "{}"
+    }
+  },
+  {
+    "concept": "安全边际原则",
+    "claim": "价值投资要求买入价格与内在价值之间存在足够的安全边际，以降低投资风险。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "confidence": 0.75,
+      "windows_tested": "[]",
+      "metric_delta": "{}",
+      "category": "rule",
+      "source": "https://www.youfanx.com/baike/683222440066679547.html",
+      "concept": "安全边际原则",
+      "reason": "规则依赖内在价值这一非量价数据，无法由现有模板忠实表达。",
+      "verdict": "not_yet_testable",
+      "date": "2026-08-13"
+    }
+  },
+  {
+    "concept": "估值指标筛选",
+    "claim": "价值投资者常使用市盈率（P/E）、市净率（P/B）和股息收益率等指标来筛选被低估的股票。",
+    "verdict": "rejected",
+    "category": "rule",
+    "meta": {
+      "concept": "估值指标筛选",
+      "category": "rule",
+      "date": "2026-08-13",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "source": "https://www.youfanx.com/baike/683222440066679547.html",
+      "verdict": "rejected",
+      "confidence": 0.7,
+      "template": "low_pe_value",
+      "params": "{\"max_pe\": 0.5, \"max_pb\": 1.0}",
+      "metric_delta": "{\"improved_windows\": 0, \"total_windows\": 3, \"per_window\": [{\"window\": \"2018-01-01_2018-12-31\", \"sharpe_delta\": -12598814.144000001, \"dd_delta\": 25.25, \"return_delta\": 20.24}, {\"window\": \"2020-06-01_2021-02-28\", \"sharpe_delta\": -12598816.229, \"dd_delta\": 9.0, \"return_delta\": -5.82}, {\"window\": \"2024-01-01_2024-12-31\", \"sharpe_delta\": -12598816.608000001, \"dd_delta\": 10.01, \"return_delta\": -14.79}]}",
+      "windows_tested": "[\"2018-01-01_2018-12-31\", \"2020-06-01_2021-02-28\", \"2024-01-01_2024-12-31\"]"
+    }
+  },
+  {
+    "concept": "长期持有策略",
+    "claim": "价值投资强调长期持有，避免短期交易，以等待市场认可股票的真实价值。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "category": "rule",
+      "windows_tested": "[]",
+      "verdict": "not_yet_testable",
+      "date": "2026-08-13",
+      "confidence": 0.8,
+      "concept": "长期持有策略",
+      "source": "https://www.youfanx.com/baike/683222440066679547.html",
+      "reason": "规则涉及基本面重大恶化判断和长期持有，无法由现有量价类模板忠实表达。",
+      "metric_delta": "{}"
+    }
+  },
+  {
+    "concept": "成长股定义",
+    "claim": "成长股是指具有高成长性、业绩增长性的个股，其股价在业绩推动下上涨。",
+    "verdict": "inconclusive",
+    "category": "fact",
+    "meta": {
+      "windows_tested": "[]",
+      "date": "2026-08-13",
+      "category": "fact",
+      "verdict": "inconclusive",
+      "confidence": 0.85,
+      "concept": "成长股定义",
+      "reason": "规则库虽涉及成长性指标（营收增速、PEG），但未对‘成长股’给出明确定义，也未表述‘股价在业绩推动下上涨’这一维度。",
+      "source": "https://news.sohu.com/a/672660696_121265846",
+      "metric_delta": "{}"
+    }
+  },
+  {
+    "concept": "成长股选择标准",
+    "claim": "选择成长股应关注成长型行业、资本额较小、过去一两年成长率高的股票。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "category": "rule",
+      "metric_delta": "{}",
+      "verdict": "not_yet_testable",
+      "confidence": 0.75,
+      "date": "2026-08-13",
+      "reason": "规则涉及行业属性、市值和净利润复合增长率，属于多因子基本面筛选，无法由任一单一模板忠实表达。",
+      "concept": "成长股选择标准",
+      "windows_tested": "[]",
+      "source": "https://news.sohu.com/a/672660696_121265846"
+    }
+  },
+  {
+    "concept": "成长股买入时机",
+    "claim": "在经济衰退、股价跌幅较大时购进成长股，在经济繁荣、股价预示快达到顶点时卖出。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "metric_delta": "{}",
+      "category": "rule",
+      "date": "2026-08-13",
+      "verdict": "not_yet_testable",
+      "reason": "规则依赖市场牛熊状态判断和52周高低点条件，且涉及成长股买入与创新高卖出，无法由单一模板忠实表达，属于多条件复杂策略。",
+      "concept": "成长股买入时机",
+      "windows_tested": "[]",
+      "source": "https://news.sohu.com/a/672660696_121265846",
+      "confidence": 0.7
+    }
+  },
+  {
+    "concept": "成长股持有策略",
+    "claim": "成长股适合集中、长期持有，且应选择复合成长速度高的公司。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "metric_delta": "{}",
+      "windows_tested": "[]",
+      "confidence": 0.8,
+      "date": "2026-08-13",
+      "verdict": "not_yet_testable",
+      "category": "rule",
+      "concept": "成长股持有策略",
+      "reason": "规则依赖净利润复合增长率（基本面数据）和长期持有纪律，不属于任何量价类模板。",
+      "source": "https://news.sohu.com/a/672660696_121265846"
+    }
+  },
+  {
+    "concept": "成长股风控",
+    "claim": "成长股投资的核心是顺势而为，预测不准确是风险，需关注成长持续性。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "reason": "规则基于季度财务数据（净利润增速），不属于任何量价或估值模板，且需要基本面数据，无法用现有模板忠实表达。",
+      "category": "rule",
+      "confidence": 0.65,
+      "date": "2026-08-13",
+      "source": "https://news.sohu.com/a/672660696_121265846",
+      "windows_tested": "[]",
+      "verdict": "not_yet_testable",
+      "concept": "成长股风控",
+      "metric_delta": "{}"
+    }
+  },
+  {
+    "concept": "趋势跟踪",
+    "claim": "趋势跟踪策略的核心是顺势而为，在价格上涨时买入，价格下跌时卖出，不试图预测市场转折点。",
+    "verdict": "inconclusive",
+    "category": "fact",
+    "meta": {
+      "concept": "趋势跟踪",
+      "confidence": 0.8,
+      "windows_tested": "[]",
+      "category": "fact",
+      "metric_delta": "{}",
+      "reason": "规则库仅提及双均线趋势跟踪策略名称及移动止损等具体机制，未对'顺势而为、不预测转折点'这一趋势跟踪核心哲学做方向性表述，故该维度未被覆盖。",
+      "source": "https://blog.eastmoney.com/honglei88/blog_960053463.html",
+      "date": "2026-08-13",
+      "verdict": "inconclusive"
+    }
+  },
+  {
+    "concept": "均线系统",
+    "claim": "趋势跟踪策略使用均线系统识别主升浪，主升浪行情通常沿5日、10日或20日均线一气呵成，很少跌破均线支撑。",
+    "verdict": "rejected",
+    "category": "rule",
+    "meta": {
+      "confidence": 0.75,
+      "date": "2026-08-13",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "category": "rule",
+      "template": "ma_cross",
+      "windows_tested": "[\"2018-01-01_2018-12-31\", \"2020-06-01_2021-02-28\", \"2024-01-01_2024-12-31\"]",
+      "verdict": "rejected",
+      "source": "https://blog.eastmoney.com/honglei88/blog_960053463.html",
+      "concept": "均线系统",
+      "params": "{\"fast\": 5, \"slow\": 20}",
+      "metric_delta": "{\"improved_windows\": 0, \"total_windows\": 3, \"per_window\": [{\"window\": \"2018-01-01_2018-12-31\", \"sharpe_delta\": -0.7420000000000002, \"dd_delta\": 8.54, \"return_delta\": 4.149999999999999}, {\"window\": \"2020-06-01_2021-02-28\", \"sharpe_delta\": -1.454, \"dd_delta\": -1.6199999999999992, \"return_delta\": -11.55}, {\"window\": \"2024-01-01_2024-12-31\", \"sharpe_delta\": -0.626, \"dd_delta\": 2.0599999999999996, \"return_delta\": -11.049999999999999}]}"
+    }
+  },
+  {
+    "concept": "试错与仓位管理",
+    "claim": "趋势跟踪策略强调小仓位大量试错，找到真正的主升浪后再加大仓位，以控制试错成本并提高收益率。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "confidence": 0.7,
+      "reason": "规则涉及仓位管理（2%至10%加仓）和趋势确认，但未明确具体趋势指标或可量化信号，且核心是仓位调整而非单一模板可表达。",
+      "metric_delta": "{}",
+      "verdict": "not_yet_testable",
+      "source": "https://blog.eastmoney.com/honglei88/blog_960053463.html",
+      "category": "rule",
+      "concept": "试错与仓位管理",
+      "windows_tested": "[]",
+      "date": "2026-08-13"
+    }
+  },
+  {
+    "concept": "风险控制",
+    "claim": "趋势跟踪策略中，单笔交易的风险值应小于总资金的2%，总体风险值小于6%，且持仓品种不超过5只。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "windows_tested": "[]",
+      "date": "2026-08-13",
+      "concept": "风险控制",
+      "confidence": 0.85,
+      "verdict": "not_yet_testable",
+      "source": "https://blog.eastmoney.com/honglei88/blog_960053463.html",
+      "reason": "规则涉及单笔止损和总浮亏清仓的仓位管理，不属于任何单一模板（如固定止损仅针对单笔，且未指定具体价格比例），需自定义逻辑。",
+      "category": "rule",
+      "metric_delta": "{}"
+    }
+  },
+  {
+    "concept": "板块性机会",
+    "claim": "趋势跟踪策略应重视板块性机会，选择热门板块中的个股，避免偏门冷门个股的独立行情。",
+    "verdict": "not_yet_testable",
+    "category": "rule",
+    "meta": {
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及板块指数涨幅、涨停家数及板块内选股，属于多条件板块轮动策略，无法由单一模板忠实表达。",
+      "date": "2026-08-13",
+      "confidence": 0.65,
+      "windows_tested": "[]",
+      "metric_delta": "{}",
+      "source": "https://blog.eastmoney.com/honglei88/blog_960053463.html",
+      "concept": "板块性机会",
+      "category": "rule"
+    }
+  }
+]

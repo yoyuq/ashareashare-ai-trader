@@ -32,6 +32,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from loguru import logger
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -42,6 +43,7 @@ REPLAY_DIR.mkdir(exist_ok=True)
 from simulation.daily_runner import (  # noqa: E402
     _flash_screen, _deepseek_analyze, _detect_regime, build_market_ctx, load_macro_context,
     _limit_pct_for_code,  # v5.6 纸盘面: 涨跌停判定复用实盘板别限制
+    _apply_learned_filter,  # v5.11 方案3: 知识选股过滤 (确定性, 与诊断官解耦)
 )
 
 
@@ -62,6 +64,33 @@ def _llm_cfg():
         base,
         os.getenv("REPLAY_LLM_MODEL"),
     )
+
+
+def _thinking_body() -> dict:
+    """诊断/风控 LLM 调用的 thinking 开关 (默认 disabled = 现状不变)。
+
+    REPLAY_THINKING=enabled 时开启推理 (用于 deepseek-v4-pro 等推理模型),
+    让模型先 reasoning 再输出 JSON; 需配合 _llm_max_tokens 放大输出预算。
+    """
+    return {"thinking": {"type": os.getenv("REPLAY_THINKING", "disabled")}}
+
+
+def _llm_max_tokens(base: int) -> int:
+    """thinking 开启时放大 max_tokens, 容纳推理(实测 ~2200 tokens) + 正文 JSON。
+
+    实测: deepseek-v4-pro 诊断调用 reasoning_tokens≈2240 / 正文≈136, 原 max_tokens=800
+    会被推理吃光导致 content 为空 (JSON 解析失败 → 保守回退)。故开启时放大 10x。
+    """
+    if os.getenv("REPLAY_THINKING", "disabled") == "enabled":
+        return base * 10
+    return base
+
+
+def _llm_timeout(base: float) -> float:
+    """thinking 开启时放宽 LLM 超时 (推理模型 reasoning 单次可 >45s, 默认 45s 会超时回退)。"""
+    if os.getenv("REPLAY_THINKING", "disabled") == "enabled":
+        return 300.0
+    return base
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -527,7 +556,7 @@ async def _market_risk_decision(market_ctx_txt: str) -> dict:
         client = AsyncOpenAI(
             api_key=_cfg[0] if _cfg else os.getenv("DEEPSEEK_API_KEY"),
             base_url=_cfg[1] if _cfg else os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            timeout=60.0,
+            timeout=_llm_timeout(60.0),
         )
         sys = (
             "你是A股市场风险官。基于给定市场快照, 输出当日的风险目标(risk_target, 0.0-1.0, "
@@ -541,8 +570,8 @@ async def _market_risk_decision(market_ctx_txt: str) -> dict:
         resp = await client.chat.completions.create(
             model=_cfg[2] if _cfg else os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
             messages=[{"role": "system", "content": sys}, {"role": "user", "content": prompt}],
-            temperature=0.0, max_tokens=300,
-            extra_body={"thinking": {"type": "disabled"}},
+            temperature=0.0, max_tokens=_llm_max_tokens(300),
+            extra_body=_thinking_body(),
         )
         content = (resp.choices[0].message.content or "").strip()
         if content.startswith("```"):
@@ -600,7 +629,8 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
                              evolution = None,
                              current_date: str = None,
                              prev_risk_level: int = None,
-                             adv_mode: str = "same") -> dict:
+                             adv_mode: str = "same",
+                             temperature: float = 0.4) -> dict:
     """v4.0 自我进化市场诊断官.
 
     进化历程:
@@ -960,16 +990,19 @@ async def _market_diagnostic(df_cs: pd.DataFrame, regime: str, crowd: dict,
         client = AsyncOpenAI(
             api_key=_cfg[0] if _cfg else os.getenv("DEEPSEEK_API_KEY"),
             base_url=_cfg[1] if _cfg else os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            timeout=45.0,
+            timeout=_llm_timeout(45.0),
         )
-        resp = await client.chat.completions.create(
-            model=_cfg[2] if _cfg else os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
-            messages=[{"role": "system", "content": sys_prompt},
-                      {"role": "user", "content": user_msg}],
-            temperature=0.4, max_tokens=800,
-            extra_body={"thinking": {"type": "disabled"}},
-        )
-        content = (resp.choices[0].message.content or "").strip()
+        try:
+            resp = await client.chat.completions.create(
+                model=_cfg[2] if _cfg else os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                messages=[{"role": "system", "content": sys_prompt},
+                          {"role": "user", "content": user_msg}],
+                temperature=temperature, max_tokens=_llm_max_tokens(800),
+                extra_body=_thinking_body(),
+            )
+            content = (resp.choices[0].message.content or "").strip()
+        finally:
+            await client.close()  # 关闭 httpx 连接池, 防逐日泄漏 (回放长循环 OOM 主因)
         if content.startswith("```"):
             content = content.strip("`")
             if content.lower().startswith("json"):
@@ -1072,7 +1105,9 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                      flash_diag_mode: bool = False,
                      evolution_mode: bool = False,
                      slippage: bool = True,
-                     adv_mode: str = "same") -> dict:
+                     adv_mode: str = "same",
+                     gate: Optional[int] = None,
+                     temperature: float = 0.4) -> dict:
     """
     max_days: 本次最多处理的新天数 (0=不限). 用于分小段跑, 每段干净退出
               (checkpoint 落盘), 避免后台任务被杀窗口浪费.
@@ -1103,6 +1138,7 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
         _df = _df[_df["date"] <= pd.Timestamp(end)]
         data = {s: _optimize_dtypes(g.drop(columns="symbol").reset_index(drop=True))
                 for s, g in _df.groupby("symbol")}
+        del _df  # 释放扁平 DataFrame (分组 dict 已持有全部数据), 降低峰值内存防 OOM
     else:
         data = build_daily_data(universe, start, end, force=force_data)
 
@@ -1249,6 +1285,18 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             # ── v4.0 自我进化: 复盘昨天的决策 ──
             # PIT 正确: 用今天(T日)的已知数据，复盘昨天(T-1日)的诊断判断
             if _journal is not None and _diag_count > 0:
+                # v5.7 换模型一致性: 复盘/进化总结也走回放直连 client (与诊断/风控同一套
+                # REPLAY_LLM_*), 避免复盘/进化总结硬编码 flash 造成"诊断换 pro、复盘仍 flash"的模型混用.
+                from openai import AsyncOpenAI
+                _evo_cfg = _llm_cfg()
+                _evo_client = AsyncOpenAI(
+                    api_key=_evo_cfg[0] if _evo_cfg else os.getenv("DEEPSEEK_API_KEY"),
+                    base_url=_evo_cfg[1] if _evo_cfg else os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+                    timeout=_llm_timeout(60.0),
+                )
+                # v5.7 进化健康追踪: 反事实验证计数 (回放无第二审计/拖累回流)
+                _replay_cf_verified = 0
+                _replay_cf_total = 0
                 # 找昨天的记录（最近一条未复盘的）
                 _unreviewed = _journal.unreviewed(before=T)
                 if _unreviewed:
@@ -1265,7 +1313,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                     try:
                         from agent.evolution.daily_review import review_decision, extract_experience
                         _review = await review_decision(
-                            _yesterday_rec, _today_stats, _mkt_move
+                            _yesterday_rec, _today_stats, _mkt_move,
+                            client=_evo_client,
+                            model=_evo_cfg[2] if _evo_cfg else None,
+                            extra_body=_thinking_body(),
                         )
                         if _review is not None:
                             # v5.4 组合级反事实: 用 T-1 持仓快照 + T 日个股涨跌幅,
@@ -1296,7 +1347,9 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                     from agent.evolution.counterfactual import verify_counterfactual
                                     _cf_result = verify_counterfactual(_exp, _mkt_move)
                                     if _cf_result is not None:
+                                        _replay_cf_total += 1
                                         if _cf_result.passed:
+                                            _replay_cf_verified += 1
                                             # 通过验证: 提高置信度 + 打标记
                                             _exp.confidence = min(0.95, _exp.confidence + 0.15)
                                             _exp.tags.append("cf_verified")
@@ -1340,7 +1393,12 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                     it for it in _memory.items
                                     if it.date >= _all_decisions[0].date
                                 ]
-                                _snap = await _evolution.evolve(_reviewed, _mem_items)
+                                _snap = await _evolution.evolve(
+                                    _reviewed, _mem_items,
+                                    client=_evo_client,
+                                    model=_evo_cfg[2] if _evo_cfg else None,
+                                    extra_body=_thinking_body(),
+                                )
                                 total_llm_calls += 1
                                 if _snap:
                                     logger.info(
@@ -1350,6 +1408,18 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                     )
                     except Exception as _ee:
                         logger.warning(f"进化总结失败: {_ee}")
+
+                # v5.7 进化健康追踪: 收尾落盘 evolution_health_{tag}.json (记忆健康 + regime 对齐)
+                try:
+                    from agent.evolution.health_tracker import record_health
+                    record_health(
+                        _memory, T, regime,
+                        path=REPLAY_DIR / f"evolution_health_{tag or 'evo'}.json",
+                        cf_verified_count=_replay_cf_verified,
+                        cf_total=_replay_cf_total,
+                    )
+                except Exception as _he:
+                    logger.debug(f"[进化健康] 快照失败: {_he}")
 
             # v3.5: 中位估值 60日分位 (PE/PB 截面中位数, 判断全市场贵贱)
             _med_pe = _med_pb = _pe_pctl = _pb_pctl = 0.0
@@ -1425,6 +1495,10 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
             screener = PreScreener()
             screened = screener.screen(df_cs, regime=screen_regime, top_n=top_n,
                                        structure=_structure).df
+            # v5.11 方案3b: 知识买入门 (确定性, gate<=0 时零开销原样返回; 与诊断官解耦)
+            screened, _krep = _apply_learned_filter(screened, gate=gate)
+            if _krep.get("removed"):
+                logger.info(f"知识选股过滤: {_krep['before']} → {_krep['after']} (剔除 {_krep['removed']} 只)")
             if screened.empty:
                 continue
 
@@ -1449,7 +1523,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                                  evolution=_evolution,
                                                  current_date=T,
                                                  prev_risk_level=_prev_risk,
-                                                 adv_mode=adv_mode)
+                                                 adv_mode=adv_mode,
+                                                 temperature=temperature)
                 total_llm_calls += 1
                 # 存今日统计入历史队列 (保留近5天)
                 _today_stat = _compute_day_stat(df_cs)
@@ -1493,7 +1568,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                                                  memory=_memory,
                                                  evolution=_evolution,
                                                  current_date=T,
-                                                 adv_mode=adv_mode)
+                                                 adv_mode=adv_mode,
+                                                 temperature=temperature)
                 total_llm_calls += 1
                 # 存今日统计入历史队列
                 _today_stat = _compute_day_stat(df_cs)
@@ -1575,6 +1651,20 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                         t1_amount[sym] = float(_am) if _am is not None else None
 
             sell_signals = {str(r.get("code")): r for r in deep if r.get("action") == "SELL"}
+            # v5.11 方案3b: 低估值规则的高估卖出信号 (确定性, 与诊断官解耦; gate<=0 零开销)
+            # pe_ttm 取自 T 日全市场截面 df_cs (PIT 安全: T 收盘已知, T+1 开盘执行), 与止损/止盈同口径.
+            _overvalued_codes: set = set()
+            try:
+                from agent.learning.knowledge_apply import recall_verified_rules, sell_signals_for_positions
+                _vrules = recall_verified_rules(gate)
+                if _vrules and "code" in df_cs.columns and "pe_ttm" in df_cs.columns:
+                    _held_codes = [sym.split(".")[-1] for sym in pf.positions]
+                    _held_df = df_cs[df_cs["code"].astype(str).isin(_held_codes)]
+                    if not _held_df.empty:
+                        _sell_mask = sell_signals_for_positions(_held_df, _vrules)
+                        _overvalued_codes = set(_held_df.loc[_sell_mask, "code"].astype(str))
+            except Exception:
+                pass
             for sym in list(pf.positions.keys()):
                 pos = pf.positions[sym]
                 code = sym.split(".")[-1]
@@ -1588,6 +1678,8 @@ async def run_replay(days: int = 40, universe=None, top_n: int = 300, final_n: i
                     reason = "止损"
                 elif pos.get("take") and px1 >= pos["take"]:
                     reason = "止盈"
+                elif code in _overvalued_codes:
+                    reason = "估值高估卖出"
                 # v5.6 纸盘面: 跌停卖不出 → 暂缓, 不算成交 (真实约束)
                 if reason and slippage_enabled and _limit_blocked("sell", t1_pct.get(sym), code):
                     pf.blocked_orders += 1
@@ -1961,6 +2053,10 @@ def main():
     ap.add_argument("--adv-mode", type=str, default="same", choices=["same", "independent", "off"],
                     help="v5.6 对抗票模式: same=单completion role-play(现状基线) / "
                          "independent=独立二次LLM调用(打破假多元化) / off=无对抗(闸门基线)")
+    ap.add_argument("--gate", type=int, default=None,
+                    help="v5.11 方案3b: 知识消费端门槛 (None=读 env LEARNED_KNOWLEDGE_GATE; 0=关闭; 1=verified)")
+    ap.add_argument("--temperature", type=float, default=0.4,
+                    help="诊断官 LLM temperature (A/B 用 0.0 保证双侧 risk_level 确定一致)")
     args = ap.parse_args()
 
     universe = None if args.universe == "full" else [s.strip() for s in args.universe.split(",") if s.strip()]
@@ -1979,7 +2075,9 @@ def main():
                            flash_diag_mode=args.flash_diag,
                            evolution_mode=args.evolution,
                            slippage=not args.no_slippage,
-                           adv_mode=args.adv_mode))
+                           adv_mode=args.adv_mode,
+                           gate=args.gate,
+                           temperature=args.temperature))
 
 
 if __name__ == "__main__":

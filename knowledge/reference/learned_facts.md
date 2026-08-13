@@ -1,0 +1,13 @@
+# 外部学习事实库 (learned_facts) — 自主学习闭环自动沉淀, 人工复核后可删改
+
+> 来源: agent/learning 研究官 (联网/LLM) → 测试器 fact 一致性核验 → 只收 verified(consistent)。
+> 每条标注来源/日期/置信度; 与人工规则冲突的记在 reports/learning_contradictions.jsonl。
+
+
+## A股涨跌停制度
+
+- 陈述: 沪深主板股票当日涨跌幅限制为±10%，ST股为±5%，创业板和科创板为±20%。
+- 来源: llm_prior
+- 核验: verified (与规则库一致) — 外部知识关于主板±10%、ST±5%、创业板/科创板±20%的涨跌幅限制与规则库中glossary.md和competition_rules.md的表述完全一致。
+- 置信度: 0.9
+- 日期: 2026-08-13

@@ -220,10 +220,66 @@ def build_diagnostic_system_prompt(evolution=None, memory=None, current_date: Op
             _meta = memory.get_metacognition_summary(current_date, lookback_days=15)
             if _meta:
                 sections.append(_meta)
+    # v5.11 已学知识消费端已迁移到选股过滤 (方案3): 知识不再注入诊断 prompt (注入 A/B 证实
+    # 会在 bear/crisis 诱导模型过度激进), 改为确定性选股过滤器 agent/learning/knowledge_apply.py。
+    # 诊断官 (risk_level/仓位) 因此与知识完全解耦。原 format_learned_for_prompt 保留供审计。
     if sections:
         parts.append("\n".join(sections))
         parts.append("请结合以上历史经验、核心原则、周期自我总结以及对你自己近期表现的认知，做出今天的判断。")
     return "\n".join(parts)
+
+
+def _apply_learned_filter(df_top, gate: Optional[int] = None) -> tuple:
+    """方案3b: 知识买入门 (确定性, 无 LLM) — 作用于选股候选池, 与诊断官解耦。
+
+    从向量库取回 verified 规则, 翻译成确定性买入门谓词 (低估才留, 无保底回退)。
+    gate<=0 (默认) → 原样返回 (零开销, 现状不变)。召回失败/缺列 → 原样返回, 绝不阻塞选股。
+    """
+    try:
+        from agent.learning.knowledge_apply import recall_verified_rules, apply_rules_to_cross_section
+        rules = recall_verified_rules(gate)
+        if not rules:
+            return df_top, {"enabled": False}
+        return apply_rules_to_cross_section(df_top, rules)
+    except Exception as e:
+        logger.warning(f"[知识买入门] 应用失败, 回退不过滤: {e}")
+        return df_top, {"enabled": False}
+
+
+async def _apply_learned_sell(engine, data_router, mtm_pct, gate: Optional[int] = None) -> list:
+    """方案3b: 低估值规则的高估卖出 (确定性, 无 LLM) — 持仓票 pe_ttm > max_pe*1.5 → 卖出。
+
+    与买入门 `_apply_learned_filter` 对称, 复用 `recall_verified_rules` + `sell_signals_for_positions`
+    谓词。gate<=0 (默认) → 零开销返回 [] (现状不变)。T+1/跌停由 engine.execute_sell 自动兜底。
+    """
+    from agent.learning.knowledge_apply import recall_verified_rules, sell_signals_for_positions
+    rules = recall_verified_rules(gate)
+    if not rules:
+        return []
+    import pandas as pd
+    from data.providers.base import DataFrequency, DataRequest
+    _today = today_cn()
+    sold = []
+    for sym, pos in list(engine.account.positions.items()):
+        try:
+            req = DataRequest(sym, _today - timedelta(days=200), _today, DataFrequency.DAILY)
+            r = await data_router.get_daily_kline(req)
+            df = r.data
+            if df is None or df.empty or "peTTM" not in df.columns:
+                continue
+            pe = pd.to_numeric(df["peTTM"], errors="coerce").iloc[-1]
+            if not pd.notna(pe) or pe <= 0:
+                continue
+            _one = pd.DataFrame([{"code": sym.split(".")[-1], "pe_ttm": pe}])
+            if sell_signals_for_positions(_one, rules).any():
+                trade = engine.execute_sell(symbol=sym, exit_reason="估值高估卖出",
+                                            pct_change=mtm_pct.get(sym))
+                if trade:
+                    sold.append({"symbol": sym, "name": pos.name, "price": trade.price})
+                    logger.info(f"  [估值高估卖出] {pos.name}({sym}) pe_ttm={pe:.1f} 高估 → 卖出")
+        except Exception as e:
+            logger.debug(f"估值高估卖出检测失败 {sym}: {e}")
+    return sold
 
 
 async def get_market_diagnostic(
@@ -237,6 +293,7 @@ async def get_market_diagnostic(
     current_date: Optional[str] = None,
     prev_risk_level: Optional[int] = None,
     adv_mode: str = "same",
+    temperature: float = 0.4,
 ) -> Dict[str, Any]:
     """v4.0 市场诊断官 — 5位大师 + 自我进化.
 
@@ -354,7 +411,7 @@ async def get_market_diagnostic(
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_msg},
             ],
-            temperature=0.4,
+            temperature=temperature,
             max_tokens=800,
             extra_body={"thinking": {"type": "disabled"}},
         )
@@ -413,8 +470,9 @@ async def get_market_diagnostic(
         _adv_raw = diag.get("adversarial_risk_level", risk_level)
         if adv_mode == "independent":
             from agent.evolution.adversarial import adversarial_risk
+            # v5.7 统一记账: 实盘对抗票走 ModelRouter (不传直连 client, 走统一预算/分账)
             _adv_raw = await adversarial_risk(
-                client, snapshot_txt,
+                None, snapshot_txt,
                 dominant_master=str(diag.get("dominant_master", "unknown")),
                 regime=str(diag.get("market_phase", "unknown")),
                 macro_txt=macro_context,
@@ -651,6 +709,10 @@ async def phase1_analyze(
         screener = PreScreener()
         result = screener.screen(df, regime=screen_regime, top_n=top_n, structure=_structure)
         df_top = result.df
+        # v5.11 方案3: 知识选股过滤 (确定性, gate<=0 时零开销原样返回; 与诊断官解耦)
+        df_top, _krep = _apply_learned_filter(df_top)
+        if _krep.get("removed"):
+            logger.info(f"知识选股过滤: {_krep['before']} → {_krep['after']} (剔除 {_krep['removed']} 只)")
 
         logger.info(
             f"PreScreener: {result.total_in} -> L0:{result.filter_stats['after_hard_filter']} "
@@ -763,6 +825,11 @@ async def phase1_analyze(
                 _n_old = len(_unreviewed) - 1
                 _unreviewed = _unreviewed[-1:]
                 logger.info(f"[进化系统] 复盘昨日决策 1 条 (其余{_n_old}条积压待各自真实次日)...")
+                # v5.7 进化健康追踪: 每日活动计数 (反事实验证/审计/拖累回流), 收尾写 evolution_health.json
+                _cf_verified_count = 0
+                _cf_total = 0
+                _audit_count = 0
+                _drag_count = 0
                 _today_stats = _build_market_snapshot(df, _regime)
                 # v5.1 市场涨跌用中位数(鲁棒于单只异动股), 避免 cross-sectional mean 被个别涨停/跌停扭曲反事实
                 _today_pct = float(df['pct_change'].median()) if 'pct_change' in df.columns else 0.0
@@ -806,6 +873,7 @@ async def phase1_analyze(
                                 try:
                                     from agent.evolution.counterfactual import audit_review_bias
                                     _audit = audit_review_bias(_review, _today_pct, _rec.risk_level)
+                                    _audit_count += 1
                                     if _audit.get("overrides"):
                                         # 审计覆盖 LLM 自报偏差: 换掉 LLM 下的 bias tag, 打上审计偏差
                                         _exp.tags = [t for t in _exp.tags
@@ -827,7 +895,9 @@ async def phase1_analyze(
                                     from agent.evolution.counterfactual import verify_counterfactual
                                     _cf = verify_counterfactual(_exp, _today_pct)
                                     if _cf is not None:
+                                        _cf_total += 1
                                         if _cf.passed:
+                                            _cf_verified_count += 1
                                             _exp.confidence = min(0.95, _exp.confidence + 0.15)
                                             _exp.tags.append("cf_verified")
                                             # v5: 反事实通过且高置信 → 升级为 high_confidence, 在 prompt 中优先展示
@@ -859,11 +929,14 @@ async def phase1_analyze(
                         )
                         _pcf_history = accumulate_drag_history(
                             _pcf_history, _pcf_verified_today, today)
+                        # drag_experiences 会更新 last_emitted_date (限频), 故先取条目再持久化,
+                        # 让 cooldown 状态跨天生效 (否则每日刷屏回流)
+                        _drag_items = drag_experiences(_pcf_history, today)
+                        _drag_count = len(_drag_items)
                         _pcf_hist_path.parent.mkdir(parents=True, exist_ok=True)
                         _pcf_hist_path.write_text(
                             json.dumps(_pcf_history, ensure_ascii=False, indent=2),
                             encoding="utf-8")
-                        _drag_items = drag_experiences(_pcf_history, today)
                         if _drag_items and _memory is not None:
                             for _di in _drag_items:
                                 _added = _memory.add(_di)
@@ -873,6 +946,20 @@ async def phase1_analyze(
                                 f" → LLM 将对其降权/谨慎")
                     except Exception as _pcfe:
                         logger.warning(f"[组合反事实闭环] 失败: {_pcfe}")
+
+                # v5.7 进化健康追踪: 收尾落盘 evolution_health.json (记忆健康 + regime 对齐 + 每日活动)
+                try:
+                    from agent.evolution.health_tracker import record_health
+                    record_health(
+                        _memory, today, _regime,
+                        path=Path(__file__).parent.parent / "simulation_data" / "evolution_health.json",
+                        cf_verified_count=_cf_verified_count,
+                        cf_total=_cf_total,
+                        audit_count=_audit_count,
+                        drag_count=_drag_count,
+                    )
+                except Exception as _he:
+                    logger.debug(f"[进化健康] 快照失败: {_he}")
 
     # 1e-2. 今日市场诊断
     try:
@@ -1952,7 +2039,7 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
                     exit_votes = 0
                     votes_detail = []
                     for sname, sfunc in monitors.items():
-                        bt = sfunc(df)
+                        bt = sfunc(df, symbol=sym)
                         n = bt.get("signals", 0)
                         wr = bt.get("win_rate", 0)
                         # 如果策略在最近数据上无买入信号且有持仓 → 建议退出
@@ -1980,6 +2067,11 @@ async def phase2_execute(dry_run: bool = False, diagnostic_mode: bool = False) -
                 )
                 if trade:
                     logger.info(f"  [退出] {trigger['name']}({sym}) {trigger['reason']}: {trigger['detail']}")
+
+        # v5.11 方案3b: 低估值规则高估卖出 (确定性, 与诊断官解耦; gate<=0 零开销)
+        _learned_sold = await _apply_learned_sell(engine, data_router, mtm_pct)
+        if _learned_sold:
+            sold.extend(_learned_sold)
 
         # v3.3 防御减仓 (risk_off) — 股票感知版: 只卖"自身走弱"的 (现价<自身MA20),
         # 保留强势股. 用户反馈: 指数弱 ≠ 个股弱 (结构性行情强股可持有),
@@ -2288,6 +2380,20 @@ async def run_full_day(
         logger.debug(f"Track record 保存跳过: {e}")
 
     logger.info(f"========== Workflow 完成 ==========")
+
+    # v5.7 进化成本专项分账: 从共享 router 汇总进化模块成本 (task_type 前缀 evolution_/adversarial)
+    try:
+        from models.router import get_shared_router
+        _cs = get_shared_router().cost_summary()
+        _evo_tasks = {k: v for k, v in _cs["by_task_type"].items()
+                      if k.startswith("evolution_") or k == "adversarial"}
+        if _evo_tasks:
+            _evo_cost = sum(v["cost"] for v in _evo_tasks.values())
+            _evo_calls = sum(v["count"] for v in _evo_tasks.values())
+            _detail = ", ".join(f"{k}=¥{v['cost']:.4f}" for k, v in sorted(_evo_tasks.items()))
+            logger.info(f"[进化成本] 进化模块 {_evo_calls} 次调用 共 ¥{_evo_cost:.4f} ({_detail})")
+    except Exception as _ce:
+        logger.debug(f"[进化成本] 分账失败: {_ce}")
 
     return {"date": today, "analysis": "ok", "trade": trade_result, "summary": summary}
 

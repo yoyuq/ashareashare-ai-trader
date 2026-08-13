@@ -1,0 +1,229 @@
+{
+  "date": "2026-08-13T14:40:31",
+  "topics": [
+    "价值投资策略",
+    "成长股投资",
+    "趋势跟踪策略"
+  ],
+  "learned": [
+    {
+      "concept": "价值投资定义",
+      "category": "fact",
+      "verdict": "inconclusive",
+      "reason": "规则库未提及价值投资的定义或内在价值概念，外部知识属于未覆盖维度。",
+      "kb_action": "skipped",
+      "metric_delta": {}
+    },
+    {
+      "concept": "安全边际原则",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则依赖内在价值这一非量价数据，无法由现有模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "估值指标筛选",
+      "category": "rule",
+      "verdict": "rejected",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "kb_action": "",
+      "metric_delta": {
+        "improved_windows": 0,
+        "total_windows": 3,
+        "per_window": [
+          {
+            "window": "2018-01-01_2018-12-31",
+            "sharpe_delta": -12598814.144000001,
+            "dd_delta": 25.25,
+            "return_delta": 20.24
+          },
+          {
+            "window": "2020-06-01_2021-02-28",
+            "sharpe_delta": -12598816.229,
+            "dd_delta": 9.0,
+            "return_delta": -5.82
+          },
+          {
+            "window": "2024-01-01_2024-12-31",
+            "sharpe_delta": -12598816.608000001,
+            "dd_delta": 10.01,
+            "return_delta": -14.79
+          }
+        ]
+      }
+    },
+    {
+      "concept": "长期持有策略",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及基本面重大恶化判断和长期持有，无法由现有量价类模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "成长股定义",
+      "category": "fact",
+      "verdict": "inconclusive",
+      "reason": "规则库虽涉及成长性指标（营收增速、PEG），但未对‘成长股’给出明确定义，也未表述‘股价在业绩推动下上涨’这一维度。",
+      "kb_action": "skipped",
+      "metric_delta": {}
+    },
+    {
+      "concept": "成长股选择标准",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及行业属性、市值和净利润复合增长率，属于多因子基本面筛选，无法由任一单一模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "成长股买入时机",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则依赖市场牛熊状态判断和52周高低点条件，且涉及成长股买入与创新高卖出，无法由单一模板忠实表达，属于多条件复杂策略。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "成长股持有策略",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则依赖净利润复合增长率（基本面数据）和长期持有纪律，不属于任何量价类模板。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "成长股风控",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则基于季度财务数据（净利润增速），不属于任何量价或估值模板，且需要基本面数据，无法用现有模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "趋势跟踪",
+      "category": "fact",
+      "verdict": "inconclusive",
+      "reason": "规则库仅提及双均线趋势跟踪策略名称及移动止损等具体机制，未对'顺势而为、不预测转折点'这一趋势跟踪核心哲学做方向性表述，故该维度未被覆盖。",
+      "kb_action": "skipped",
+      "metric_delta": {}
+    },
+    {
+      "concept": "均线系统",
+      "category": "rule",
+      "verdict": "rejected",
+      "reason": "0/3 窗口改善, 规则无增益",
+      "kb_action": "",
+      "metric_delta": {
+        "improved_windows": 0,
+        "total_windows": 3,
+        "per_window": [
+          {
+            "window": "2018-01-01_2018-12-31",
+            "sharpe_delta": -0.7420000000000002,
+            "dd_delta": 8.54,
+            "return_delta": 4.149999999999999
+          },
+          {
+            "window": "2020-06-01_2021-02-28",
+            "sharpe_delta": -1.454,
+            "dd_delta": -1.6199999999999992,
+            "return_delta": -11.55
+          },
+          {
+            "window": "2024-01-01_2024-12-31",
+            "sharpe_delta": -0.626,
+            "dd_delta": 2.0599999999999996,
+            "return_delta": -11.049999999999999
+          }
+        ]
+      }
+    },
+    {
+      "concept": "试错与仓位管理",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及仓位管理（2%至10%加仓）和趋势确认，但未明确具体趋势指标或可量化信号，且核心是仓位调整而非单一模板可表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "风险控制",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及单笔止损和总浮亏清仓的仓位管理，不属于任何单一模板（如固定止损仅针对单笔，且未指定具体价格比例），需自定义逻辑。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "板块性机会",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及板块指数涨幅、涨停家数及板块内选股，属于多条件板块轮动策略，无法由单一模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    }
+  ],
+  "already_learned": [
+    {
+      "concept": "风险管理与分散投资",
+      "prior_verdict": "not_yet_testable",
+      "matched_concept": "低估值价值投资",
+      "reason": "新知识强调分散投资以降低风险，与旧知识'低估值价值投资'中'应分散持仓以降低个股风险'表述一致。"
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "total": 26,
+    "by_verdict": {
+      "rejected": 6,
+      "not_yet_testable": 14,
+      "verified": 1,
+      "inconclusive": 5
+    },
+    "by_category": {
+      "rule": 20,
+      "fact": 6
+    },
+    "avg_confidence": 0.75,
+    "concepts": {
+      "verified": [
+        "A股涨跌停制度"
+      ],
+      "rejected": [
+        "动量策略",
+        "固定百分比止损",
+        "ATR止损",
+        "移动止损",
+        "估值指标筛选",
+        "均线系统"
+      ],
+      "inconclusive": [
+        "集合竞价规则",
+        "T+1交易制度",
+        "价值投资定义",
+        "成长股定义",
+        "趋势跟踪"
+      ],
+      "not_yet_testable": [
+        "支撑位止损",
+        "时间止损",
+        "低估值价值投资",
+        "涨停板买入策略",
+        "跌停板卖出规则",
+        "安全边际原则",
+        "长期持有策略",
+        "成长股选择标准",
+        "成长股买入时机",
+        "成长股持有策略",
+        "成长股风控",
+        "试错与仓位管理",
+        "风险控制",
+        "板块性机会"
+      ]
+    },
+    "revalidated": []
+  },
+  "meta_text": "## 自主学习闭环 · 学习元报告 (共 26 条)\n- 结论分布: {'rejected': 6, 'not_yet_testable': 14, 'verified': 1, 'inconclusive': 5}\n- 类别分布: {'rule': 20, 'fact': 6}\n- 平均置信度: 0.75\n- ✅ 已验证: A股涨跌停制度\n- ❌ 已证伪: 动量策略, 固定百分比止损, ATR止损, 移动止损, 估值指标筛选, 均线系统\n- ⚠️ 证据不足: 集合竞价规则, T+1交易制度, 价值投资定义, 成长股定义, 趋势跟踪\n- ◻ 暂不可测: 支撑位止损, 时间止损, 低估值价值投资, 涨停板买入策略, 跌停板卖出规则, 安全边际原则, 长期持有策略, 成长股选择标准, 成长股买入时机, 成长股持有策略, 成长股风控, 试错与仓位管理, 风险控制, 板块性机会"
+}

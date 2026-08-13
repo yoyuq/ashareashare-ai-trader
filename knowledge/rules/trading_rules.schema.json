@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "trading_rules.yaml 结构锁定 schema",
+  "description": "A股交易规则口径锁定 (v3.4)。trading_rules.yaml 强调「禁止 LLM 定义口径」, 此 schema 锁定其结构: 顶层键/费率/涨跌停/交收等关键字段不可增删改型。变更结构须同步改此文件并递增 knowledge/manager.py 的 KB_INDEX_VERSION。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trading_hours",
+    "settlement",
+    "price_limits",
+    "fees",
+    "lot_size",
+    "trading_signals",
+    "circuit_breaker"
+  ],
+  "properties": {
+    "trading_hours": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["morning", "afternoon"],
+      "properties": {
+        "morning": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
+        "afternoon": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2},
+        "call_auction_morning": {"type": "array", "items": {"type": "string"}},
+        "call_auction_afternoon": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "settlement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "string", "const": "T+1"},
+        "description": {"type": "string"},
+        "exception": {"type": "string"}
+      }
+    },
+    "price_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["main_board", "chinext", "star_market", "beijing", "st_stock"],
+      "properties": {
+        "main_board": {"type": "number"},
+        "chinext": {"type": "number"},
+        "star_market": {"type": "number"},
+        "beijing": {"type": "number"},
+        "st_stock": {"type": "number"},
+        "new_stock_first_day": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "main_board": {"type": "number"},
+            "chinext_star": {"type": ["number", "null"]}
+          }
+        }
+      }
+    },
+    "fees": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stamp_duty", "commission", "transfer_fee"],
+      "properties": {
+        "stamp_duty": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rate", "side"],
+          "properties": {
+            "rate": {"type": "number"},
+            "side": {"type": "string"}
+          }
+        },
+        "commission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rate", "min_per_trade"],
+          "properties": {
+            "rate": {"type": "number"},
+            "min_per_trade": {"type": "number"}
+          }
+        },
+        "transfer_fee": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rate"],
+          "properties": {
+            "rate": {"type": "number"},
+            "exchange": {"type": "string"},
+            "note": {"type": "string"}
+          }
+        }
+      }
+    },
+    "lot_size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_lot", "lot_increment"],
+      "properties": {
+        "min_lot": {"type": "number"},
+        "lot_increment": {"type": "number"},
+        "odd_lot_rule": {"type": "string"}
+      }
+    },
+    "trading_signals": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["formula"],
+        "properties": {
+          "formula": {"type": "string"},
+          "description": {"type": "string"},
+          "threshold": {"type": "number"},
+          "lookback": {"type": "number"}
+        }
+      }
+    },
+    "circuit_breaker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "description": {"type": "string"}
+      }
+    }
+  }
+}

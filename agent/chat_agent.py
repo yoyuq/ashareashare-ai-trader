@@ -113,7 +113,77 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_trading_strategy",
+            "description": "联网搜索某个交易策略/主题,提炼成结构化候选知识(概念+陈述+类别)。只做研究,不测试不落库。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "要研究的策略/主题,如'海龟交易法则'、'价值投资'、'动量策略'"},
+                },
+                "required": ["topic"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "judge_trading_strategy",
+            "description": "用真实历史数据回测一条交易规则/事实,给出留/删判断(verified/rejected/inconclusive/not_yet_testable)。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "concept": {"type": "string", "description": "规则短名,如'低PE价值投资'"},
+                    "claim": {"type": "string", "description": "规则/事实陈述,如'买入PE<15且PB<2的股票长期跑赢'"},
+                    "category": {"type": "string", "description": "rule(交易规则)或fact(事实/定义)"},
+                },
+                "required": ["concept", "claim", "category"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "suggest_backtest_windows",
+            "description": "根据策略描述,推荐应该用哪些历史回测区间来测试(结合各回放窗口的市场状态做判断,不跑回测)。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "strategy": {"type": "string", "description": "策略描述,如'趋势跟踪/均线交叉/止损/价值投资'"},
+                },
+                "required": ["strategy"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "learn_trading_strategy",
+            "description": "完整学习一条策略:联网研究→真实数据回测→记录留/删结论到向量库。自定义学习入口(会持久化)。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "要学习的策略/主题"},
+                },
+                "required": ["topic"],
+            },
+        },
+    },
 ]
+
+
+# 可用回放窗口 + 市场状态标注 (供 suggest_backtest_windows 做 LLM 判断)
+_WINDOW_REGIME = {
+    "2018-01-01_2018-12-31": "熊市(系统性下跌, 检验风控/止损降险)",
+    "2018-10-01_2019-12-31": "熊转震荡(触底反弹)",
+    "2019-01-01_2019-12-31": "结构性牛市(成长股占优)",
+    "2020-06-01_2021-02-28": "牛市(趋势/抱团行情)",
+    "2024-01-01_2024-12-31": "震荡(含显著回撤段)",
+    "2025-10-08_2026-07-31": "近期震荡/结构行情",
+    "2026-02-21_2026-07-31": "近期震荡",
+}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -173,6 +243,11 @@ class ToolExecutor:
             "scan_market": lambda args: self._scan(args.get("top_n", 10)),
             "list_strategies": lambda args: self._list_strategies(),
             "explain_concept": lambda args: self._explain(args.get("concept", "")),
+            "search_trading_strategy": lambda args: self._search_strategy(args.get("topic", "")),
+            "judge_trading_strategy": lambda args: self._judge_strategy(
+                args.get("concept", ""), args.get("claim", ""), args.get("category", "rule")),
+            "suggest_backtest_windows": lambda args: self._suggest_windows(args.get("strategy", "")),
+            "learn_trading_strategy": lambda args: self._learn_strategy(args.get("topic", "")),
         }
 
     async def _market_overview(self) -> str:
@@ -493,6 +568,102 @@ class ToolExecutor:
             "explanation": f"关于'{concept}'的详细解释请参考A股交易规则。常见概念: T+1(当日买次日卖)、涨跌停(±10%/20%/30%)、印花税(卖出0.05%)、北向资金(沪/深港通境外资金)。",
         }, ensure_ascii=False)
 
+    # ── 自主学习闭环工具 (v5.11: 交互式学习入口) ──
+
+    async def _search_strategy(self, topic: str) -> str:
+        """联网研究: 搜策略 → 提炼候选知识 (不测试不落库)。"""
+        if not topic:
+            return json.dumps({"error": "请提供要研究的主题"}, ensure_ascii=False)
+        try:
+            from agent.learning.researcher import generate_candidates
+            cands = await generate_candidates(topic, n=5, search=True)
+            if not cands:
+                return json.dumps({"topic": topic, "candidates": [],
+                                   "note": "未能提炼出候选知识 (联网可能失败/主题过宽)"}, ensure_ascii=False)
+            return json.dumps({
+                "topic": topic,
+                "candidates": [c.to_dict() for c in cands],
+                "note": "以上为候选知识, 可让我用 judge_trading_strategy 逐条测试, 或 learn_trading_strategy 完整学习",
+            }, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"error": f"研究失败: {e}"}, ensure_ascii=False)
+
+    async def _judge_strategy(self, concept: str, claim: str, category: str) -> str:
+        """真实数据测试: 给一条规则/事实的留/删判断。"""
+        if not concept or not claim:
+            return json.dumps({"error": "请提供 concept(规则短名) 和 claim(规则陈述)"}, ensure_ascii=False)
+        try:
+            from agent.learning.researcher import KnowledgeCandidate
+            from agent.learning import tester as T
+            from scripts.learn_external import _default_data_files
+            cand = KnowledgeCandidate(concept=concept, claim=claim,
+                                      category=("fact" if category == "fact" else "rule"),
+                                      testable=claim, source="chat_agent")
+            if cand.category == "fact":
+                res = await T.test_fact(cand, self.knowledge)
+            else:
+                res = await T.test_rule(cand, _default_data_files())
+            return json.dumps({
+                "concept": concept, "category": cand.category,
+                "verdict": res.verdict, "reason": res.reason,
+                "template": res.template, "windows_tested": res.windows_tested,
+                "metric_delta": res.metric_delta,
+                "note": "verdict: verified(可保留)/rejected(证伪)/inconclusive(证据不足)/not_yet_testable(暂不可测)",
+            }, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"error": f"测试失败: {e}"}, ensure_ascii=False)
+
+    async def _suggest_windows(self, strategy: str) -> str:
+        """纯 LLM 判断: 根据策略描述推荐回测区间 (不跑回测)。"""
+        if not strategy:
+            return json.dumps({"error": "请提供策略描述"}, ensure_ascii=False)
+        try:
+            win_list = "\n".join(f"- {w}: {label}" for w, label in _WINDOW_REGIME.items())
+            prompt = (
+                "你是回测区间推荐官。根据策略描述, 从下列历史回放窗口挑 2~3 个最相关的测试区间, 并说明理由。\n"
+                "原则: 趋势/动量类 → 测牛市(趋势行情); 风控/止损/降险类 → 测熊市; 价值/均值回归类 → 测震荡或熊市。\n\n"
+                f"【策略】{strategy}\n\n【可用窗口】\n{win_list}\n\n"
+                "严格输出 JSON (无其他文字): {\"windows\": [\"窗口标识1\", \"窗口标识2\"], \"reasons\": \"一句话理由\"}"
+            )
+            from models.router import get_shared_router
+            result = await get_shared_router().route(
+                messages=[{"role": "system", "content": prompt},
+                          {"role": "user", "content": strategy}],
+                task_type="external_research", temperature=0.2, max_tokens=400,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            data = {}
+            try:
+                txt = (result.response or "").strip()
+                s, e = txt.find("{"), txt.rfind("}")
+                data = json.loads(txt[s:e + 1]) if s >= 0 and e > s else {}
+            except json.JSONDecodeError:
+                data = {}
+            return json.dumps({
+                "strategy": strategy,
+                "suggested_windows": data.get("windows", []),
+                "reasons": data.get("reasons", ""),
+            }, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"error": f"推荐失败: {e}"}, ensure_ascii=False)
+
+    async def _learn_strategy(self, topic: str) -> str:
+        """完整学习: 研究 → 真实测试 → 记向量库 (自定义学习入口, 会持久化)。"""
+        if not topic:
+            return json.dumps({"error": "请提供要学习的主题"}, ensure_ascii=False)
+        try:
+            from scripts.learn_external import run_learning_loop, _default_data_files
+            report = await run_learning_loop([topic], _default_data_files(), dry_run=False, n=3)
+            return json.dumps({
+                "topic": topic,
+                "learned": report.get("learned", []),
+                "already_learned": report.get("already_learned", []),
+                "errors": report.get("errors", []),
+                "note": "learned=本次测试并记录的结论; already_learned=已学过(复用旧结论)跳过",
+            }, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"error": f"学习失败: {e}"}, ensure_ascii=False)
+
 
 # ═══════════════════════════════════════════════════════════════
 # 对话Agent
@@ -508,24 +679,14 @@ class ChatAgent:
       - 自动 fallback: Pro → Flash → 本地 (工具调用时跳过本地)
     """
 
-    SYSTEM_PROMPT = """你是A股智能分析助手,一个专业的量化分析AI。
-
-你可以:
-- 分析市场状态(牛熊判断)
-- 对个股进行技术面深度分析(RSI/MACD/均线/布林带/K线形态)
-- 运行策略历史回测,给出胜率和绩效指标
-- 扫描全市场寻找评分较高的标的
-- 解释A股交易规则和概念
-
-规则:
-1. 所有数值来自工具调用结果,不要编造
-2. 工具返回错误时如实告知
-3. 回答简洁有条理,用中文
-4. 涉及数据分析时先调用工具获取数据
-5. 关于"哪些股票会上涨": 你无法预测未来涨跌,只能基于技术面和历史数据给出评分和概率,必须强调风险
-6. 投资建议必须标注"⚠️风险提示: 历史数据不代表未来表现"
-
-当用户问预测性问题时,明确说明: 量化分析提供的是概率参考而非确定性预测,任何单一信号都不构成投资建议。"""
+    # 单源提示词 (P2-4): 权威源为 knowledge/prompts/system/chat_assistant.txt,
+    # 由 _get_system_prompt() 经 KnowledgeManager 加载。此处仅保留 knowledge 不可用时的
+    # 最小兜底, 不再与 .txt 维护双份完整正文 (避免漂移)。
+    SYSTEM_PROMPT = (
+        "你是A股智能分析助手,专业的量化分析AI。"
+        "所有数值来自工具调用结果,不得编造;回答简洁有条理,用中文;"
+        "涉及数据分析时先调用工具获取数据;投资建议必须标注风险提示。"
+    )
 
     def __init__(self, router=None, knowledge=None, analyzer=None, model_router=None,
                  sessions_dir: str = "data/sessions"):
@@ -814,9 +975,12 @@ class ChatAgent:
                 args = {}
 
             try:
-                # 15s timeout per tool
+                # 慢工具(联网/回测/学习)放宽到 300s; 快工具保持 15s
+                _slow = {"search_trading_strategy", "judge_trading_strategy",
+                         "suggest_backtest_windows", "learn_trading_strategy"}
+                timeout = 300.0 if name in _slow else 15.0
                 result = await asyncio.wait_for(
-                    self.executor.execute(name, args), timeout=15.0
+                    self.executor.execute(name, args), timeout=timeout
                 )
             except asyncio.TimeoutError:
                 result = json.dumps(

@@ -1,0 +1,30 @@
+{
+  "date": "2026-08-13T20:20:00+08:00",
+  "samples": 6,
+  "top_n": 300,
+  "quality_days": 12,
+  "verdict": "keep_gate0",
+  "verdict_note": "质量验证未完成 (2/3 窗口因环境内存 OOM 未运行), 预注册 ≥2/3 门槛无法满足 → 严格维持 gate=0。此为「验证未完成」非「验证失败」: 忠实 3/3 + 解耦成立, 唯一完成窗口 (2018熊) 不劣反优 (+0.6pp)。",
+  "fidelity_windows": 3,
+  "fidelity_all_ok": true,
+  "fidelity": [
+    {"label": "2018熊", "regime_note": "熊", "buy_ok_all": true, "sell_ok_all": true, "kept_median": 5},
+    {"label": "2020牛转崩", "regime_note": "牛→崩", "buy_ok_all": true, "sell_ok_all": true, "kept_median": 8},
+    {"label": "2024震荡", "regime_note": "震荡", "buy_ok_all": true, "sell_ok_all": true, "kept_median": 6}
+  ],
+  "quality": [
+    {
+      "label": "2018熊", "regime_note": "熊",
+      "gate0": {"return_pct": -0.72, "max_drawdown": 0.40},
+      "gate1": {"return_pct": -0.12, "max_drawdown": 0.23},
+      "dreturn_pp": 0.60, "ddd_pp": -0.17, "not_worse": true
+    },
+    {"label": "2020牛转崩", "regime_note": "牛→崩", "blocked": true, "reason": "环境内存 OOM (系统 0.91GB 空闲, 回放峰值 ~726MB > ~526MB 阈值)"},
+    {"label": "2024震荡", "regime_note": "震荡", "blocked": true, "reason": "环境内存 OOM (同上)"}
+  ],
+  "memory_fixes": [
+    "historical_replay._market_diagnostic: AsyncOpenAI client 逐日未 close() → 加 try/finally await client.close() (连接池泄漏)",
+    "historical_replay.run_replay: 扁平 _df 与分组 data 同时持有 → 加 del _df 释放扁平 DataFrame"
+  ],
+  "disclosure": "质量回放从预注册 25 日缩减为 12 日 (环境内存约束, 样本缩减非挑窗口); 2020/2024 连 12 日无法跑完。"
+}
