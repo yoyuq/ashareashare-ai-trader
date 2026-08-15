@@ -1,0 +1,1636 @@
+{
+  "date": "2026-08-15T15:48:42",
+  "K": 100,
+  "UNIVERSE_N": 800,
+  "COST_BPS": 31.0,
+  "cadences": [
+    5,
+    10,
+    20,
+    40,
+    60
+  ],
+  "windows": [
+    {
+      "window": "2015牛转股灾",
+      "index": {
+        "return_pct": 5.631,
+        "max_dd_pct": -43.339,
+        "sharpe": 0.342
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": 51.659,
+          "max_dd_pct": -45.605,
+          "sharpe": 1.227,
+          "total_return_pct": 53.671,
+          "dret_pp": 46.03,
+          "attribution": {
+            "beta": 1.0399,
+            "alpha_annualized_pct": 47.106,
+            "strategy_return_pct": 51.659,
+            "benchmark_return_pct": 5.631,
+            "excess_return_pct": 46.028,
+            "beta_contribution_pct": 5.855,
+            "alpha_contribution_pct": 45.803,
+            "r_squared": 0.8896,
+            "tracking_error_annualized_pct": 14.283,
+            "information_ratio": 2.7415,
+            "n_aligned": 243
+          }
+        },
+        "10日": {
+          "return_pct": 48.108,
+          "max_dd_pct": -45.244,
+          "sharpe": 1.18,
+          "total_return_pct": 49.947,
+          "dret_pp": 42.48,
+          "attribution": {
+            "beta": 1.0336,
+            "alpha_annualized_pct": 43.323,
+            "strategy_return_pct": 48.108,
+            "benchmark_return_pct": 5.631,
+            "excess_return_pct": 42.477,
+            "beta_contribution_pct": 5.82,
+            "alpha_contribution_pct": 42.288,
+            "r_squared": 0.9029,
+            "tracking_error_annualized_pct": 13.2,
+            "information_ratio": 2.7624,
+            "n_aligned": 243
+          }
+        },
+        "20日": {
+          "return_pct": 52.778,
+          "max_dd_pct": -41.857,
+          "sharpe": 1.257,
+          "total_return_pct": 54.808,
+          "dret_pp": 47.15,
+          "attribution": {
+            "beta": 1.0321,
+            "alpha_annualized_pct": 48.006,
+            "strategy_return_pct": 52.778,
+            "benchmark_return_pct": 5.631,
+            "excess_return_pct": 47.148,
+            "beta_contribution_pct": 5.812,
+            "alpha_contribution_pct": 46.967,
+            "r_squared": 0.9022,
+            "tracking_error_annualized_pct": 13.226,
+            "information_ratio": 2.9991,
+            "n_aligned": 243
+          }
+        },
+        "40日": {
+          "return_pct": 52.108,
+          "max_dd_pct": -40.492,
+          "sharpe": 1.249,
+          "total_return_pct": 54.046,
+          "dret_pp": 46.48,
+          "attribution": {
+            "beta": 1.0273,
+            "alpha_annualized_pct": 47.297,
+            "strategy_return_pct": 52.108,
+            "benchmark_return_pct": 5.631,
+            "excess_return_pct": 46.477,
+            "beta_contribution_pct": 5.784,
+            "alpha_contribution_pct": 46.323,
+            "r_squared": 0.9017,
+            "tracking_error_annualized_pct": 13.19,
+            "information_ratio": 2.9658,
+            "n_aligned": 243
+          }
+        },
+        "60日": {
+          "return_pct": 57.826,
+          "max_dd_pct": -41.305,
+          "sharpe": 1.341,
+          "total_return_pct": 59.779,
+          "dret_pp": 52.2,
+          "attribution": {
+            "beta": 1.0254,
+            "alpha_annualized_pct": 53.071,
+            "strategy_return_pct": 57.826,
+            "benchmark_return_pct": 5.631,
+            "excess_return_pct": 52.195,
+            "beta_contribution_pct": 5.774,
+            "alpha_contribution_pct": 52.052,
+            "r_squared": 0.8993,
+            "tracking_error_annualized_pct": 13.335,
+            "information_ratio": 3.2206,
+            "n_aligned": 243
+          }
+        },
+        "持有": {
+          "return_pct": 50.243,
+          "max_dd_pct": -49.089,
+          "sharpe": 1.192,
+          "total_return_pct": 51.316,
+          "dret_pp": 44.61,
+          "attribution": {
+            "beta": 1.0013,
+            "alpha_annualized_pct": 46.893,
+            "strategy_return_pct": 50.243,
+            "benchmark_return_pct": 5.631,
+            "excess_return_pct": 44.612,
+            "beta_contribution_pct": 5.638,
+            "alpha_contribution_pct": 44.604,
+            "r_squared": 0.7982,
+            "tracking_error_annualized_pct": 19.51,
+            "information_ratio": 1.9733,
+            "n_aligned": 243
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 33.763,
+          "max_dd_pct": -52.515,
+          "sharpe": 0.898
+        },
+        "total_return": {
+          "return_pct": 34.513,
+          "max_dd_pct": -52.345,
+          "sharpe": 0.911
+        },
+        "dividend_contribution_pp": 0.75
+      }
+    },
+    {
+      "window": "2016熔断震荡",
+      "index": {
+        "return_pct": -5.844,
+        "max_dd_pct": -21.006,
+        "sharpe": -0.172
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": -1.666,
+          "max_dd_pct": -16.237,
+          "sharpe": 0.031,
+          "total_return_pct": 0.321,
+          "dret_pp": 4.18,
+          "attribution": {
+            "beta": 0.9645,
+            "alpha_annualized_pct": 4.434,
+            "strategy_return_pct": -1.666,
+            "benchmark_return_pct": -5.844,
+            "excess_return_pct": 4.177,
+            "beta_contribution_pct": -5.636,
+            "alpha_contribution_pct": 3.97,
+            "r_squared": 0.9365,
+            "tracking_error_annualized_pct": 5.589,
+            "information_ratio": 0.8004,
+            "n_aligned": 243
+          }
+        },
+        "10日": {
+          "return_pct": 3.99,
+          "max_dd_pct": -16.497,
+          "sharpe": 0.296,
+          "total_return_pct": 6.317,
+          "dret_pp": 9.83,
+          "attribution": {
+            "beta": 0.9589,
+            "alpha_annualized_pct": 10.599,
+            "strategy_return_pct": 3.99,
+            "benchmark_return_pct": -5.844,
+            "excess_return_pct": 9.833,
+            "beta_contribution_pct": -5.603,
+            "alpha_contribution_pct": 9.593,
+            "r_squared": 0.942,
+            "tracking_error_annualized_pct": 5.32,
+            "information_ratio": 1.9231,
+            "n_aligned": 243
+          }
+        },
+        "20日": {
+          "return_pct": 12.76,
+          "max_dd_pct": -15.302,
+          "sharpe": 0.67,
+          "total_return_pct": 15.349,
+          "dret_pp": 18.6,
+          "attribution": {
+            "beta": 0.9818,
+            "alpha_annualized_pct": 20.529,
+            "strategy_return_pct": 12.76,
+            "benchmark_return_pct": -5.844,
+            "excess_return_pct": 18.604,
+            "beta_contribution_pct": -5.737,
+            "alpha_contribution_pct": 18.497,
+            "r_squared": 0.9397,
+            "tracking_error_annualized_pct": 5.497,
+            "information_ratio": 3.4109,
+            "n_aligned": 243
+          }
+        },
+        "40日": {
+          "return_pct": 9.123,
+          "max_dd_pct": -15.302,
+          "sharpe": 0.517,
+          "total_return_pct": 11.466,
+          "dret_pp": 14.97,
+          "attribution": {
+            "beta": 0.9871,
+            "alpha_annualized_pct": 16.544,
+            "strategy_return_pct": 9.123,
+            "benchmark_return_pct": -5.844,
+            "excess_return_pct": 14.967,
+            "beta_contribution_pct": -5.768,
+            "alpha_contribution_pct": 14.891,
+            "r_squared": 0.9434,
+            "tracking_error_annualized_pct": 5.334,
+            "information_ratio": 2.8804,
+            "n_aligned": 243
+          }
+        },
+        "60日": {
+          "return_pct": 10.789,
+          "max_dd_pct": -15.302,
+          "sharpe": 0.588,
+          "total_return_pct": 13.135,
+          "dret_pp": 16.63,
+          "attribution": {
+            "beta": 0.983,
+            "alpha_annualized_pct": 18.363,
+            "strategy_return_pct": 10.789,
+            "benchmark_return_pct": -5.844,
+            "excess_return_pct": 16.633,
+            "beta_contribution_pct": -5.744,
+            "alpha_contribution_pct": 16.534,
+            "r_squared": 0.9387,
+            "tracking_error_annualized_pct": 5.548,
+            "information_ratio": 3.0513,
+            "n_aligned": 243
+          }
+        },
+        "持有": {
+          "return_pct": 9.138,
+          "max_dd_pct": -15.302,
+          "sharpe": 0.515,
+          "total_return_pct": 11.265,
+          "dret_pp": 14.98,
+          "attribution": {
+            "beta": 0.9954,
+            "alpha_annualized_pct": 16.657,
+            "strategy_return_pct": 9.138,
+            "benchmark_return_pct": -5.844,
+            "excess_return_pct": 14.982,
+            "beta_contribution_pct": -5.817,
+            "alpha_contribution_pct": 14.955,
+            "r_squared": 0.9408,
+            "tracking_error_annualized_pct": 5.501,
+            "information_ratio": 2.8046,
+            "n_aligned": 243
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": -16.083,
+          "max_dd_pct": -23.421,
+          "sharpe": -0.46
+        },
+        "total_return": {
+          "return_pct": -15.358,
+          "max_dd_pct": -23.421,
+          "sharpe": -0.431
+        },
+        "dividend_contribution_pp": 0.725
+      }
+    },
+    {
+      "window": "2017漂亮50",
+      "index": {
+        "return_pct": 5.461,
+        "max_dd_pct": -7.181,
+        "sharpe": 0.681
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": 8.083,
+          "max_dd_pct": -6.023,
+          "sharpe": 0.972,
+          "total_return_pct": 9.858,
+          "dret_pp": 2.62,
+          "attribution": {
+            "beta": 0.8362,
+            "alpha_annualized_pct": 3.576,
+            "strategy_return_pct": 8.083,
+            "benchmark_return_pct": 5.461,
+            "excess_return_pct": 2.622,
+            "beta_contribution_pct": 4.567,
+            "alpha_contribution_pct": 3.516,
+            "r_squared": 0.6928,
+            "tracking_error_annualized_pct": 5.016,
+            "information_ratio": 0.5083,
+            "n_aligned": 243
+          }
+        },
+        "10日": {
+          "return_pct": 11.063,
+          "max_dd_pct": -7.008,
+          "sharpe": 1.295,
+          "total_return_pct": 13.059,
+          "dret_pp": 5.6,
+          "attribution": {
+            "beta": 0.848,
+            "alpha_annualized_pct": 6.468,
+            "strategy_return_pct": 11.063,
+            "benchmark_return_pct": 5.461,
+            "excess_return_pct": 5.602,
+            "beta_contribution_pct": 4.631,
+            "alpha_contribution_pct": 6.432,
+            "r_squared": 0.7098,
+            "tracking_error_annualized_pct": 4.866,
+            "information_ratio": 1.1042,
+            "n_aligned": 243
+          }
+        },
+        "20日": {
+          "return_pct": 13.811,
+          "max_dd_pct": -6.903,
+          "sharpe": 1.613,
+          "total_return_pct": 15.864,
+          "dret_pp": 8.35,
+          "attribution": {
+            "beta": 0.8439,
+            "alpha_annualized_pct": 9.213,
+            "strategy_return_pct": 13.811,
+            "benchmark_return_pct": 5.461,
+            "excess_return_pct": 8.35,
+            "beta_contribution_pct": 4.608,
+            "alpha_contribution_pct": 9.202,
+            "r_squared": 0.7283,
+            "tracking_error_annualized_pct": 4.654,
+            "information_ratio": 1.6966,
+            "n_aligned": 243
+          }
+        },
+        "40日": {
+          "return_pct": 19.045,
+          "max_dd_pct": -5.865,
+          "sharpe": 2.134,
+          "total_return_pct": 21.205,
+          "dret_pp": 13.58,
+          "attribution": {
+            "beta": 0.8742,
+            "alpha_annualized_pct": 14.234,
+            "strategy_return_pct": 19.045,
+            "benchmark_return_pct": 5.461,
+            "excess_return_pct": 13.584,
+            "beta_contribution_pct": 4.774,
+            "alpha_contribution_pct": 14.271,
+            "r_squared": 0.763,
+            "tracking_error_annualized_pct": 4.348,
+            "information_ratio": 2.8913,
+            "n_aligned": 243
+          }
+        },
+        "60日": {
+          "return_pct": 20.552,
+          "max_dd_pct": -6.898,
+          "sharpe": 2.105,
+          "total_return_pct": 22.657,
+          "dret_pp": 15.09,
+          "attribution": {
+            "beta": 0.9812,
+            "alpha_annualized_pct": 15.088,
+            "strategy_return_pct": 20.552,
+            "benchmark_return_pct": 5.461,
+            "excess_return_pct": 15.091,
+            "beta_contribution_pct": 5.358,
+            "alpha_contribution_pct": 15.193,
+            "r_squared": 0.8099,
+            "tracking_error_annualized_pct": 4.111,
+            "information_ratio": 3.3926,
+            "n_aligned": 243
+          }
+        },
+        "持有": {
+          "return_pct": 25.723,
+          "max_dd_pct": -5.56,
+          "sharpe": 2.338,
+          "total_return_pct": 27.962,
+          "dret_pp": 20.26,
+          "attribution": {
+            "beta": 1.1123,
+            "alpha_annualized_pct": 19.403,
+            "strategy_return_pct": 25.723,
+            "benchmark_return_pct": 5.461,
+            "excess_return_pct": 20.262,
+            "beta_contribution_pct": 6.074,
+            "alpha_contribution_pct": 19.649,
+            "r_squared": 0.8562,
+            "tracking_error_annualized_pct": 4.057,
+            "information_ratio": 4.5359,
+            "n_aligned": 243
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 0.219,
+          "max_dd_pct": -15.243,
+          "sharpe": 0.092
+        },
+        "total_return": {
+          "return_pct": 1.248,
+          "max_dd_pct": -15.025,
+          "sharpe": 0.161
+        },
+        "dividend_contribution_pp": 1.029
+      }
+    },
+    {
+      "window": "2018熊",
+      "index": {
+        "return_pct": -25.518,
+        "max_dd_pct": -30.24,
+        "sharpe": -1.46
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": -36.866,
+          "max_dd_pct": -40.856,
+          "sharpe": -2.408,
+          "total_return_pct": -35.447,
+          "dret_pp": -11.35,
+          "attribution": {
+            "beta": 0.9309,
+            "alpha_annualized_pct": -17.537,
+            "strategy_return_pct": -36.866,
+            "benchmark_return_pct": -25.518,
+            "excess_return_pct": -11.348,
+            "beta_contribution_pct": -23.754,
+            "alpha_contribution_pct": -13.112,
+            "r_squared": 0.9185,
+            "tracking_error_annualized_pct": 5.623,
+            "information_ratio": -3.0748,
+            "n_aligned": 242
+          }
+        },
+        "10日": {
+          "return_pct": -29.779,
+          "max_dd_pct": -36.508,
+          "sharpe": -1.826,
+          "total_return_pct": -28.021,
+          "dret_pp": -4.26,
+          "attribution": {
+            "beta": 0.9349,
+            "alpha_annualized_pct": -7.776,
+            "strategy_return_pct": -29.779,
+            "benchmark_return_pct": -25.518,
+            "excess_return_pct": -4.261,
+            "beta_contribution_pct": -23.857,
+            "alpha_contribution_pct": -5.921,
+            "r_squared": 0.9232,
+            "tracking_error_annualized_pct": 5.456,
+            "information_ratio": -1.1409,
+            "n_aligned": 242
+          }
+        },
+        "20日": {
+          "return_pct": -22.39,
+          "max_dd_pct": -32.48,
+          "sharpe": -1.27,
+          "total_return_pct": -20.448,
+          "dret_pp": 3.13,
+          "attribution": {
+            "beta": 0.9392,
+            "alpha_annualized_pct": 2.497,
+            "strategy_return_pct": -22.39,
+            "benchmark_return_pct": -25.518,
+            "excess_return_pct": 3.128,
+            "beta_contribution_pct": -23.968,
+            "alpha_contribution_pct": 1.578,
+            "r_squared": 0.9164,
+            "tracking_error_annualized_pct": 5.709,
+            "information_ratio": 0.7377,
+            "n_aligned": 242
+          }
+        },
+        "40日": {
+          "return_pct": -22.801,
+          "max_dd_pct": -32.247,
+          "sharpe": -1.32,
+          "total_return_pct": -20.982,
+          "dret_pp": 2.72,
+          "attribution": {
+            "beta": 0.9304,
+            "alpha_annualized_pct": 1.617,
+            "strategy_return_pct": -22.801,
+            "benchmark_return_pct": -25.518,
+            "excess_return_pct": 2.717,
+            "beta_contribution_pct": -23.741,
+            "alpha_contribution_pct": 0.94,
+            "r_squared": 0.9253,
+            "tracking_error_annualized_pct": 5.376,
+            "information_ratio": 0.6705,
+            "n_aligned": 242
+          }
+        },
+        "60日": {
+          "return_pct": -18.403,
+          "max_dd_pct": -28.526,
+          "sharpe": -0.991,
+          "total_return_pct": -16.358,
+          "dret_pp": 7.12,
+          "attribution": {
+            "beta": 0.9461,
+            "alpha_annualized_pct": 8.221,
+            "strategy_return_pct": -18.403,
+            "benchmark_return_pct": -25.518,
+            "excess_return_pct": 7.115,
+            "beta_contribution_pct": -24.143,
+            "alpha_contribution_pct": 5.74,
+            "r_squared": 0.916,
+            "tracking_error_annualized_pct": 5.736,
+            "information_ratio": 1.6474,
+            "n_aligned": 242
+          }
+        },
+        "持有": {
+          "return_pct": -23.66,
+          "max_dd_pct": -30.642,
+          "sharpe": -1.329,
+          "total_return_pct": -22.313,
+          "dret_pp": 1.86,
+          "attribution": {
+            "beta": 0.9499,
+            "alpha_annualized_pct": 1.135,
+            "strategy_return_pct": -23.66,
+            "benchmark_return_pct": -25.518,
+            "excess_return_pct": 1.858,
+            "beta_contribution_pct": -24.24,
+            "alpha_contribution_pct": 0.58,
+            "r_squared": 0.9013,
+            "tracking_error_annualized_pct": 6.261,
+            "information_ratio": 0.41,
+            "n_aligned": 242
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": -33.373,
+          "max_dd_pct": -37.146,
+          "sharpe": -1.634
+        },
+        "total_return": {
+          "return_pct": -32.402,
+          "max_dd_pct": -36.248,
+          "sharpe": -1.572
+        },
+        "dividend_contribution_pp": 0.971
+      }
+    },
+    {
+      "window": "2019牛",
+      "index": {
+        "return_pct": 23.723,
+        "max_dd_pct": -15.352,
+        "sharpe": 1.311
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": 21.622,
+          "max_dd_pct": -17.473,
+          "sharpe": 1.214,
+          "total_return_pct": 24.466,
+          "dret_pp": -2.1,
+          "attribution": {
+            "beta": 0.9567,
+            "alpha_annualized_pct": -0.754,
+            "strategy_return_pct": 21.622,
+            "benchmark_return_pct": 23.723,
+            "excess_return_pct": -2.101,
+            "beta_contribution_pct": 22.695,
+            "alpha_contribution_pct": -1.073,
+            "r_squared": 0.9171,
+            "tracking_error_annualized_pct": 5.261,
+            "information_ratio": -0.3393,
+            "n_aligned": 243
+          }
+        },
+        "10日": {
+          "return_pct": 28.238,
+          "max_dd_pct": -14.305,
+          "sharpe": 1.534,
+          "total_return_pct": 31.327,
+          "dret_pp": 4.52,
+          "attribution": {
+            "beta": 0.9499,
+            "alpha_annualized_pct": 4.984,
+            "strategy_return_pct": 28.238,
+            "benchmark_return_pct": 23.723,
+            "excess_return_pct": 4.515,
+            "beta_contribution_pct": 22.534,
+            "alpha_contribution_pct": 5.704,
+            "r_squared": 0.9252,
+            "tracking_error_annualized_pct": 4.969,
+            "information_ratio": 0.7398,
+            "n_aligned": 243
+          }
+        },
+        "20日": {
+          "return_pct": 38.097,
+          "max_dd_pct": -13.371,
+          "sharpe": 1.929,
+          "total_return_pct": 41.33,
+          "dret_pp": 14.37,
+          "attribution": {
+            "beta": 0.9719,
+            "alpha_annualized_pct": 12.855,
+            "strategy_return_pct": 38.097,
+            "benchmark_return_pct": 23.723,
+            "excess_return_pct": 14.374,
+            "beta_contribution_pct": 23.055,
+            "alpha_contribution_pct": 15.042,
+            "r_squared": 0.9303,
+            "tracking_error_annualized_pct": 4.837,
+            "information_ratio": 2.363,
+            "n_aligned": 243
+          }
+        },
+        "40日": {
+          "return_pct": 46.637,
+          "max_dd_pct": -13.622,
+          "sharpe": 2.297,
+          "total_return_pct": 49.962,
+          "dret_pp": 22.91,
+          "attribution": {
+            "beta": 0.9553,
+            "alpha_annualized_pct": 20.53,
+            "strategy_return_pct": 46.637,
+            "benchmark_return_pct": 23.723,
+            "excess_return_pct": 22.914,
+            "beta_contribution_pct": 22.663,
+            "alpha_contribution_pct": 23.974,
+            "r_squared": 0.9219,
+            "tracking_error_annualized_pct": 5.094,
+            "information_ratio": 3.4591,
+            "n_aligned": 243
+          }
+        },
+        "60日": {
+          "return_pct": 49.423,
+          "max_dd_pct": -11.802,
+          "sharpe": 2.255,
+          "total_return_pct": 52.879,
+          "dret_pp": 25.7,
+          "attribution": {
+            "beta": 1.031,
+            "alpha_annualized_pct": 21.018,
+            "strategy_return_pct": 49.423,
+            "benchmark_return_pct": 23.723,
+            "excess_return_pct": 25.7,
+            "beta_contribution_pct": 24.459,
+            "alpha_contribution_pct": 24.964,
+            "r_squared": 0.9327,
+            "tracking_error_annualized_pct": 5.04,
+            "information_ratio": 3.9321,
+            "n_aligned": 243
+          }
+        },
+        "持有": {
+          "return_pct": 31.971,
+          "max_dd_pct": -18.072,
+          "sharpe": 1.52,
+          "total_return_pct": 34.49,
+          "dret_pp": 8.25,
+          "attribution": {
+            "beta": 1.0786,
+            "alpha_annualized_pct": 5.398,
+            "strategy_return_pct": 31.971,
+            "benchmark_return_pct": 23.723,
+            "excess_return_pct": 8.249,
+            "beta_contribution_pct": 25.588,
+            "alpha_contribution_pct": 6.384,
+            "r_squared": 0.9243,
+            "tracking_error_annualized_pct": 5.762,
+            "information_ratio": 1.2361,
+            "n_aligned": 243
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 46.941,
+          "max_dd_pct": -19.923,
+          "sharpe": 1.696
+        },
+        "total_return": {
+          "return_pct": 48.623,
+          "max_dd_pct": -19.116,
+          "sharpe": 1.743
+        },
+        "dividend_contribution_pp": 1.681
+      }
+    },
+    {
+      "window": "2020牛转崩",
+      "index": {
+        "return_pct": 20.362,
+        "max_dd_pct": -7.356,
+        "sharpe": 1.5
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": 33.347,
+          "max_dd_pct": -6.674,
+          "sharpe": 2.326,
+          "total_return_pct": 35.779,
+          "dret_pp": 12.99,
+          "attribution": {
+            "beta": 0.9305,
+            "alpha_annualized_pct": 17.588,
+            "strategy_return_pct": 33.347,
+            "benchmark_return_pct": 20.362,
+            "excess_return_pct": 12.985,
+            "beta_contribution_pct": 18.948,
+            "alpha_contribution_pct": 14.399,
+            "r_squared": 0.9054,
+            "tracking_error_annualized_pct": 5.69,
+            "information_ratio": 2.5106,
+            "n_aligned": 180
+          }
+        },
+        "10日": {
+          "return_pct": 38.579,
+          "max_dd_pct": -5.651,
+          "sharpe": 2.647,
+          "total_return_pct": 41.399,
+          "dret_pp": 18.22,
+          "attribution": {
+            "beta": 0.9293,
+            "alpha_annualized_pct": 24.111,
+            "strategy_return_pct": 38.579,
+            "benchmark_return_pct": 20.362,
+            "excess_return_pct": 18.217,
+            "beta_contribution_pct": 18.924,
+            "alpha_contribution_pct": 19.656,
+            "r_squared": 0.9188,
+            "tracking_error_annualized_pct": 5.256,
+            "information_ratio": 3.7402,
+            "n_aligned": 180
+          }
+        },
+        "20日": {
+          "return_pct": 32.492,
+          "max_dd_pct": -6.194,
+          "sharpe": 2.286,
+          "total_return_pct": 35.137,
+          "dret_pp": 12.13,
+          "attribution": {
+            "beta": 0.9355,
+            "alpha_annualized_pct": 16.355,
+            "strategy_return_pct": 32.492,
+            "benchmark_return_pct": 20.362,
+            "excess_return_pct": 12.129,
+            "beta_contribution_pct": 19.05,
+            "alpha_contribution_pct": 13.442,
+            "r_squared": 0.9234,
+            "tracking_error_annualized_pct": 5.107,
+            "information_ratio": 2.6179,
+            "n_aligned": 180
+          }
+        },
+        "40日": {
+          "return_pct": 38.073,
+          "max_dd_pct": -5.902,
+          "sharpe": 2.55,
+          "total_return_pct": 41.067,
+          "dret_pp": 17.71,
+          "attribution": {
+            "beta": 0.9563,
+            "alpha_annualized_pct": 22.667,
+            "strategy_return_pct": 38.073,
+            "benchmark_return_pct": 20.362,
+            "excess_return_pct": 17.711,
+            "beta_contribution_pct": 19.473,
+            "alpha_contribution_pct": 18.6,
+            "r_squared": 0.9194,
+            "tracking_error_annualized_pct": 5.281,
+            "information_ratio": 3.6417,
+            "n_aligned": 180
+          }
+        },
+        "60日": {
+          "return_pct": 35.328,
+          "max_dd_pct": -5.641,
+          "sharpe": 2.356,
+          "total_return_pct": 38.24,
+          "dret_pp": 14.97,
+          "attribution": {
+            "beta": 0.9779,
+            "alpha_annualized_pct": 18.629,
+            "strategy_return_pct": 35.328,
+            "benchmark_return_pct": 20.362,
+            "excess_return_pct": 14.966,
+            "beta_contribution_pct": 19.913,
+            "alpha_contribution_pct": 15.416,
+            "r_squared": 0.9261,
+            "tracking_error_annualized_pct": 5.11,
+            "information_ratio": 3.225,
+            "n_aligned": 180
+          }
+        },
+        "持有": {
+          "return_pct": 43.039,
+          "max_dd_pct": -5.353,
+          "sharpe": 2.707,
+          "total_return_pct": 46.114,
+          "dret_pp": 22.68,
+          "attribution": {
+            "beta": 1.0111,
+            "alpha_annualized_pct": 27.152,
+            "strategy_return_pct": 43.039,
+            "benchmark_return_pct": 20.362,
+            "excess_return_pct": 22.676,
+            "beta_contribution_pct": 20.588,
+            "alpha_contribution_pct": 22.451,
+            "r_squared": 0.942,
+            "tracking_error_annualized_pct": 4.629,
+            "information_ratio": 5.2578,
+            "n_aligned": 180
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 35.106,
+          "max_dd_pct": -10.229,
+          "sharpe": 1.834
+        },
+        "total_return": {
+          "return_pct": 36.226,
+          "max_dd_pct": -10.143,
+          "sharpe": 1.883
+        },
+        "dividend_contribution_pp": 1.12
+      }
+    },
+    {
+      "window": "2021白马转小盘",
+      "index": {
+        "return_pct": 3.906,
+        "max_dd_pct": -9.156,
+        "sharpe": 0.355
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": -3.207,
+          "max_dd_pct": -14.924,
+          "sharpe": -0.177,
+          "total_return_pct": -0.909,
+          "dret_pp": -7.11,
+          "attribution": {
+            "beta": 0.8187,
+            "alpha_annualized_pct": -6.301,
+            "strategy_return_pct": -3.207,
+            "benchmark_return_pct": 3.906,
+            "excess_return_pct": -7.113,
+            "beta_contribution_pct": 3.198,
+            "alpha_contribution_pct": -6.405,
+            "r_squared": 0.6857,
+            "tracking_error_annualized_pct": 8.159,
+            "information_ratio": -0.9079,
+            "n_aligned": 242
+          }
+        },
+        "10日": {
+          "return_pct": 2.434,
+          "max_dd_pct": -13.879,
+          "sharpe": 0.248,
+          "total_return_pct": 4.914,
+          "dret_pp": -1.47,
+          "attribution": {
+            "beta": 0.8458,
+            "alpha_annualized_pct": -0.714,
+            "strategy_return_pct": 2.434,
+            "benchmark_return_pct": 3.906,
+            "excess_return_pct": -1.471,
+            "beta_contribution_pct": 3.304,
+            "alpha_contribution_pct": -0.869,
+            "r_squared": 0.7123,
+            "tracking_error_annualized_pct": 7.824,
+            "information_ratio": -0.1895,
+            "n_aligned": 242
+          }
+        },
+        "20日": {
+          "return_pct": 12.088,
+          "max_dd_pct": -11.873,
+          "sharpe": 0.943,
+          "total_return_pct": 14.927,
+          "dret_pp": 8.18,
+          "attribution": {
+            "beta": 0.8149,
+            "alpha_annualized_pct": 9.15,
+            "strategy_return_pct": 12.088,
+            "benchmark_return_pct": 3.906,
+            "excess_return_pct": 8.182,
+            "beta_contribution_pct": 3.183,
+            "alpha_contribution_pct": 8.906,
+            "r_squared": 0.7048,
+            "tracking_error_annualized_pct": 7.82,
+            "information_ratio": 1.0022,
+            "n_aligned": 242
+          }
+        },
+        "40日": {
+          "return_pct": 11.361,
+          "max_dd_pct": -10.994,
+          "sharpe": 0.893,
+          "total_return_pct": 13.835,
+          "dret_pp": 7.46,
+          "attribution": {
+            "beta": 0.8571,
+            "alpha_annualized_pct": 8.185,
+            "strategy_return_pct": 11.361,
+            "benchmark_return_pct": 3.906,
+            "excess_return_pct": 7.455,
+            "beta_contribution_pct": 3.348,
+            "alpha_contribution_pct": 8.013,
+            "r_squared": 0.7799,
+            "tracking_error_annualized_pct": 6.677,
+            "information_ratio": 1.0722,
+            "n_aligned": 242
+          }
+        },
+        "60日": {
+          "return_pct": 17.832,
+          "max_dd_pct": -11.459,
+          "sharpe": 1.262,
+          "total_return_pct": 20.765,
+          "dret_pp": 13.93,
+          "attribution": {
+            "beta": 0.9172,
+            "alpha_annualized_pct": 14.524,
+            "strategy_return_pct": 17.832,
+            "benchmark_return_pct": 3.906,
+            "excess_return_pct": 13.927,
+            "beta_contribution_pct": 3.582,
+            "alpha_contribution_pct": 14.25,
+            "r_squared": 0.7985,
+            "tracking_error_annualized_pct": 6.549,
+            "information_ratio": 2.0085,
+            "n_aligned": 242
+          }
+        },
+        "持有": {
+          "return_pct": 24.351,
+          "max_dd_pct": -9.732,
+          "sharpe": 1.596,
+          "total_return_pct": 26.953,
+          "dret_pp": 20.45,
+          "attribution": {
+            "beta": 0.9803,
+            "alpha_annualized_pct": 20.853,
+            "strategy_return_pct": 24.351,
+            "benchmark_return_pct": 3.906,
+            "excess_return_pct": 20.445,
+            "beta_contribution_pct": 3.829,
+            "alpha_contribution_pct": 20.522,
+            "r_squared": 0.8443,
+            "tracking_error_annualized_pct": 5.895,
+            "information_ratio": 3.1975,
+            "n_aligned": 242
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 32.396,
+          "max_dd_pct": -12.559,
+          "sharpe": 1.477
+        },
+        "total_return": {
+          "return_pct": 33.795,
+          "max_dd_pct": -12.534,
+          "sharpe": 1.529
+        },
+        "dividend_contribution_pp": 1.399
+      }
+    },
+    {
+      "window": "2022熊",
+      "index": {
+        "return_pct": -14.951,
+        "max_dd_pct": -20.535,
+        "sharpe": -0.855
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": -20.555,
+          "max_dd_pct": -26.212,
+          "sharpe": -1.175,
+          "total_return_pct": -18.46,
+          "dret_pp": -5.6,
+          "attribution": {
+            "beta": 0.9975,
+            "alpha_annualized_pct": -6.736,
+            "strategy_return_pct": -20.555,
+            "benchmark_return_pct": -14.951,
+            "excess_return_pct": -5.604,
+            "beta_contribution_pct": -14.914,
+            "alpha_contribution_pct": -5.641,
+            "r_squared": 0.8903,
+            "tracking_error_annualized_pct": 6.276,
+            "information_ratio": -1.1049,
+            "n_aligned": 241
+          }
+        },
+        "10日": {
+          "return_pct": -15.923,
+          "max_dd_pct": -23.042,
+          "sharpe": -0.863,
+          "total_return_pct": -13.475,
+          "dret_pp": -0.97,
+          "attribution": {
+            "beta": 0.9972,
+            "alpha_annualized_pct": -1.056,
+            "strategy_return_pct": -15.923,
+            "benchmark_return_pct": -14.951,
+            "excess_return_pct": -0.972,
+            "beta_contribution_pct": -14.909,
+            "alpha_contribution_pct": -1.014,
+            "r_squared": 0.8915,
+            "tracking_error_annualized_pct": 6.235,
+            "information_ratio": -0.1634,
+            "n_aligned": 241
+          }
+        },
+        "20日": {
+          "return_pct": -9.349,
+          "max_dd_pct": -18.753,
+          "sharpe": -0.454,
+          "total_return_pct": -6.847,
+          "dret_pp": 5.6,
+          "attribution": {
+            "beta": 0.9855,
+            "alpha_annualized_pct": 6.81,
+            "strategy_return_pct": -9.349,
+            "benchmark_return_pct": -14.951,
+            "excess_return_pct": 5.602,
+            "beta_contribution_pct": -14.734,
+            "alpha_contribution_pct": 5.385,
+            "r_squared": 0.8895,
+            "tracking_error_annualized_pct": 6.229,
+            "information_ratio": 1.0935,
+            "n_aligned": 241
+          }
+        },
+        "40日": {
+          "return_pct": -8.343,
+          "max_dd_pct": -18.404,
+          "sharpe": -0.393,
+          "total_return_pct": -5.997,
+          "dret_pp": 6.61,
+          "attribution": {
+            "beta": 0.9858,
+            "alpha_annualized_pct": 8.05,
+            "strategy_return_pct": -8.343,
+            "benchmark_return_pct": -14.951,
+            "excess_return_pct": 6.608,
+            "beta_contribution_pct": -14.738,
+            "alpha_contribution_pct": 6.395,
+            "r_squared": 0.8913,
+            "tracking_error_annualized_pct": 6.174,
+            "information_ratio": 1.2896,
+            "n_aligned": 241
+          }
+        },
+        "60日": {
+          "return_pct": -11.95,
+          "max_dd_pct": -18.818,
+          "sharpe": -0.61,
+          "total_return_pct": -9.807,
+          "dret_pp": 3.0,
+          "attribution": {
+            "beta": 0.998,
+            "alpha_annualized_pct": 3.842,
+            "strategy_return_pct": -11.95,
+            "benchmark_return_pct": -14.951,
+            "excess_return_pct": 3.001,
+            "beta_contribution_pct": -14.922,
+            "alpha_contribution_pct": 2.972,
+            "r_squared": 0.8959,
+            "tracking_error_annualized_pct": 6.096,
+            "information_ratio": 0.6235,
+            "n_aligned": 241
+          }
+        },
+        "持有": {
+          "return_pct": -9.67,
+          "max_dd_pct": -19.686,
+          "sharpe": -0.455,
+          "total_return_pct": -7.309,
+          "dret_pp": 5.28,
+          "attribution": {
+            "beta": 1.0109,
+            "alpha_annualized_pct": 6.941,
+            "strategy_return_pct": -9.67,
+            "benchmark_return_pct": -14.951,
+            "excess_return_pct": 5.281,
+            "beta_contribution_pct": -15.114,
+            "alpha_contribution_pct": 5.444,
+            "r_squared": 0.8825,
+            "tracking_error_annualized_pct": 6.612,
+            "information_ratio": 0.9897,
+            "n_aligned": 241
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": -13.634,
+          "max_dd_pct": -24.514,
+          "sharpe": -0.548
+        },
+        "total_return": {
+          "return_pct": -12.39,
+          "max_dd_pct": -24.494,
+          "sharpe": -0.483
+        },
+        "dividend_contribution_pp": 1.244
+      }
+    },
+    {
+      "window": "2023震荡",
+      "index": {
+        "return_pct": -4.543,
+        "max_dd_pct": -14.613,
+        "sharpe": -0.363
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": -14.124,
+          "max_dd_pct": -23.592,
+          "sharpe": -1.303,
+          "total_return_pct": -11.878,
+          "dret_pp": -9.58,
+          "attribution": {
+            "beta": 0.9336,
+            "alpha_annualized_pct": -10.705,
+            "strategy_return_pct": -14.124,
+            "benchmark_return_pct": -4.543,
+            "excess_return_pct": -9.581,
+            "beta_contribution_pct": -4.241,
+            "alpha_contribution_pct": -9.883,
+            "r_squared": 0.8534,
+            "tracking_error_annualized_pct": 4.541,
+            "information_ratio": -2.4316,
+            "n_aligned": 241
+          }
+        },
+        "10日": {
+          "return_pct": -5.289,
+          "max_dd_pct": -18.885,
+          "sharpe": -0.431,
+          "total_return_pct": -2.783,
+          "dret_pp": -0.75,
+          "attribution": {
+            "beta": 0.9262,
+            "alpha_annualized_pct": -1.117,
+            "strategy_return_pct": -5.289,
+            "benchmark_return_pct": -4.543,
+            "excess_return_pct": -0.747,
+            "beta_contribution_pct": -4.208,
+            "alpha_contribution_pct": -1.082,
+            "r_squared": 0.8487,
+            "tracking_error_annualized_pct": 4.603,
+            "information_ratio": -0.1768,
+            "n_aligned": 241
+          }
+        },
+        "20日": {
+          "return_pct": -0.87,
+          "max_dd_pct": -16.368,
+          "sharpe": -0.018,
+          "total_return_pct": 1.973,
+          "dret_pp": 3.67,
+          "attribution": {
+            "beta": 0.9456,
+            "alpha_annualized_pct": 3.829,
+            "strategy_return_pct": -0.87,
+            "benchmark_return_pct": -4.543,
+            "excess_return_pct": 3.673,
+            "beta_contribution_pct": -4.296,
+            "alpha_contribution_pct": 3.426,
+            "r_squared": 0.8434,
+            "tracking_error_annualized_pct": 4.755,
+            "information_ratio": 0.8382,
+            "n_aligned": 241
+          }
+        },
+        "40日": {
+          "return_pct": 0.112,
+          "max_dd_pct": -14.474,
+          "sharpe": 0.069,
+          "total_return_pct": 2.699,
+          "dret_pp": 4.66,
+          "attribution": {
+            "beta": 0.936,
+            "alpha_annualized_pct": 4.871,
+            "strategy_return_pct": 0.112,
+            "benchmark_return_pct": -4.543,
+            "excess_return_pct": 4.655,
+            "beta_contribution_pct": -4.252,
+            "alpha_contribution_pct": 4.364,
+            "r_squared": 0.8171,
+            "tracking_error_annualized_pct": 5.176,
+            "information_ratio": 0.9708,
+            "n_aligned": 241
+          }
+        },
+        "60日": {
+          "return_pct": -0.436,
+          "max_dd_pct": -16.393,
+          "sharpe": 0.024,
+          "total_return_pct": 2.615,
+          "dret_pp": 4.11,
+          "attribution": {
+            "beta": 0.9805,
+            "alpha_annualized_pct": 4.511,
+            "strategy_return_pct": -0.436,
+            "benchmark_return_pct": -4.543,
+            "excess_return_pct": 4.106,
+            "beta_contribution_pct": -4.454,
+            "alpha_contribution_pct": 4.018,
+            "r_squared": 0.844,
+            "tracking_error_annualized_pct": 4.88,
+            "information_ratio": 0.921,
+            "n_aligned": 241
+          }
+        },
+        "持有": {
+          "return_pct": 2.975,
+          "max_dd_pct": -13.309,
+          "sharpe": 0.313,
+          "total_return_pct": 6.002,
+          "dret_pp": 7.52,
+          "attribution": {
+            "beta": 1.0118,
+            "alpha_annualized_pct": 8.375,
+            "strategy_return_pct": 2.975,
+            "benchmark_return_pct": -4.543,
+            "excess_return_pct": 7.518,
+            "beta_contribution_pct": -4.596,
+            "alpha_contribution_pct": 7.571,
+            "r_squared": 0.9276,
+            "tracking_error_annualized_pct": 3.272,
+            "information_ratio": 2.4434,
+            "n_aligned": 241
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 2.617,
+          "max_dd_pct": -20.056,
+          "sharpe": 0.239
+        },
+        "total_return": {
+          "return_pct": 3.99,
+          "max_dd_pct": -19.464,
+          "sharpe": 0.315
+        },
+        "dividend_contribution_pp": 1.373
+      }
+    },
+    {
+      "window": "2024震荡",
+      "index": {
+        "return_pct": 13.148,
+        "max_dd_pct": -14.728,
+        "sharpe": 0.743
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": 10.214,
+          "max_dd_pct": -14.596,
+          "sharpe": 0.639,
+          "total_return_pct": 13.329,
+          "dret_pp": -2.93,
+          "attribution": {
+            "beta": 0.8704,
+            "alpha_annualized_pct": -1.09,
+            "strategy_return_pct": 10.214,
+            "benchmark_return_pct": 13.148,
+            "excess_return_pct": -2.934,
+            "beta_contribution_pct": 11.444,
+            "alpha_contribution_pct": -1.231,
+            "r_squared": 0.8823,
+            "tracking_error_annualized_pct": 6.89,
+            "information_ratio": -0.4394,
+            "n_aligned": 241
+          }
+        },
+        "10日": {
+          "return_pct": 18.733,
+          "max_dd_pct": -12.894,
+          "sharpe": 1.052,
+          "total_return_pct": 22.352,
+          "dret_pp": 5.59,
+          "attribution": {
+            "beta": 0.8838,
+            "alpha_annualized_pct": 6.733,
+            "strategy_return_pct": 18.733,
+            "benchmark_return_pct": 13.148,
+            "excess_return_pct": 5.585,
+            "beta_contribution_pct": 11.62,
+            "alpha_contribution_pct": 7.112,
+            "r_squared": 0.897,
+            "tracking_error_annualized_pct": 6.446,
+            "information_ratio": 0.7422,
+            "n_aligned": 241
+          }
+        },
+        "20日": {
+          "return_pct": 18.674,
+          "max_dd_pct": -11.844,
+          "sharpe": 1.057,
+          "total_return_pct": 22.101,
+          "dret_pp": 5.53,
+          "attribution": {
+            "beta": 0.8797,
+            "alpha_annualized_pct": 6.711,
+            "strategy_return_pct": 18.674,
+            "benchmark_return_pct": 13.148,
+            "excess_return_pct": 5.525,
+            "beta_contribution_pct": 11.567,
+            "alpha_contribution_pct": 7.107,
+            "r_squared": 0.9048,
+            "tracking_error_annualized_pct": 6.215,
+            "information_ratio": 0.7567,
+            "n_aligned": 241
+          }
+        },
+        "40日": {
+          "return_pct": 17.69,
+          "max_dd_pct": -13.185,
+          "sharpe": 0.996,
+          "total_return_pct": 21.405,
+          "dret_pp": 4.54,
+          "attribution": {
+            "beta": 0.8943,
+            "alpha_annualized_pct": 5.624,
+            "strategy_return_pct": 17.69,
+            "benchmark_return_pct": 13.148,
+            "excess_return_pct": 4.542,
+            "beta_contribution_pct": 11.758,
+            "alpha_contribution_pct": 5.932,
+            "r_squared": 0.9035,
+            "tracking_error_annualized_pct": 6.238,
+            "information_ratio": 0.6245,
+            "n_aligned": 241
+          }
+        },
+        "60日": {
+          "return_pct": 17.113,
+          "max_dd_pct": -13.239,
+          "sharpe": 0.972,
+          "total_return_pct": 20.701,
+          "dret_pp": 3.96,
+          "attribution": {
+            "beta": 0.903,
+            "alpha_annualized_pct": 4.924,
+            "strategy_return_pct": 17.113,
+            "benchmark_return_pct": 13.148,
+            "excess_return_pct": 3.965,
+            "beta_contribution_pct": 11.873,
+            "alpha_contribution_pct": 5.24,
+            "r_squared": 0.9295,
+            "tracking_error_annualized_pct": 5.358,
+            "information_ratio": 0.6273,
+            "n_aligned": 241
+          }
+        },
+        "持有": {
+          "return_pct": 21.971,
+          "max_dd_pct": -12.162,
+          "sharpe": 1.132,
+          "total_return_pct": 25.46,
+          "dret_pp": 8.82,
+          "attribution": {
+            "beta": 0.9719,
+            "alpha_annualized_pct": 8.636,
+            "strategy_return_pct": 21.971,
+            "benchmark_return_pct": 13.148,
+            "excess_return_pct": 8.822,
+            "beta_contribution_pct": 12.778,
+            "alpha_contribution_pct": 9.192,
+            "r_squared": 0.9405,
+            "tracking_error_annualized_pct": 4.939,
+            "information_ratio": 1.5924,
+            "n_aligned": 241
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 17.25,
+          "max_dd_pct": -18.869,
+          "sharpe": 0.704
+        },
+        "total_return": {
+          "return_pct": 19.285,
+          "max_dd_pct": -18.869,
+          "sharpe": 0.765
+        },
+        "dividend_contribution_pp": 2.035
+      }
+    },
+    {
+      "window": "2025-26现期",
+      "index": {
+        "return_pct": -2.585,
+        "max_dd_pct": -11.277,
+        "sharpe": -0.149
+      },
+      "cadences": {
+        "5日": {
+          "return_pct": -7.456,
+          "max_dd_pct": -17.408,
+          "sharpe": -0.644,
+          "total_return_pct": -5.244,
+          "dret_pp": -4.87,
+          "attribution": {
+            "beta": 0.6467,
+            "alpha_annualized_pct": -7.2,
+            "strategy_return_pct": -7.456,
+            "benchmark_return_pct": -2.585,
+            "excess_return_pct": -4.871,
+            "beta_contribution_pct": -1.672,
+            "alpha_contribution_pct": -5.784,
+            "r_squared": 0.4878,
+            "tracking_error_annualized_pct": 11.218,
+            "information_ratio": -0.5962,
+            "n_aligned": 198
+          }
+        },
+        "10日": {
+          "return_pct": -1.307,
+          "max_dd_pct": -14.134,
+          "sharpe": -0.052,
+          "total_return_pct": 1.157,
+          "dret_pp": 1.28,
+          "attribution": {
+            "beta": 0.654,
+            "alpha_annualized_pct": 0.734,
+            "strategy_return_pct": -1.307,
+            "benchmark_return_pct": -2.585,
+            "excess_return_pct": 1.279,
+            "beta_contribution_pct": -1.691,
+            "alpha_contribution_pct": 0.384,
+            "r_squared": 0.4978,
+            "tracking_error_annualized_pct": 11.091,
+            "information_ratio": 0.1351,
+            "n_aligned": 198
+          }
+        },
+        "20日": {
+          "return_pct": 3.109,
+          "max_dd_pct": -11.564,
+          "sharpe": 0.348,
+          "total_return_pct": 5.721,
+          "dret_pp": 5.69,
+          "attribution": {
+            "beta": 0.6742,
+            "alpha_annualized_pct": 6.578,
+            "strategy_return_pct": 3.109,
+            "benchmark_return_pct": -2.585,
+            "excess_return_pct": 5.694,
+            "beta_contribution_pct": -1.743,
+            "alpha_contribution_pct": 4.852,
+            "r_squared": 0.5162,
+            "tracking_error_annualized_pct": 10.898,
+            "information_ratio": 0.6509,
+            "n_aligned": 198
+          }
+        },
+        "40日": {
+          "return_pct": 3.104,
+          "max_dd_pct": -12.056,
+          "sharpe": 0.336,
+          "total_return_pct": 5.626,
+          "dret_pp": 5.69,
+          "attribution": {
+            "beta": 0.7214,
+            "alpha_annualized_pct": 6.808,
+            "strategy_return_pct": 3.104,
+            "benchmark_return_pct": -2.585,
+            "excess_return_pct": 5.69,
+            "beta_contribution_pct": -1.865,
+            "alpha_contribution_pct": 4.97,
+            "r_squared": 0.5278,
+            "tracking_error_annualized_pct": 11.01,
+            "information_ratio": 0.6545,
+            "n_aligned": 198
+          }
+        },
+        "60日": {
+          "return_pct": 11.937,
+          "max_dd_pct": -11.666,
+          "sharpe": 1.137,
+          "total_return_pct": 14.785,
+          "dret_pp": 14.52,
+          "attribution": {
+            "beta": 0.6374,
+            "alpha_annualized_pct": 18.129,
+            "strategy_return_pct": 11.937,
+            "benchmark_return_pct": -2.585,
+            "excess_return_pct": 14.522,
+            "beta_contribution_pct": -1.648,
+            "alpha_contribution_pct": 13.585,
+            "r_squared": 0.5036,
+            "tracking_error_annualized_pct": 10.896,
+            "information_ratio": 1.6034,
+            "n_aligned": 198
+          }
+        },
+        "持有": {
+          "return_pct": 11.387,
+          "max_dd_pct": -8.631,
+          "sharpe": 1.063,
+          "total_return_pct": 14.151,
+          "dret_pp": 13.97,
+          "attribution": {
+            "beta": 0.7456,
+            "alpha_annualized_pct": 17.735,
+            "strategy_return_pct": 11.387,
+            "benchmark_return_pct": -2.585,
+            "excess_return_pct": 13.973,
+            "beta_contribution_pct": -1.928,
+            "alpha_contribution_pct": 13.315,
+            "r_squared": 0.6509,
+            "tracking_error_annualized_pct": 8.999,
+            "information_ratio": 1.8777,
+            "n_aligned": 198
+          }
+        }
+      },
+      "matched_universe": {
+        "price": {
+          "return_pct": 16.263,
+          "max_dd_pct": -30.854,
+          "sharpe": 0.753
+        },
+        "total_return": {
+          "return_pct": 17.115,
+          "max_dd_pct": -30.631,
+          "sharpe": 0.782
+        },
+        "dividend_contribution_pp": 0.852
+      }
+    }
+  ],
+  "win_counts": {
+    "5日": {
+      "return": "4/11",
+      "sharpe": "4/11",
+      "vs_matched_universe_price": "3/11",
+      "vs_matched_universe_total": "3/11"
+    },
+    "10日": {
+      "return": "7/11",
+      "sharpe": "7/11",
+      "vs_matched_universe_price": "6/11",
+      "vs_matched_universe_total": "6/11"
+    },
+    "20日": {
+      "return": "11/11",
+      "sharpe": "11/11",
+      "vs_matched_universe_price": "6/11",
+      "vs_matched_universe_total": "6/11"
+    },
+    "40日": {
+      "return": "11/11",
+      "sharpe": "11/11",
+      "vs_matched_universe_price": "7/11",
+      "vs_matched_universe_total": "8/11"
+    },
+    "60日": {
+      "return": "11/11",
+      "sharpe": "11/11",
+      "vs_matched_universe_price": "7/11",
+      "vs_matched_universe_total": "8/11"
+    },
+    "持有": {
+      "return": "11/11",
+      "sharpe": "11/11",
+      "vs_matched_universe_price": "8/11",
+      "vs_matched_universe_total": "8/11"
+    }
+  },
+  "verdict": {
+    "threshold": ">=9/11 窗口 (80%)",
+    "monthly_20d_operable": "可操作",
+    "quarterly_60d_operable": "可操作",
+    "hold_operable": "可操作",
+    "hold_vs_matched_universe_price": "8/11",
+    "monthly_vs_matched_universe_price": "6/11",
+    "hold_vs_matched_universe_total": "8/11",
+    "monthly_vs_matched_universe_total": "6/11"
+  }
+}
