@@ -1,0 +1,96 @@
+{
+  "date": "2026-08-13T23:15:25",
+  "pre_registered": {
+    "MAX_PE": 15.0,
+    "MAX_PB": 2.0,
+    "TOP_K": 30,
+    "criterion": "return_T > return_B1 的窗口数 >= 2/3 → 选股alpha成立"
+  },
+  "windows": [
+    {
+      "window": "2019牛",
+      "universe_investable": 2928,
+      "B1": {
+        "n": 2928,
+        "return_pct": 21.531,
+        "max_dd_pct": -23.681,
+        "sharpe": 0.964
+      },
+      "T1": {
+        "n": 537,
+        "return_pct": 13.979,
+        "max_dd_pct": -26.407,
+        "sharpe": 0.729
+      },
+      "T2": {
+        "n": 30,
+        "return_pct": 8.265,
+        "max_dd_pct": -34.741,
+        "sharpe": 0.469
+      },
+      "T1_delta_vs_B1": -7.552,
+      "T2_delta_vs_B1": -13.266,
+      "B2_index": null
+    },
+    {
+      "window": "2020牛",
+      "universe_investable": 2933,
+      "B1": {
+        "n": 2933,
+        "return_pct": 7.683,
+        "max_dd_pct": -15.133,
+        "sharpe": 0.589
+      },
+      "T1": {
+        "n": 359,
+        "return_pct": 15.543,
+        "max_dd_pct": -10.024,
+        "sharpe": 1.129
+      },
+      "T2": {
+        "n": 30,
+        "return_pct": 3.509,
+        "max_dd_pct": -18.099,
+        "sharpe": 0.336
+      },
+      "T1_delta_vs_B1": 7.86,
+      "T2_delta_vs_B1": -4.174,
+      "B2_index": {
+        "return_pct": 20.362
+      }
+    },
+    {
+      "window": "2024震荡",
+      "universe_investable": 3785,
+      "B1": {
+        "n": 3785,
+        "return_pct": -3.153,
+        "max_dd_pct": -27.717,
+        "sharpe": 0.063
+      },
+      "T1": {
+        "n": 448,
+        "return_pct": 10.412,
+        "max_dd_pct": -20.045,
+        "sharpe": 0.564
+      },
+      "T2": {
+        "n": 30,
+        "return_pct": 29.542,
+        "max_dd_pct": -17.122,
+        "sharpe": 1.412
+      },
+      "T1_delta_vs_B1": 13.565,
+      "T2_delta_vs_B1": 32.695,
+      "B2_index": null
+    }
+  ],
+  "verdict": {
+    "T1": "选股alpha成立",
+    "T2": "inconclusive"
+  },
+  "win_counts": {
+    "T1": "2/3",
+    "T2": "1/3"
+  }
+}

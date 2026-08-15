@@ -1,0 +1,501 @@
+{
+  "date": "2026-08-14T12:39:08",
+  "K": 100,
+  "REBAL": 20,
+  "COST_BPS": 31.0,
+  "CRASH_YOYNI": -50.0,
+  "windows": [
+    {
+      "window": "2018熊",
+      "core": true,
+      "index": {
+        "return_pct": -25.518,
+        "max_dd_pct": -30.24,
+        "sharpe": -1.46
+      },
+      "asof": "as-of=2017-09-30",
+      "n_flagged": 1,
+      "contloss": 0,
+      "crash": 1,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": -22.39,
+          "max_dd_pct": -32.48,
+          "sharpe": -1.27,
+          "dret_pp": 3.13,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": -22.39,
+          "max_dd_pct": -32.48,
+          "sharpe": -1.27,
+          "dret_pp": 3.13,
+          "basket_size": 100.0
+        },
+        "+利润暴跌": {
+          "return_pct": -22.39,
+          "max_dd_pct": -32.48,
+          "sharpe": -1.27,
+          "dret_pp": 3.13,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": -22.39,
+          "max_dd_pct": -32.48,
+          "sharpe": -1.27,
+          "dret_pp": 3.13,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": -22.39,
+          "max_dd_pct": -32.48,
+          "sharpe": -1.27,
+          "dret_pp": 3.13,
+          "basket_size": 100.0
+        }
+      }
+    },
+    {
+      "window": "2019牛",
+      "core": true,
+      "index": {
+        "return_pct": 23.723,
+        "max_dd_pct": -15.352,
+        "sharpe": 1.311
+      },
+      "asof": "as-of=2018-09-30",
+      "n_flagged": 1,
+      "contloss": 0,
+      "crash": 1,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": 38.097,
+          "max_dd_pct": -13.371,
+          "sharpe": 1.929,
+          "dret_pp": 14.37,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": 38.097,
+          "max_dd_pct": -13.371,
+          "sharpe": 1.929,
+          "dret_pp": 14.37,
+          "basket_size": 100.0
+        },
+        "+利润暴跌": {
+          "return_pct": 38.097,
+          "max_dd_pct": -13.371,
+          "sharpe": 1.929,
+          "dret_pp": 14.37,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": 38.097,
+          "max_dd_pct": -13.371,
+          "sharpe": 1.929,
+          "dret_pp": 14.37,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": 38.097,
+          "max_dd_pct": -13.371,
+          "sharpe": 1.929,
+          "dret_pp": 14.37,
+          "basket_size": 100.0
+        }
+      }
+    },
+    {
+      "window": "2020牛转崩",
+      "core": true,
+      "index": {
+        "return_pct": 20.362,
+        "max_dd_pct": -7.356,
+        "sharpe": 1.5
+      },
+      "asof": "as-of=2020-03-31",
+      "n_flagged": 17,
+      "contloss": 11,
+      "crash": 6,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": 32.492,
+          "max_dd_pct": -6.194,
+          "sharpe": 2.286,
+          "dret_pp": 12.13,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": 32.492,
+          "max_dd_pct": -6.194,
+          "sharpe": 2.286,
+          "dret_pp": 12.13,
+          "basket_size": 100.0
+        },
+        "+利润暴跌": {
+          "return_pct": 32.492,
+          "max_dd_pct": -6.194,
+          "sharpe": 2.286,
+          "dret_pp": 12.13,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": 32.492,
+          "max_dd_pct": -6.194,
+          "sharpe": 2.286,
+          "dret_pp": 12.13,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": 32.492,
+          "max_dd_pct": -6.194,
+          "sharpe": 2.286,
+          "dret_pp": 12.13,
+          "basket_size": 100.0
+        }
+      }
+    },
+    {
+      "window": "2024震荡",
+      "core": true,
+      "index": {
+        "return_pct": 13.148,
+        "max_dd_pct": -14.728,
+        "sharpe": 0.743
+      },
+      "asof": "as-of=2023-09-30",
+      "n_flagged": 42,
+      "contloss": 39,
+      "crash": 3,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": 18.674,
+          "max_dd_pct": -11.844,
+          "sharpe": 1.057,
+          "dret_pp": 5.53,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": 19.012,
+          "max_dd_pct": -11.437,
+          "sharpe": 1.07,
+          "dret_pp": 5.86,
+          "basket_size": 96.6
+        },
+        "+利润暴跌": {
+          "return_pct": 18.674,
+          "max_dd_pct": -11.844,
+          "sharpe": 1.057,
+          "dret_pp": 5.53,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": 18.674,
+          "max_dd_pct": -11.844,
+          "sharpe": 1.057,
+          "dret_pp": 5.53,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": 19.012,
+          "max_dd_pct": -11.437,
+          "sharpe": 1.07,
+          "dret_pp": 5.86,
+          "basket_size": 96.6
+        }
+      }
+    },
+    {
+      "window": "2025-26现期",
+      "core": true,
+      "index": {
+        "return_pct": -2.585,
+        "max_dd_pct": -11.277,
+        "sharpe": -0.149
+      },
+      "asof": "as-of=2025-06-30",
+      "n_flagged": 59,
+      "contloss": 57,
+      "crash": 2,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": 3.109,
+          "max_dd_pct": -11.564,
+          "sharpe": 0.348,
+          "dret_pp": 5.69,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": 3.158,
+          "max_dd_pct": -11.343,
+          "sharpe": 0.353,
+          "dret_pp": 5.74,
+          "basket_size": 98.6
+        },
+        "+利润暴跌": {
+          "return_pct": 3.109,
+          "max_dd_pct": -11.564,
+          "sharpe": 0.348,
+          "dret_pp": 5.69,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": 3.109,
+          "max_dd_pct": -11.564,
+          "sharpe": 0.348,
+          "dret_pp": 5.69,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": 3.158,
+          "max_dd_pct": -11.343,
+          "sharpe": 0.353,
+          "dret_pp": 5.74,
+          "basket_size": 98.6
+        }
+      }
+    },
+    {
+      "window": "2018Q4+2019",
+      "core": false,
+      "index": {
+        "return_pct": 12.281,
+        "max_dd_pct": -15.352,
+        "sharpe": 0.597
+      },
+      "asof": "as-of=2018-06-30",
+      "n_flagged": 4,
+      "contloss": 0,
+      "crash": 4,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": 29.246,
+          "max_dd_pct": -14.688,
+          "sharpe": 1.181,
+          "dret_pp": 16.96,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": 29.246,
+          "max_dd_pct": -14.688,
+          "sharpe": 1.181,
+          "dret_pp": 16.96,
+          "basket_size": 100.0
+        },
+        "+利润暴跌": {
+          "return_pct": 29.246,
+          "max_dd_pct": -14.688,
+          "sharpe": 1.181,
+          "dret_pp": 16.96,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": 29.246,
+          "max_dd_pct": -14.688,
+          "sharpe": 1.181,
+          "dret_pp": 16.96,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": 29.246,
+          "max_dd_pct": -14.688,
+          "sharpe": 1.181,
+          "dret_pp": 16.96,
+          "basket_size": 100.0
+        }
+      }
+    },
+    {
+      "window": "2026H1",
+      "core": false,
+      "index": {
+        "return_pct": -6.925,
+        "max_dd_pct": -11.277,
+        "sharpe": -0.903
+      },
+      "asof": "as-of=2025-12-31",
+      "n_flagged": 60,
+      "contloss": 57,
+      "crash": 3,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": -0.948,
+          "max_dd_pct": -10.478,
+          "sharpe": -0.066,
+          "dret_pp": 5.98,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": -0.199,
+          "max_dd_pct": -10.548,
+          "sharpe": 0.046,
+          "dret_pp": 6.73,
+          "basket_size": 98.0
+        },
+        "+利润暴跌": {
+          "return_pct": -0.948,
+          "max_dd_pct": -10.478,
+          "sharpe": -0.066,
+          "dret_pp": 5.98,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": -0.948,
+          "max_dd_pct": -10.478,
+          "sharpe": -0.066,
+          "dret_pp": 5.98,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": -0.199,
+          "max_dd_pct": -10.548,
+          "sharpe": 0.046,
+          "dret_pp": 6.73,
+          "basket_size": 98.0
+        }
+      }
+    },
+    {
+      "window": "lookback2020",
+      "core": false,
+      "index": {
+        "return_pct": -1.868,
+        "max_dd_pct": -13.397,
+        "sharpe": -0.295
+      },
+      "asof": "as-of=2019-12-31",
+      "n_flagged": 8,
+      "contloss": 5,
+      "crash": 3,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": -0.247,
+          "max_dd_pct": -13.292,
+          "sharpe": 0.05,
+          "dret_pp": 1.62,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": -0.247,
+          "max_dd_pct": -13.292,
+          "sharpe": 0.05,
+          "dret_pp": 1.62,
+          "basket_size": 100.0
+        },
+        "+利润暴跌": {
+          "return_pct": -0.247,
+          "max_dd_pct": -13.292,
+          "sharpe": 0.05,
+          "dret_pp": 1.62,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": -0.247,
+          "max_dd_pct": -13.292,
+          "sharpe": 0.05,
+          "dret_pp": 1.62,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": -0.247,
+          "max_dd_pct": -13.292,
+          "sharpe": 0.05,
+          "dret_pp": 1.62,
+          "basket_size": 100.0
+        }
+      }
+    },
+    {
+      "window": "lookback2024",
+      "core": false,
+      "index": {
+        "return_pct": -2.011,
+        "max_dd_pct": -5.661,
+        "sharpe": -1.202
+      },
+      "asof": "as-of=2023-09-30",
+      "n_flagged": 42,
+      "contloss": 39,
+      "crash": 3,
+      "shrink": 0,
+      "arms": {
+        "基线": {
+          "return_pct": -1.889,
+          "max_dd_pct": -5.669,
+          "sharpe": -1.202,
+          "dret_pp": 0.12,
+          "basket_size": 100.0
+        },
+        "+连续亏损": {
+          "return_pct": -2.099,
+          "max_dd_pct": -5.886,
+          "sharpe": -1.313,
+          "dret_pp": -0.09,
+          "basket_size": 97.7
+        },
+        "+利润暴跌": {
+          "return_pct": -1.889,
+          "max_dd_pct": -5.669,
+          "sharpe": -1.202,
+          "dret_pp": 0.12,
+          "basket_size": 100.0
+        },
+        "+营收收缩": {
+          "return_pct": -1.889,
+          "max_dd_pct": -5.669,
+          "sharpe": -1.202,
+          "dret_pp": 0.12,
+          "basket_size": 100.0
+        },
+        "+合并排雷": {
+          "return_pct": -2.099,
+          "max_dd_pct": -5.886,
+          "sharpe": -1.313,
+          "dret_pp": -0.09,
+          "basket_size": 97.7
+        }
+      }
+    }
+  ],
+  "core_win_counts": {
+    "基线": {
+      "dd_not_worse": "5/5",
+      "ret_not_worse": "5/5",
+      "beats_index_return": "5/5"
+    },
+    "+连续亏损": {
+      "dd_not_worse": "5/5",
+      "ret_not_worse": "5/5",
+      "beats_index_return": "5/5"
+    },
+    "+利润暴跌": {
+      "dd_not_worse": "5/5",
+      "ret_not_worse": "5/5",
+      "beats_index_return": "5/5"
+    },
+    "+营收收缩": {
+      "dd_not_worse": "5/5",
+      "ret_not_worse": "5/5",
+      "beats_index_return": "5/5"
+    },
+    "+合并排雷": {
+      "dd_not_worse": "5/5",
+      "ret_not_worse": "5/5",
+      "beats_index_return": "5/5"
+    }
+  },
+  "verdict": {
+    "all_dd_not_worse": "5/5",
+    "all_ret_not_worse": "5/5",
+    "all_beats_index": "5/5",
+    "baseline_beats_index": "5/5"
+  }
+}

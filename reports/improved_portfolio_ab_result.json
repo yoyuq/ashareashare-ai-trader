@@ -1,0 +1,406 @@
+{
+  "date": "2026-08-15T13:58:53",
+  "BOTTOM_K": 100,
+  "MA_N": 120,
+  "SOFT_FLOOR": 0.5,
+  "windows": [
+    {
+      "window": "2018熊",
+      "universe": 750,
+      "index": {
+        "return_pct": -25.518,
+        "max_dd_pct": -30.24,
+        "sharpe": -1.46
+      },
+      "A_lowturn": {
+        "return_pct": -23.816,
+        "max_dd_pct": -30.399,
+        "sharpe": -1.324,
+        "attribution": {
+          "beta": 0.9564,
+          "alpha_annualized_pct": 1.148,
+          "strategy_return_pct": -23.816,
+          "benchmark_return_pct": -25.518,
+          "excess_return_pct": 1.703,
+          "beta_contribution_pct": -24.406,
+          "alpha_contribution_pct": 0.59,
+          "r_squared": 0.8956,
+          "tracking_error_annualized_pct": 6.481,
+          "information_ratio": 0.3694,
+          "n_aligned": 242
+        },
+        "attribution_2f": {
+          "beta_mkt": 0.8826,
+          "beta_smb": 0.5512,
+          "alpha_annualized_pct": 4.994,
+          "strategy_return_pct": -23.816,
+          "market_return_pct": -25.518,
+          "equalweight_return_pct": -33.373,
+          "smb_return_pct": -7.855,
+          "market_contribution_pct": -22.523,
+          "size_contribution_pct": -4.33,
+          "alpha_contribution_pct": 3.037,
+          "r_squared": 0.9587,
+          "n_aligned": 242
+        }
+      },
+      "B_lowturn_soft": {
+        "return_pct": -12.296,
+        "max_dd_pct": -16.279,
+        "sharpe": -1.324,
+        "attribution": {
+          "beta": 0.4782,
+          "alpha_annualized_pct": 0.573,
+          "strategy_return_pct": -12.296,
+          "benchmark_return_pct": -25.518,
+          "excess_return_pct": 13.222,
+          "beta_contribution_pct": -12.203,
+          "alpha_contribution_pct": -0.093,
+          "r_squared": 0.8956,
+          "tracking_error_annualized_pct": 10.756,
+          "information_ratio": 1.4465,
+          "n_aligned": 242
+        }
+      },
+      "C_lowturn_hard": {
+        "return_pct": 0.0,
+        "max_dd_pct": 0.0,
+        "sharpe": 0.0,
+        "attribution": {
+          "beta": 0.0,
+          "alpha_annualized_pct": 0.0,
+          "strategy_return_pct": 0.0,
+          "benchmark_return_pct": -25.518,
+          "excess_return_pct": 25.518,
+          "beta_contribution_pct": -0.0,
+          "alpha_contribution_pct": 0.0,
+          "r_squared": NaN,
+          "tracking_error_annualized_pct": 19.674,
+          "information_ratio": 1.46,
+          "n_aligned": 242
+        }
+      }
+    },
+    {
+      "window": "2019牛",
+      "universe": 680,
+      "index": {
+        "return_pct": 23.723,
+        "max_dd_pct": -15.352,
+        "sharpe": 1.311
+      },
+      "A_lowturn": {
+        "return_pct": 32.235,
+        "max_dd_pct": -20.485,
+        "sharpe": 1.43,
+        "attribution": {
+          "beta": 1.1385,
+          "alpha_annualized_pct": 4.495,
+          "strategy_return_pct": 32.235,
+          "benchmark_return_pct": 23.723,
+          "excess_return_pct": 8.512,
+          "beta_contribution_pct": 27.007,
+          "alpha_contribution_pct": 5.228,
+          "r_squared": 0.8793,
+          "tracking_error_annualized_pct": 8.028,
+          "information_ratio": 0.9567,
+          "n_aligned": 243
+        },
+        "attribution_2f": {
+          "beta_mkt": 1.0081,
+          "beta_smb": 0.4573,
+          "alpha_annualized_pct": -1.399,
+          "strategy_return_pct": 32.235,
+          "market_return_pct": 23.723,
+          "equalweight_return_pct": 46.941,
+          "smb_return_pct": 23.219,
+          "market_contribution_pct": 23.914,
+          "size_contribution_pct": 10.618,
+          "alpha_contribution_pct": -2.297,
+          "r_squared": 0.9262,
+          "n_aligned": 243
+        }
+      },
+      "B_lowturn_soft": {
+        "return_pct": 14.349,
+        "max_dd_pct": -14.417,
+        "sharpe": 1.12,
+        "attribution": {
+          "beta": 0.6525,
+          "alpha_annualized_pct": -0.694,
+          "strategy_return_pct": 14.349,
+          "benchmark_return_pct": 23.723,
+          "excess_return_pct": -9.374,
+          "beta_contribution_pct": 15.48,
+          "alpha_contribution_pct": -1.131,
+          "r_squared": 0.7993,
+          "tracking_error_annualized_pct": 8.629,
+          "information_ratio": -1.0357,
+          "n_aligned": 243
+        }
+      },
+      "C_lowturn_hard": {
+        "return_pct": -2.096,
+        "max_dd_pct": -10.787,
+        "sharpe": -0.218,
+        "attribution": {
+          "beta": 0.1666,
+          "alpha_annualized_pct": -5.626,
+          "strategy_return_pct": -2.096,
+          "benchmark_return_pct": 23.723,
+          "excess_return_pct": -25.818,
+          "beta_contribution_pct": 3.952,
+          "alpha_contribution_pct": -6.048,
+          "r_squared": 0.127,
+          "tracking_error_annualized_pct": 17.015,
+          "information_ratio": -1.5018,
+          "n_aligned": 243
+        }
+      }
+    },
+    {
+      "window": "2020牛转崩",
+      "universe": 718,
+      "index": {
+        "return_pct": 20.362,
+        "max_dd_pct": -7.356,
+        "sharpe": 1.5
+      },
+      "A_lowturn": {
+        "return_pct": 45.162,
+        "max_dd_pct": -7.548,
+        "sharpe": 2.618,
+        "attribution": {
+          "beta": 1.0807,
+          "alpha_annualized_pct": 27.731,
+          "strategy_return_pct": 45.162,
+          "benchmark_return_pct": 20.362,
+          "excess_return_pct": 24.8,
+          "beta_contribution_pct": 22.006,
+          "alpha_contribution_pct": 23.156,
+          "r_squared": 0.9202,
+          "tracking_error_annualized_pct": 6.05,
+          "information_ratio": 4.4162,
+          "n_aligned": 180
+        },
+        "attribution_2f": {
+          "beta_mkt": 1.0632,
+          "beta_smb": 0.084,
+          "alpha_annualized_pct": 26.476,
+          "strategy_return_pct": 45.162,
+          "market_return_pct": 20.362,
+          "equalweight_return_pct": 35.106,
+          "smb_return_pct": 14.744,
+          "market_contribution_pct": 21.65,
+          "size_contribution_pct": 1.238,
+          "alpha_contribution_pct": 22.274,
+          "r_squared": 0.9221,
+          "n_aligned": 180
+        }
+      },
+      "B_lowturn_soft": {
+        "return_pct": 25.713,
+        "max_dd_pct": -7.548,
+        "sharpe": 2.258,
+        "attribution": {
+          "beta": 0.6901,
+          "alpha_annualized_pct": 15.079,
+          "strategy_return_pct": 25.713,
+          "benchmark_return_pct": 20.362,
+          "excess_return_pct": 5.351,
+          "beta_contribution_pct": 14.052,
+          "alpha_contribution_pct": 11.661,
+          "r_squared": 0.752,
+          "tracking_error_annualized_pct": 9.273,
+          "information_ratio": 0.5912,
+          "n_aligned": 180
+        }
+      },
+      "C_lowturn_hard": {
+        "return_pct": 8.303,
+        "max_dd_pct": -7.548,
+        "sharpe": 0.989,
+        "attribution": {
+          "beta": 0.2995,
+          "alpha_annualized_pct": 3.677,
+          "strategy_return_pct": 8.303,
+          "benchmark_return_pct": 20.362,
+          "excess_return_pct": -12.059,
+          "beta_contribution_pct": 6.098,
+          "alpha_contribution_pct": 2.206,
+          "r_squared": 0.2109,
+          "tracking_error_annualized_pct": 16.756,
+          "information_ratio": -0.9404,
+          "n_aligned": 180
+        }
+      }
+    },
+    {
+      "window": "2024震荡",
+      "universe": 774,
+      "index": {
+        "return_pct": 13.148,
+        "max_dd_pct": -14.728,
+        "sharpe": 0.743
+      },
+      "A_lowturn": {
+        "return_pct": 20.174,
+        "max_dd_pct": -12.289,
+        "sharpe": 1.069,
+        "attribution": {
+          "beta": 0.9564,
+          "alpha_annualized_pct": 7.144,
+          "strategy_return_pct": 20.174,
+          "benchmark_return_pct": 13.148,
+          "excess_return_pct": 7.026,
+          "beta_contribution_pct": 12.575,
+          "alpha_contribution_pct": 7.599,
+          "r_squared": 0.9398,
+          "tracking_error_annualized_pct": 4.938,
+          "information_ratio": 1.266,
+          "n_aligned": 241
+        },
+        "attribution_2f": {
+          "beta_mkt": 1.0086,
+          "beta_smb": -0.1428,
+          "alpha_annualized_pct": 7.249,
+          "strategy_return_pct": 20.174,
+          "market_return_pct": 13.148,
+          "equalweight_return_pct": 17.25,
+          "smb_return_pct": 4.102,
+          "market_contribution_pct": 13.262,
+          "size_contribution_pct": -0.586,
+          "alpha_contribution_pct": 7.498,
+          "r_squared": 0.9472,
+          "n_aligned": 241
+        }
+      },
+      "B_lowturn_soft": {
+        "return_pct": 13.53,
+        "max_dd_pct": -9.592,
+        "sharpe": 0.889,
+        "attribution": {
+          "beta": 0.7541,
+          "alpha_annualized_pct": 3.423,
+          "strategy_return_pct": 13.53,
+          "benchmark_return_pct": 13.148,
+          "excess_return_pct": 0.382,
+          "beta_contribution_pct": 9.916,
+          "alpha_contribution_pct": 3.615,
+          "r_squared": 0.8486,
+          "tracking_error_annualized_pct": 8.077,
+          "information_ratio": -0.0372,
+          "n_aligned": 241
+        }
+      },
+      "C_lowturn_hard": {
+        "return_pct": 6.842,
+        "max_dd_pct": -9.592,
+        "sharpe": 0.532,
+        "attribution": {
+          "beta": 0.5519,
+          "alpha_annualized_pct": -0.171,
+          "strategy_return_pct": 6.842,
+          "benchmark_return_pct": 13.148,
+          "excess_return_pct": -6.306,
+          "beta_contribution_pct": 7.257,
+          "alpha_contribution_pct": -0.414,
+          "r_squared": 0.5345,
+          "tracking_error_annualized_pct": 13.703,
+          "information_ratio": -0.5001,
+          "n_aligned": 241
+        }
+      }
+    },
+    {
+      "window": "2025-26现期",
+      "universe": 777,
+      "index": {
+        "return_pct": -2.585,
+        "max_dd_pct": -11.277,
+        "sharpe": -0.149
+      },
+      "A_lowturn": {
+        "return_pct": 13.892,
+        "max_dd_pct": -10.889,
+        "sharpe": 1.139,
+        "attribution": {
+          "beta": 0.8896,
+          "alpha_annualized_pct": 21.825,
+          "strategy_return_pct": 13.892,
+          "benchmark_return_pct": -2.585,
+          "excess_return_pct": 16.478,
+          "beta_contribution_pct": -2.3,
+          "alpha_contribution_pct": 16.192,
+          "r_squared": 0.7253,
+          "tracking_error_annualized_pct": 8.343,
+          "information_ratio": 2.3966,
+          "n_aligned": 198
+        },
+        "attribution_2f": {
+          "beta_mkt": 0.973,
+          "beta_smb": -0.0983,
+          "alpha_annualized_pct": 25.292,
+          "strategy_return_pct": 13.892,
+          "market_return_pct": -2.585,
+          "equalweight_return_pct": 16.263,
+          "smb_return_pct": 18.848,
+          "market_contribution_pct": -2.516,
+          "size_contribution_pct": -1.852,
+          "alpha_contribution_pct": 18.26,
+          "r_squared": 0.737,
+          "n_aligned": 198
+        }
+      },
+      "B_lowturn_soft": {
+        "return_pct": 7.41,
+        "max_dd_pct": -9.496,
+        "sharpe": 0.841,
+        "attribution": {
+          "beta": 0.6108,
+          "alpha_annualized_pct": 11.768,
+          "strategy_return_pct": 7.41,
+          "benchmark_return_pct": -2.585,
+          "excess_return_pct": 9.996,
+          "beta_contribution_pct": -1.579,
+          "alpha_contribution_pct": 8.989,
+          "r_squared": 0.6158,
+          "tracking_error_annualized_pct": 9.26,
+          "information_ratio": 1.295,
+          "n_aligned": 198
+        }
+      },
+      "C_lowturn_hard": {
+        "return_pct": 1.008,
+        "max_dd_pct": -9.496,
+        "sharpe": 0.178,
+        "attribution": {
+          "beta": 0.3319,
+          "alpha_annualized_pct": 2.539,
+          "strategy_return_pct": 1.008,
+          "benchmark_return_pct": -2.585,
+          "excess_return_pct": 3.594,
+          "beta_contribution_pct": -0.858,
+          "alpha_contribution_pct": 1.866,
+          "r_squared": 0.248,
+          "tracking_error_annualized_pct": 13.198,
+          "information_ratio": 0.3023,
+          "n_aligned": 198
+        }
+      }
+    }
+  ],
+  "verdict": {
+    "A": "满足",
+    "B": "满足",
+    "C": "未满足"
+  },
+  "win_counts": {
+    "A_ret_beats_idx": "5/5",
+    "A_sharpe_beats_idx": "5/5",
+    "B_ret_beats_idx": "4/5",
+    "B_sharpe_beats_idx": "4/5",
+    "C_ret_beats_idx": "2/5",
+    "C_sharpe_beats_idx": "2/5"
+  }
+}

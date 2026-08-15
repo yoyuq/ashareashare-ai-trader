@@ -1,0 +1,54 @@
+{
+  "date": "2026-08-14T00:54:08",
+  "topics": [
+    "A股动量效应与反转效应选股策略",
+    "A股低换手率选股策略"
+  ],
+  "learned": [
+    {
+      "concept": "反转策略",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则依赖大盘指数条件（20日均线、跌幅）和个股60日收益率排名，涉及市场择时与个股筛选的组合，无法由任一单一模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "动量与反转择时",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则包含市场状态切换（上涨用动量、下跌用反转），且动量/反转的选股逻辑与可用模板（momentum_rank仅单一动量排序）不匹配，无法用单一模板忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    },
+    {
+      "concept": "低换手率选股",
+      "category": "rule",
+      "verdict": "not_yet_testable",
+      "reason": "规则涉及换手率阈值和双重卖出条件，不属于任何单一模板（如均线、RSI、估值、动量、止损等）的忠实表达。",
+      "kb_action": "",
+      "metric_delta": {}
+    }
+  ],
+  "already_learned": [
+    {
+      "concept": "动量效应",
+      "prior_verdict": "inconclusive",
+      "matched_concept": "动量策略实施",
+      "reason": "新知识强调A股短期动量效应强、长期不明显，与已学知识中'短期动量效应更显著'表述一致。"
+    },
+    {
+      "concept": "动量策略",
+      "prior_verdict": "verified",
+      "matched_concept": "动量策略",
+      "reason": "新知识描述动量策略在上涨行情中收益高且风险小，与已验证的动量策略在牛市阶段利用趋势获利语义一致。"
+    },
+    {
+      "concept": "反转效应",
+      "prior_verdict": "not_yet_testable",
+      "matched_concept": "反转策略",
+      "reason": "新知识强调A股反转效应较弱但连续下跌后可能反转，与反转策略在下跌行情中获高收益的表述语义重复。"
+    }
+  ],
+  "errors": []
+}

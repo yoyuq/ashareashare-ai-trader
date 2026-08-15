@@ -1,0 +1,176 @@
+{
+  "date": "2026-08-14T09:42:10",
+  "K": 100,
+  "REBAL": 20,
+  "COST_BPS": 31.0,
+  "PRICE_FLOOR": 3.0,
+  "windows": [
+    {
+      "window": "2018熊",
+      "index": {
+        "return_pct": -25.518,
+        "max_dd_pct": -30.24,
+        "sharpe": -1.46
+      },
+      "delisted_symbols_in_window": 246,
+      "arms": {
+        "A幸存者": {
+          "return_pct": -18.712,
+          "max_dd_pct": -29.215,
+          "sharpe": -1.023,
+          "dret_pp": 6.81,
+          "basket_size": 100.0
+        },
+        "B补回退市": {
+          "return_pct": -23.298,
+          "max_dd_pct": -32.691,
+          "sharpe": -1.327,
+          "dret_pp": 2.22,
+          "basket_size": 100.0
+        },
+        "C补回+排雷": {
+          "return_pct": -20.63,
+          "max_dd_pct": -30.15,
+          "sharpe": -1.142,
+          "dret_pp": 4.89,
+          "basket_size": 95.2
+        }
+      }
+    },
+    {
+      "window": "2019牛",
+      "index": {
+        "return_pct": 23.723,
+        "max_dd_pct": -15.352,
+        "sharpe": 1.311
+      },
+      "delisted_symbols_in_window": 236,
+      "arms": {
+        "A幸存者": {
+          "return_pct": 45.51,
+          "max_dd_pct": -12.383,
+          "sharpe": 2.26,
+          "dret_pp": 21.79,
+          "basket_size": 100.0
+        },
+        "B补回退市": {
+          "return_pct": 42.14,
+          "max_dd_pct": -15.428,
+          "sharpe": 2.086,
+          "dret_pp": 18.42,
+          "basket_size": 100.0
+        },
+        "C补回+排雷": {
+          "return_pct": 48.046,
+          "max_dd_pct": -11.458,
+          "sharpe": 2.316,
+          "dret_pp": 24.32,
+          "basket_size": 96.0
+        }
+      }
+    },
+    {
+      "window": "2020牛转崩",
+      "index": {
+        "return_pct": 20.362,
+        "max_dd_pct": -7.356,
+        "sharpe": 1.5
+      },
+      "delisted_symbols_in_window": 226,
+      "arms": {
+        "A幸存者": {
+          "return_pct": 35.978,
+          "max_dd_pct": -6.254,
+          "sharpe": 2.473,
+          "dret_pp": 15.62,
+          "basket_size": 100.0
+        },
+        "B补回退市": {
+          "return_pct": 36.179,
+          "max_dd_pct": -5.9,
+          "sharpe": 2.494,
+          "dret_pp": 15.82,
+          "basket_size": 100.0
+        },
+        "C补回+排雷": {
+          "return_pct": 31.901,
+          "max_dd_pct": -6.107,
+          "sharpe": 2.242,
+          "dret_pp": 11.54,
+          "basket_size": 96.3
+        }
+      }
+    },
+    {
+      "window": "2024震荡",
+      "index": {
+        "return_pct": 13.148,
+        "max_dd_pct": -14.728,
+        "sharpe": 0.743
+      },
+      "delisted_symbols_in_window": 104,
+      "arms": {
+        "A幸存者": {
+          "return_pct": 18.674,
+          "max_dd_pct": -11.844,
+          "sharpe": 1.057,
+          "dret_pp": 5.53,
+          "basket_size": 100.0
+        },
+        "B补回退市": {
+          "return_pct": 18.425,
+          "max_dd_pct": -11.9,
+          "sharpe": 1.045,
+          "dret_pp": 5.28,
+          "basket_size": 100.0
+        },
+        "C补回+排雷": {
+          "return_pct": 17.582,
+          "max_dd_pct": -11.767,
+          "sharpe": 1.003,
+          "dret_pp": 4.43,
+          "basket_size": 97.8
+        }
+      }
+    },
+    {
+      "window": "2025-26现期",
+      "index": {
+        "return_pct": -2.585,
+        "max_dd_pct": -11.277,
+        "sharpe": -0.149
+      },
+      "delisted_symbols_in_window": 25,
+      "arms": {
+        "A幸存者": {
+          "return_pct": 3.109,
+          "max_dd_pct": -11.564,
+          "sharpe": 0.348,
+          "dret_pp": 5.69,
+          "basket_size": 100.0
+        },
+        "B补回退市": {
+          "return_pct": 3.109,
+          "max_dd_pct": -11.564,
+          "sharpe": 0.348,
+          "dret_pp": 5.69,
+          "basket_size": 100.0
+        },
+        "C补回+排雷": {
+          "return_pct": 1.005,
+          "max_dd_pct": -12.866,
+          "sharpe": 0.16,
+          "dret_pp": 3.59,
+          "basket_size": 98.0
+        }
+      }
+    }
+  ],
+  "verdict": {
+    "survivor_B_beats_index": "5/5",
+    "survivor_A_beats_index": "5/5",
+    "survivorship_impact": "B vs A return: 见 windows (Δ)",
+    "filter_C_dd_not_worse_B": "3/5",
+    "filter_C_ret_not_worse_B": "3/5"
+  }
+}

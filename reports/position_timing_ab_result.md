@@ -72,7 +72,15 @@ risk_level 确定性与 gate 无关 (代码结构保证, 不跑 LLM 实测)。
 ## 结论与下一步
 
 - **落地语义正确且不损害**: 忠实 3/3 + 解耦成立 + 质量 3/3 不劣 → **翻 gate=1**。
-- **尚未验证**: 本次是回放 (落点 A) 验证。实盘/纸盘链路 (落点 B, `daily_runner` 持仓环节的确定性卖出信号)
-  与回放共用同一 `sell_signal_low_pe_value` 谓词, 语义一致, 但端到端 (真实 `_held_pe_ttm` 取数 + `execute_sell`
-  的「估值高估卖出」路径) 尚未在实盘跑通。
-- **下一步 (预注册非事后)**: 在实盘链路跑通落点 B 后再实际翻 `LEARNED_KNOWLEDGE_GATE=1`; 回放结论已明确支持翻 gate。
+- **落点 B 接线已单测钉死 (2026-08-13)**: 新增 `tests/unit/test_learned_sell_wiring.py` (5 测) 覆盖 gate=0 零开销 /
+  gate=1 高估卖出 (exit_reason="估值高估卖出") / 跳过 (低pe/无数据/缺列/NaN/亏损股) / 列名防御。期间发现并修复 2 处
+  潜在 bug: (1) `_apply_learned_sell` 误用 `engine.account.positions` (engine 只有 `.state` 属性, gate=1 会
+  AttributeError); (2) pe 列名硬编码 `peTTM`, 降级源 (Tencent/EastMoney/AKShare 返回 `pe_ttm`) 下会静默跳过 —
+  改为防御式取列 (与 daily_runner 其他取数点一致)。
+- **端到端 report-only 已跑通 (2026-08-13, `scripts/verify_learned_sell_live.py`)**: 真实 ChromaDB 取回
+  low_pe_value (verified) + 真实 Baostock 取到 `peTTM`, 8 只持仓全取到 pe, **2 只触发高估卖出** (能科科技
+  pe=49.2 / 雅化集团 pe=24.4, 均 >22.5 阈值) — 接线在真实数据下验证成立。单测 (5 测 fake) + report-only
+  (真实取数) 两层都已覆盖; 尚未覆盖的只剩真实 `execute_sell` 写盘 (T+1/跌停/费率已在 `execute_sell` 内置兜底)。
+- **下一步 (预注册非事后, 待拍板)**: ① `python scripts/verify_learned_sell_live.py --execute` 真卖这 2 只
+  (改 portfolio.json); ② 实际翻 `LEARNED_KNOWLEDGE_GATE=1` 让每日 daily_runner 自动启用卖出信号; ③ 提交落点 B
+  两处 bug 修复。回放结论已明确支持翻 gate, 是否执行待用户决定。
