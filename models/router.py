@@ -15,7 +15,6 @@ import asyncio
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, time
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -25,8 +24,9 @@ from timeutil import now_cn, today_cn
 
 # 模型名 — 与 models/__init__.py 保持同步, 经环境变量可覆盖
 DEEPSEEK_FLASH_MODEL = os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
-# 兼容别名 (v2 曾有 PRO 层; v3 统一 flash, 保留导出避免破坏既有 import)
-DEEPSEEK_PRO_MODEL = os.getenv("DEEPSEEK_PRO_MODEL", DEEPSEEK_FLASH_MODEL)
+# 唯一模型层级 (P2-5): v2 曾按 LOCAL/PRO/FLASH 三层路由, v3.0 起全量单模型,
+# 移除单值 ModelTier 枚举, 用字符串常量替代。
+MODEL_TIER = "flash"
 
 # 预算状态落盘路径 (v3.1): 进程重启不丢失成本累计
 _BUDGET_STATE_FILE = os.path.join(
@@ -35,15 +35,10 @@ _BUDGET_STATE_FILE = os.path.join(
 )
 
 
-class ModelTier(Enum):
-    """模型层级 — v3.0 起统一单层 (全部 FLASH)"""
-    FLASH = "flash"
-
-
 @dataclass
 class ModelConfig:
     """单个模型配置 (v3.0: 统一 flash)"""
-    tier: ModelTier = ModelTier.FLASH
+    tier: str = MODEL_TIER
     provider: str = "deepseek"
     model_name: str = DEEPSEEK_FLASH_MODEL
     api_key: Optional[str] = None
@@ -64,7 +59,7 @@ class ModelConfig:
 @dataclass
 class RouteResult:
     """路由结果"""
-    tier: ModelTier
+    tier: str
     model_name: str
     response: str
     input_tokens: int
@@ -95,37 +90,6 @@ class ModelRouter:
       - BUDGET_HARD_CUT=1: 预算耗尽时抛 BudgetExhaustedError (硬切断, 强制止付)
     """
 
-    # 任务类型 → 统一路由到 FLASH
-    # (v2 曾按复杂度分 LOCAL/PRO/FLASH 三层, 2026-08 全量迁移到 V4-Flash)
-    TASK_ROUTING = {
-        # === 常规/快速任务 ===
-        "indicator_read": ModelTier.FLASH,
-        "kline_describe": ModelTier.FLASH,
-        "news_summary": ModelTier.FLASH,
-        "text_classify": ModelTier.FLASH,
-        "simple_qa": ModelTier.FLASH,
-        "data_format": ModelTier.FLASH,
-        "market_scan_prefilter": ModelTier.FLASH,
-        # === 分析/评估 ===
-        "technical_analysis": ModelTier.FLASH,
-        "fundamental_analysis": ModelTier.FLASH,
-        "strategy_match": ModelTier.FLASH,
-        "signal_verify": ModelTier.FLASH,
-        "multi_factor_analysis": ModelTier.FLASH,
-        "backtest_interpret": ModelTier.FLASH,
-        "regime_analysis": ModelTier.FLASH,
-        "macro_event_analysis": ModelTier.FLASH,
-        # === 决策/辩论 ===
-        "daily_synthesis": ModelTier.FLASH,
-        "adversarial_debate": ModelTier.FLASH,
-        "bull_bear_research": ModelTier.FLASH,
-        "judge_verdict": ModelTier.FLASH,
-        "strategy_optimize": ModelTier.FLASH,
-        "market_outlook": ModelTier.FLASH,
-        "risk_assessment": ModelTier.FLASH,
-        "portfolio_advice": ModelTier.FLASH,
-    }
-
     # 高峰时段 (北京时间) — 对应 DeepSeek 峰谷定价(高峰×2)
     PEAK_WINDOWS = [
         (time(9, 0), time(12, 0)),
@@ -144,6 +108,9 @@ class ModelRouter:
         self._daily_reset_date = today_cn()
         self._monthly_reset_month = today_cn().strftime("%Y-%m")
 
+        # v5.6 P1-6: 定价/预算单源 config/model_config.yaml (缺失回退内置默认)
+        self._load_pricing_config()
+
         self._deepseek_client = None
         self._init_clients()
         # v3.0: 预算硬切断开关 (BUDGET_HARD_CUT=1 → 耗尽时拒绝付费调用)
@@ -153,15 +120,72 @@ class ModelRouter:
         # v3.1: 预算状态落盘 (重启不丢失)
         self._load_budget_state()
 
+    # ═══════════════════════════════════════════════════════════════
+    # 定价/预算单源加载 (v5.6 P1-6)
+    # ═══════════════════════════════════════════════════════════════
+
+    def _read_model_config(self) -> Dict[str, Any]:
+        """读取 config/model_config.yaml 并归一化为 flat 结构 (失败返回 {})"""
+        import yaml
+        path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config", "model_config.yaml",
+        )
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.warning(f"读取 model_config.yaml 失败, 使用内置定价默认值: {e}")
+            return {}
+
+        flat: Dict[str, Any] = {}
+        flat["request_timeout"] = (
+            raw.get("models", {}).get("flash", {}).get("request_timeout", 90)
+        )
+        flat["max_retries"] = (
+            raw.get("routing", {}).get("fallback", {}).get("max_retries", 3)
+        )
+        cc = raw.get("cost_control", {}) or {}
+        flat["daily_budget"] = cc.get("daily_budget", 1.0)
+        flat["monthly_budget"] = cc.get("monthly_budget", 15.0)
+        flat["alert_threshold"] = cc.get("alert_threshold", 0.8)
+        pricing = cc.get("pricing", {}) or {}
+        flash = pricing.get("flash", {}) or {}
+        flat["input_price"] = flash.get("input", 1.0)
+        flat["output_price"] = flash.get("output", 2.0)
+        flat["cache_price"] = flash.get("cache_hit_input", 0.02)
+        flat["peak_multiplier"] = pricing.get("peak_multiplier", 2.0)
+        return flat
+
+    def _load_pricing_config(self):
+        """从 config/model_config.yaml 加载定价/预算/超时 (单源), 缺失回退内置默认"""
+        cfg = self._read_model_config()
+        # 定价 (¥/M tokens) — v5.6 P1-6: 与 DeepSeek 真实峰谷定价一致
+        self._input_price = float(cfg.get("input_price", 1.0))
+        self._output_price = float(cfg.get("output_price", 2.0))
+        self._cache_price = float(cfg.get("cache_price", 0.02))
+        self._peak_multiplier = float(cfg.get("peak_multiplier", 2.0))
+        self._alert_threshold = float(cfg.get("alert_threshold", 0.8))
+        # 预算以 YAML 为单源 (构造参数仅作缺失回退)
+        self.daily_budget = float(cfg.get("daily_budget", self.daily_budget))
+        self.monthly_budget = float(cfg.get("monthly_budget", self.monthly_budget))
+        # 客户端超时/重试 (ModelConfig.request_timeout 语义)
+        self._request_timeout = float(cfg.get("request_timeout", 90.0))
+        self._max_retries = int(cfg.get("max_retries", 3))
+
     def _init_clients(self):
         """初始化 DeepSeek 客户端"""
         try:
             from openai import AsyncOpenAI
+            # v5.6 P1-6: timeout/max_retries 从 model_config.yaml 读取 (env 可覆盖),
+            # 修复此前 ModelConfig.request_timeout=90 未实际传给 AsyncOpenAI 的问题
+            timeout = float(os.getenv("DEEPSEEK_TIMEOUT", str(self._request_timeout)))
+            max_retries = int(os.getenv("DEEPSEEK_MAX_RETRIES", str(self._max_retries)))
             self._deepseek_client = AsyncOpenAI(
                 api_key=os.getenv("DEEPSEEK_API_KEY", ""),
                 base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-                timeout=float(os.getenv("DEEPSEEK_TIMEOUT", "90")),
-                max_retries=int(os.getenv("DEEPSEEK_MAX_RETRIES", "3")),
+                timeout=timeout,
+                max_retries=max_retries,
             )
             logger.info("DeepSeek客户端就绪")
         except Exception as e:
@@ -175,38 +199,40 @@ class ModelRouter:
         self,
         messages: List[Dict[str, str]],
         task_type: str = "simple_qa",
-        force_tier: Optional[ModelTier] = None,
         max_retries: int = 2,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> RouteResult:
         """
         统一调用 deepseek-v4-flash
 
         Args:
             messages: 对话消息列表
-            task_type: 任务类型 (v3.0 起仅用于统计, 不再影响模型选择)
-            force_tier: 兼容保留 (仅接受 ModelTier.FLASH)
+            task_type: 任务类型 (v3.0 起仅用于统计/分账, 不再影响模型选择)
             max_retries: 最大重试次数
             temperature: 采样温度 (None 用默认 0.3)
             max_tokens: 最大输出 token (None 用默认 16384)
+            extra_body: 额外请求体 (如 {"thinking": {"type": "disabled"}});
+                        None 时非 tools 路径不传 (向后兼容)
 
         Returns:
             RouteResult
         """
         self._check_budget_hard_cut()
-        tier = self._resolve_tier(task_type, force_tier)
-        return await self._execute_with_fallback(
+        tier = self._resolve_tier(task_type)
+        result = await self._execute_with_fallback(
             tier, messages, max_retries,
-            temperature=temperature, max_tokens=max_tokens,
+            temperature=temperature, max_tokens=max_tokens, extra_body=extra_body,
         )
+        result.metadata["task_type"] = task_type
+        return result
 
     async def route_with_tools(
         self,
         messages: List[Dict[str, str]],
         tools: List[Dict] = None,
         task_type: str = "simple_qa",
-        force_tier: Optional[ModelTier] = None,
         max_retries: int = 2,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
@@ -216,33 +242,45 @@ class ModelRouter:
 
         v3.0 与 route() 一致, 统一走 flash (工具调用能力完整)。
         """
-        tier = self._resolve_tier(task_type, force_tier)
-        return await self._execute_with_fallback(
+        self._check_budget_hard_cut()  # v5.6 P1-6: 工具调用路径同样 enforce 预算
+        tier = self._resolve_tier(task_type)
+        result = await self._execute_with_fallback(
             tier, messages, max_retries, tools=tools,
             temperature=temperature, max_tokens=max_tokens,
         )
+        result.metadata["task_type"] = task_type
+        return result
 
     def _check_budget_hard_cut(self):
-        """BUDGET_HARD_CUT 模式下预算耗尽 → 抛 BudgetExhaustedError 强制止付"""
-        if self._hard_cut and self._daily_cost >= self.daily_budget:
+        """BUDGET_HARD_CUT 模式下预算耗尽 → 抛 BudgetExhaustedError 强制止付
+
+        v5.6 P1-6: 同时 enforce 日预算与月预算 (此前 monthly_budget 仅软提醒, 从未生效)。
+        """
+        if not self._hard_cut:
+            return
+        if self._daily_cost >= self.daily_budget:
             raise BudgetExhaustedError(
                 f"日预算已耗尽 ({self._daily_cost:.2f}/{self.daily_budget:.2f}元), "
                 "BUDGET_HARD_CUT=1 已启用, 拒绝付费调用"
             )
+        if self._monthly_cost >= self.monthly_budget:
+            raise BudgetExhaustedError(
+                f"月预算已耗尽 ({self._monthly_cost:.2f}/{self.monthly_budget:.2f}元), "
+                "BUDGET_HARD_CUT=1 已启用, 拒绝付费调用"
+            )
 
-    def _resolve_tier(self, task_type: str, force_tier: Optional[ModelTier] = None) -> ModelTier:
-        """解析目标层级 — v3.0 统一为 FLASH"""
-        if force_tier is not None:
-            return force_tier
-        tier = self.TASK_ROUTING.get(task_type, ModelTier.FLASH)
+    def _resolve_tier(self, task_type: str) -> str:
+        """解析目标层级 — v3.0 起统一为单模型 (flash)。
 
+        task_type 仅用于统计/日志, 不再影响模型选择 (P2-5 移除死映射 TASK_ROUTING)。
+        """
         # 预算软提醒 (硬切断由成本监控层负责, 见 /api/v1/cost 与 workflow)
         if self._daily_cost >= self.daily_budget * 0.9:
             logger.warning(
                 f"日预算已用{self._daily_cost:.2f}/{self.daily_budget:.2f}元,"
                 "建议关注成本"
             )
-        return tier
+        return MODEL_TIER
 
     # ═══════════════════════════════════════════════════════════════
     # 执行与重试
@@ -250,12 +288,13 @@ class ModelRouter:
 
     async def _execute_with_fallback(
         self,
-        tier: ModelTier,
+        tier: str,
         messages: List[Dict[str, str]],
         max_retries: int,
         tools: List[Dict] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> RouteResult:
         """执行请求,失败时按指数退避重试"""
         last_error = None
@@ -265,6 +304,7 @@ class ModelRouter:
                 response, usage = await self._call_model(
                     messages, tools=tools,
                     temperature=temperature, max_tokens=max_tokens,
+                    extra_body=extra_body,
                 )
                 latency = (datetime.now() - start).total_seconds() * 1000
 
@@ -272,7 +312,7 @@ class ModelRouter:
                 self._track_cost(cost)
 
                 result = RouteResult(
-                    tier=ModelTier.FLASH,
+                    tier=MODEL_TIER,
                     model_name=DEEPSEEK_FLASH_MODEL,
                     response=response,
                     input_tokens=usage.get("input_tokens", 0),
@@ -280,7 +320,7 @@ class ModelRouter:
                     cost=cost,
                     latency_ms=round(latency, 0),
                     used_fallback=False,
-                    metadata={"task_tier": tier.value},
+                    metadata={"task_tier": tier},
                 )
 
                 self._call_log.append(result)
@@ -302,6 +342,7 @@ class ModelRouter:
         tools: List[Dict] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> tuple[str, dict]:
         """调用 DeepSeek V4-Flash"""
         if self._deepseek_client is None:
@@ -320,7 +361,13 @@ class ModelRouter:
             # v3.0: 工具调用关闭思考模式 — 规避 DeepSeek 多轮工具调用必须回传
             # reasoning_content 否则 400 的问题, 且工具执行是确定性操作无需思维链
             # (降低延迟与成本)。来源: api-docs.deepseek.com/guides/thinking_mode/
-            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+            kwargs["extra_body"] = (
+                extra_body if extra_body is not None
+                else {"thinking": {"type": "disabled"}}
+            )
+        elif extra_body is not None:
+            # v5.6 分账: 非 tools 路径也支持透传 extra_body (进化模块 thinking 开关等)
+            kwargs["extra_body"] = extra_body
 
         response = await self._deepseek_client.chat.completions.create(**kwargs)
 
@@ -379,22 +426,23 @@ class ModelRouter:
     def _calculate_cost(self, usage: dict) -> float:
         """计算本次调用成本(元) — DeepSeek V4-Flash 定价 (2026-07, ¥/M tokens)。
 
-        缓存命中输入价 ¥0.02/M (为未命中的 1/50); 高峰时段×2 (峰谷定价, 工作日
+        v5.6 P1-6: 单价/峰值倍率从 config/model_config.yaml 单源读取 (不再硬编码),
+        缓存命中输入价为未命中的 1/50, 高峰时段×峰值倍率 (峰谷定价, 工作日
         9:00-12:00 / 14:00-18:00 北京时间)。
-        注意: 2026-08-06 DeepSeek 预告新一轮全面涨价, 幅度未公布 — 生效后需在此
-        同步更新 input_price/output_price (与 config/model_config.yaml 保持一致)。
+        注意: 2026-08-06 DeepSeek 预告新一轮全面涨价, 幅度未公布 — 生效后只需更新
+        config/model_config.yaml 的 pricing 段, 无需改代码。
         """
-        input_price, output_price = 1.0, 2.0
-        cache_price = 0.02
+        input_price, output_price = self._input_price, self._output_price
+        cache_price = self._cache_price
         total_in = usage.get("input_tokens", 0) / 1_000_000
         cache_in = usage.get("cache_hit_tokens", 0) / 1_000_000
         fresh_in = max(0.0, total_in - cache_in)
         output_tokens = usage.get("output_tokens", 0) / 1_000_000
         cost = fresh_in * input_price + cache_in * cache_price + output_tokens * output_price
 
-        # 高峰×2 (对应 DeepSeek 峰谷定价)
+        # 高峰×峰值倍率 (对应 DeepSeek 峰谷定价)
         if self._is_peak_hour():
-            cost *= 2.0
+            cost *= self._peak_multiplier
 
         return cost
 
@@ -428,7 +476,9 @@ class ModelRouter:
         try:
             with open(_BUDGET_STATE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            if data.get("daily_reset_date") == today_cn():
+            # v5.6 P1-6: 修复 daily_reset_date 类型 bug — JSON 落盘后为字符串,
+            # 此前与 date 对象比较恒 False, 导致日成本跨进程恢复永远失效
+            if data.get("daily_reset_date") == str(today_cn()):
                 self._daily_cost = float(data.get("daily_cost", 0.0))
             self._monthly_cost = float(data.get("monthly_cost", 0.0))
             # 月成本仅在当月有效
@@ -446,10 +496,15 @@ class ModelRouter:
                 json.dump({
                     "daily_cost": self._daily_cost,
                     "monthly_cost": self._monthly_cost,
-                    "daily_reset_date": self._daily_reset_date,
+                    # v5.8 修复: today_cn() 返回 datetime.date, 直接 json.dump 抛
+                    # "Object of type date is not JSON serializable", 且该 TypeError
+                    # 未被 except OSError 捕获 → 传播到 _execute_with_fallback 被判为
+                    # "调用失败"重试, 导致实盘进化复盘/总结静默失败 (冒烟测试暴露).
+                    # 落盘统一 str() 化; 并兜底捕获任意异常, 预算记账失败绝不致命.
+                    "daily_reset_date": str(self._daily_reset_date),
                     "monthly_reset_month": self._monthly_reset_month,
                 }, f, ensure_ascii=False)
-        except OSError as e:
+        except Exception as e:
             logger.warning(f"预算状态落盘失败: {e}")
 
     # ═══════════════════════════════════════════════════════════════
@@ -471,13 +526,21 @@ class ModelRouter:
     def cost_summary(self) -> Dict[str, Any]:
         """成本摘要"""
         tier_stats = {}
+        task_stats = {}
         for r in self._call_log:
-            tier = r.tier.value
+            tier = r.tier
             if tier not in tier_stats:
                 tier_stats[tier] = {"count": 0, "cost": 0, "tokens": 0}
             tier_stats[tier]["count"] += 1
             tier_stats[tier]["cost"] += r.cost
             tier_stats[tier]["tokens"] += r.input_tokens + r.output_tokens
+            # v5.6 分账: 按 task_type 分离成本 (进化模块 vs 诊断 vs 其它)
+            _tt = r.metadata.get("task_type", "other")
+            if _tt not in task_stats:
+                task_stats[_tt] = {"count": 0, "cost": 0, "tokens": 0}
+            task_stats[_tt]["count"] += 1
+            task_stats[_tt]["cost"] += r.cost
+            task_stats[_tt]["tokens"] += r.input_tokens + r.output_tokens
 
         return {
             "daily_cost": self.daily_cost,
@@ -486,4 +549,17 @@ class ModelRouter:
             "budget_remaining": self.budget_remaining,
             "total_calls": len(self._call_log),
             "by_tier": tier_stats,
+            "by_task_type": task_stats,
         }
+
+
+# 进程级共享单例 — 进化模块/离线优化器共用, 复用预算状态 (避免重复读配置/建连接)
+_shared_router: Optional["ModelRouter"] = None
+
+
+def get_shared_router() -> "ModelRouter":
+    """返回进程级共享 ModelRouter 单例."""
+    global _shared_router
+    if _shared_router is None:
+        _shared_router = ModelRouter()
+    return _shared_router

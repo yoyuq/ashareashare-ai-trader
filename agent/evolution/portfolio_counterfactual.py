@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
 
@@ -52,6 +53,7 @@ class PortfolioCounterfactualResult:
     n_positions: int = 0
     n_match: int = 0                       # 有次日收益匹配到的持仓数
     verified: bool = False                 # 移除最差票是否显著改善组合
+    benchmark_threshold_pct: float = 0.0   # 同期基准阈值 (%): 改善须超过它才 verified
 
     def to_dict(self) -> dict:
         return {
@@ -64,13 +66,16 @@ class PortfolioCounterfactualResult:
             "n_positions": self.n_positions,
             "n_match": self.n_match,
             "verified": self.verified,
+            "benchmark_threshold_pct": round(self.benchmark_threshold_pct, 3),
         }
 
 
 # 波动率归一: 移除最差票的改善必须超过 max(IMPROVE_BASE, 组合波动*SCALE) 才算显著.
 # 避免"最差票恰好小跌一下"就被当作该扔掉 (浅层后视).
-IMPROVE_BASE = 0.05     # 基础阈值 (%)
-VOL_SCALE = 0.15        # 组合|收益|的归一系数
+# v5.6 P1-13: 原 IMPROVE_BASE=0.05 近乎同义反复 (下跌日最差票几乎必然触发), 提高 5 倍;
+#              VOL_SCALE 升为同期基准 0.50 — 改善须超过组合|收益|的 50% 才算"真改善".
+IMPROVE_BASE = 0.25     # 基础阈值 (%)
+VOL_SCALE = 0.50        # 同期基准: 改善须超过组合|收益|的 50% (归一系数)
 
 
 def compute_stock_contributions(
@@ -139,7 +144,8 @@ def portfolio_level_counterfactual(
     cf = actual - worst.contribution_pct
     improvement = cf - actual  # = -worst.contribution_pct
 
-    # 波动率归一阈值: 市场波动大时, 需要的改善门槛也更高 (避免小波动日浅层后视)
+    # 波动率归一阈值: 市场波动大时, 需要的改善门槛也更高 (避免小波动日浅层后视).
+    # 同期基准 = max(基础阈值, 组合|收益| × VOL_SCALE) — 改善须同时超过绝对与相对基准.
     _mag = abs(actual)
     _thr = max(improvement_threshold, _mag * VOL_SCALE)
     verified = improvement > _thr and worst.contribution_pct < 0
@@ -154,6 +160,7 @@ def portfolio_level_counterfactual(
         n_positions=len(positions_snapshot),
         n_match=len(contribs),
         verified=verified,
+        benchmark_threshold_pct=_thr,
     )
 
 
@@ -195,6 +202,8 @@ def summarize_verified(records: list[PortfolioCounterfactualResult]) -> dict:
 # 注入诊断 prompt, 让 LLM 对该票降权/谨慎. 是学习信号, 不改交易方向, 不做硬规则.
 
 REPEAT_FLAG_MIN = 2   # 同一票被验证为拖累 >= 2 次才写经验 (防单次偶然)
+DRAG_COOLDOWN_DAYS = 3  # 同一票再次回流至少间隔 3 个交易日 (防每日刷屏式的后视偏差回流)
+MAX_DRAG_ITEMS = 5      # 单次回流条数上限
 
 
 def accumulate_drag_history(history: dict, verified_results: list, current_date: str) -> dict:
@@ -228,20 +237,36 @@ def accumulate_drag_history(history: dict, verified_results: list, current_date:
     return history
 
 
+def _days_between(a: str, b: str) -> int:
+    """ISO 日期差 (天), 解析失败返回 0 (保守: 视为同一天)."""
+    try:
+        return abs((date.fromisoformat(b) - date.fromisoformat(a)).days)
+    except (ValueError, TypeError):
+        return 0
+
+
 def drag_experiences(
     history: dict,
     current_date: str,
     min_count: int = REPEAT_FLAG_MIN,
     master: str = "利弗莫尔",
+    cooldown_days: int = DRAG_COOLDOWN_DAYS,
+    max_items: int = MAX_DRAG_ITEMS,
 ) -> list:
     """把反复(>=min_count)被标记为拖累票的 symbol 转成经验条目 (供记忆注入).
 
     保守: 只有同票被验证 >= min_count 次才写, 单次偶然不写. 不改交易方向.
+    限频 (v5.6 P1-13): 同一票两次回流至少间隔 cooldown_days 个交易日 (记录 last_emitted_date),
+      单次最多回流 max_items 条 — 避免每日刷屏式的后视偏差回流.
     """
     from .daily_review import ExperienceItem
     items = []
-    for sym, e in history.items():
+    for sym, e in sorted(history.items(), key=lambda kv: -kv[1].get("count", 0)):
         if e.get("count", 0) < min_count:
+            continue
+        # 限频: 距上次回流不足 cooldown_days 则跳过
+        last_emitted = e.get("last_emitted_date")
+        if last_emitted is not None and _days_between(last_emitted, current_date) < cooldown_days:
             continue
         name = e.get("last_name", "") or sym
         count = e["count"]
@@ -262,4 +287,7 @@ def drag_experiences(
             confidence=min(0.9, 0.5 + 0.1 * count),
             tags=["组合拖累票", "portfolio_cf", "downweight"],
         ))
+        e["last_emitted_date"] = current_date  # 原地标记, 由调用方持久化
+        if len(items) >= max_items:
+            break
     return items

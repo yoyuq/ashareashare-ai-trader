@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -101,19 +102,23 @@ class ExperienceMemory:
         top_k: int = 5,
         current_date: Optional[str] = None,
         regime: Optional[str] = None,
+        gate: Optional[int] = None,
     ) -> list[ExperienceItem]:
         """检索相关经验。
 
         按匹配度 + 衰减后的权重排序，返回 top_k。
         regime: v5.2 当前市场状态 (strong_bull/weak_bear/range_bound...), 用于跨界惩罚 —
                 熊市/震荡时不把牛市学到的激进经验排在前面, 防止"regime 过拟合" (留出法 A/B 验证暴露).
+        gate: v5.7 经验注入门槛 (None=读环境变量 EXPERIENCE_INJECT_GATE, 默认0=全注入).
         """
+        _gate = gate if gate is not None else inject_gate()
         scored = list(self.items)
         # v5.1 与淘汰共用 _score_item, 场景/大师/裁决匹配加成 + 置信度 + 高置信/cf_verified + 时间衰减
         scored.sort(
             key=lambda item: _score_item(item, current_date, scenario_type, master, verdict, regime),
             reverse=True,
         )
+        scored = filter_injectable(scored, _gate)
         return scored[:top_k]
 
     def format_for_prompt(
@@ -123,11 +128,13 @@ class ExperienceMemory:
         current_date: Optional[str] = None,
         top_k: int = 5,
         regime: Optional[str] = None,
+        gate: Optional[int] = None,
     ) -> str:
         """把最相关的经验格式化成提示词片段。"""
+        _gate = gate if gate is not None else inject_gate()
         items = self.retrieve(
             scenario_type=scenario_type, master=master,
-            current_date=current_date, top_k=top_k, regime=regime,
+            current_date=current_date, top_k=top_k, regime=regime, gate=_gate,
         )
         if not items:
             return ""
@@ -143,6 +150,8 @@ class ExperienceMemory:
                 _conf_badge += " ✓反事实验证通过"
             elif any(t in it.tags for t in ("组合拖累票", "portfolio_cf")):
                 _conf_badge += " ⚠组合拖累警示"
+            elif _gate == 1:
+                _conf_badge += " ⚠未经验证"
             lines.append(
                 f"{i}. [{it.date}] {verdict_cn} | {it.master_used} | {_conf_badge}\n"
                 f"   {it.lesson_title}\n"
@@ -298,9 +307,27 @@ def _regime_alignment(regime: str, scenario_type: str) -> float:
     return -3.0      # 反向(跨界): 强惩罚, 防止注入过时激进/过时防守经验
 
 
-# 兼容层: 保留 ExperienceItem.weighted_score (v5.1 起委托给统一打分, 淘汰路径已改用 _score_item)
-def _weighted_score(self) -> float:
-    return _score_item(self)
+def inject_gate() -> int:
+    """读取经验注入门槛 EXPERIENCE_INJECT_GATE (默认 0 = 全注入, 现状不变).
+
+    v5.7 预注册 A/B 工具: 默认关闭, 不改变现状行为; 设 1/2 才启用门槛.
+    """
+    try:
+        return int(os.getenv("EXPERIENCE_INJECT_GATE", "0"))
+    except (TypeError, ValueError):
+        return 0
 
 
-ExperienceItem.weighted_score = _weighted_score  # monkey-patch
+def filter_injectable(items: list[ExperienceItem], gate: int = 0) -> list[ExperienceItem]:
+    """经验注入门槛过滤 (纯函数, 单测覆盖三种 gate).
+
+    gate 0 = 现状全注入 (默认).
+    gate 1 = 软门槛: 剔除 cf_failed 经验 (未经验证仍注入, 由 format_for_prompt 标注 ⚠未经验证).
+    gate 2 = 硬门槛: 只保留 cf_verified / high_confidence.
+    """
+    if gate <= 0:
+        return list(items)
+    if gate == 1:
+        return [it for it in items if "cf_failed" not in it.tags]
+    return [it for it in items if ("cf_verified" in it.tags or "high_confidence" in it.tags)]
+

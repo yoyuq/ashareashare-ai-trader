@@ -409,22 +409,10 @@ class TestBacktestEngine:
 class TestModelsLayer:
     """模型层测试"""
 
-    def test_model_tier_enum(self):
-        """模型层级枚举 — v3.0 统一 FLASH"""
-        from models.router import ModelTier
-        assert ModelTier.FLASH.value == "flash"
-
-    def test_task_routing(self):
-        """任务路由规则 — v3.0 全部路由到 flash"""
-        from models.router import ModelRouter, ModelTier
-        for task in [
-            "indicator_read", "news_summary", "technical_analysis",
-            "strategy_match", "daily_synthesis", "adversarial_debate",
-            "judge_verdict", "risk_assessment", "simple_qa",
-        ]:
-            assert ModelRouter.TASK_ROUTING[task] == ModelTier.FLASH
-        # 未知任务默认也走 flash
-        assert ModelRouter.TASK_ROUTING.get("unknown_task", ModelTier.FLASH) == ModelTier.FLASH
+    def test_single_model_tier(self):
+        """单模型层级 — v3.0 统一 flash (P2-5 移除单值 ModelTier 枚举)"""
+        from models.router import MODEL_TIER
+        assert MODEL_TIER == "flash"
 
     def test_cost_monitor(self):
         """成本监控"""
@@ -780,7 +768,7 @@ class TestIntegration:
             BacktestDiscipline, SealedEvaluation,
         )
         # Models
-        from models import ModelRouter, CostMonitor, ModelTier
+        from models import ModelRouter, CostMonitor
         # Agent
         from agent import AnalysisWorkflow, AgentMemory, MarketAnalysisState
 

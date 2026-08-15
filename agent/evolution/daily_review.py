@@ -10,6 +10,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
+from loguru import logger
+
 from .decision_journal import DecisionRecord, DecisionJournal
 
 
@@ -92,6 +94,9 @@ async def review_decision(
     rec: DecisionRecord,
     next_day_stats: dict,
     market_move_pct: float,
+    client=None,
+    model: Optional[str] = None,
+    extra_body: Optional[dict] = None,
 ) -> Optional[dict]:
     """对一条决策记录做复盘。
 
@@ -99,19 +104,15 @@ async def review_decision(
         rec: 昨天的决策记录
         next_day_stats: 次日的市场统计（上涨占比、涨跌停、成交额等）
         market_move_pct: 次日市场涨跌幅（%），正数=涨，负数=跌
+        client: 可选直连 AsyncOpenAI（回放路径传, 支持换模型）。
+                为 None 时走 ModelRouter（实盘路径, 记账/扣预算）。
+        model: 直连时的模型名（回放换 REPLAY_LLM_MODEL）。
+        extra_body: 直连时的额外请求体（thinking 开关）。
 
     Returns:
         复盘字典，失败返回 None
     """
     try:
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            timeout=30.0,
-        )
-
         # 构建当时的诊断描述
         diag_txt = (
             f"日期: {rec.date}\n"
@@ -151,16 +152,31 @@ async def review_decision(
             f"请对照实际走势，给出复盘结论。"
         )
 
-        resp = await client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
-            messages=[{"role": "system", "content": SYSTEM_PROMPT},
-                      {"role": "user", "content": user_msg}],
-            temperature=0.3,
-            max_tokens=600,
-            extra_body={"thinking": {"type": "disabled"}},
-        )
-
-        content = (resp.choices[0].message.content or "").strip()
+        if client is not None:
+            # 回放路径: 直连, 支持换模型/thinking 开关
+            _mdl = model or os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
+            logger.info(f"[复盘] 直连模型: {_mdl}")
+            resp = await client.chat.completions.create(
+                model=_mdl,
+                messages=[{"role": "system", "content": SYSTEM_PROMPT},
+                          {"role": "user", "content": user_msg}],
+                temperature=0.3,
+                max_tokens=600,
+                extra_body=extra_body or {"thinking": {"type": "disabled"}},
+            )
+            content = (resp.choices[0].message.content or "").strip()
+        else:
+            # 实盘路径: 走 ModelRouter (统一记账/扣预算/峰谷计价)
+            from models.router import get_shared_router
+            result = await get_shared_router().route(
+                messages=[{"role": "system", "content": SYSTEM_PROMPT},
+                          {"role": "user", "content": user_msg}],
+                task_type="evolution_review",
+                temperature=0.3,
+                max_tokens=600,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            content = (result.response or "").strip()
         if content.startswith("```"):
             content = content.strip("`")
             if content.lower().startswith("json"):

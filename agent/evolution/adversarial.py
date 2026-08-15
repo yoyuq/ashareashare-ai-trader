@@ -19,6 +19,7 @@ import json
 import os
 from typing import Optional
 
+from loguru import logger
 from openai import AsyncOpenAI
 
 # 对抗大师提示词 — 刻意与主导诊断官"5位大师"基座不同:
@@ -53,6 +54,29 @@ _ADVERSARIAL_SYSTEM_PROMPT = """你是一位独立的A股【对抗审查官】�
 """
 
 
+def _adversarial_llm_cfg() -> Optional[tuple]:
+    """多模型对抗开关 (默认关) — 打破"对抗票与主导同模型"的伪独立.
+
+    设 ADVERSARIAL_LLM_MODEL (可选 ADVERSARIAL_LLM_BASE_URL / ADVERSARIAL_LLM_API_KEY)
+    则对抗票改用独立模型, 与主导诊断官的模型解耦 (v5.8 预注册 A/B 工具, 默认不改变现状).
+    未设时返回 None → 现状 (对抗票与主导同模型).
+
+    用法:
+      ADVERSARIAL_LLM_MODEL=deepseek-v4-pro ...   # 对抗票用 pro, 主导仍 flash
+      ADVERSARIAL_LLM_MODEL=glm-4-flash \
+        ADVERSARIAL_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4 \
+        ADVERSARIAL_LLM_API_KEY=$ZHIPU_API_KEY ...  # 对抗票用第二家模型
+    """
+    _model = os.getenv("ADVERSARIAL_LLM_MODEL")
+    if not _model:
+        return None
+    return (
+        os.getenv("ADVERSARIAL_LLM_API_KEY", os.getenv("DEEPSEEK_API_KEY", "")),
+        os.getenv("ADVERSARIAL_LLM_BASE_URL", "https://api.deepseek.com/v1"),
+        _model,
+    )
+
+
 async def adversarial_risk(
     client: Optional[AsyncOpenAI],
     snapshot_txt: str,
@@ -65,8 +89,6 @@ async def adversarial_risk(
 
     与主导调用不同样本/不同提示词, 消除 role-play 耦合. 失败返回 None (不拦截).
     """
-    if client is None:
-        return None
     try:
         user_msg = (
             f"主导大师判定当前为「{regime}」阶段, 主导大师是「{dominant_master}」。\n"
@@ -76,17 +98,45 @@ async def adversarial_risk(
             user_msg += f"\n\n【宏观背景】\n{macro_txt}"
         user_msg += "\n\n给出你的独立 adversarial_risk_level (1-5整数)。"
 
-        resp = await client.chat.completions.create(
-            model=model or os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
-            messages=[
-                {"role": "system", "content": _ADVERSARIAL_SYSTEM_PROMPT},
-                {"role": "user", "content": user_msg},
-            ],
-            temperature=0.4,
-            max_tokens=200,
-            extra_body={"thinking": {"type": "disabled"}},
-        )
-        content = (resp.choices[0].message.content or "").strip()
+        msgs = [
+            {"role": "system", "content": _ADVERSARIAL_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ]
+        _adv_cfg = _adversarial_llm_cfg()
+        if _adv_cfg:
+            # v5.8 多模型对抗: 独立模型优先于回放直连 client 与实盘 router.
+            _api_key, _base_url, _adv_model = _adv_cfg
+            _adv_client = AsyncOpenAI(api_key=_api_key, base_url=_base_url, timeout=60.0)
+            resp = await _adv_client.chat.completions.create(
+                model=_adv_model,
+                messages=msgs,
+                temperature=0.4,
+                max_tokens=200,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            content = (resp.choices[0].message.content or "").strip()
+            logger.info(f"[对抗票] 多模型对抗启用: 独立模型 {_adv_model} (与主导解耦)")
+        elif client is not None:
+            # 回放路径: 直连, 支持换模型
+            resp = await client.chat.completions.create(
+                model=model or os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                messages=msgs,
+                temperature=0.4,
+                max_tokens=200,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            content = (resp.choices[0].message.content or "").strip()
+        else:
+            # 实盘路径: 走 ModelRouter (统一记账/扣预算)
+            from models.router import get_shared_router
+            result = await get_shared_router().route(
+                messages=msgs,
+                task_type="adversarial",
+                temperature=0.4,
+                max_tokens=200,
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            content = (result.response or "").strip()
         if content.startswith("```"):
             content = content.strip("`")
             if content.lower().startswith("json"):
@@ -110,11 +160,3 @@ async def adversarial_risk(
     except Exception:
         return None
 
-
-def make_async_client() -> AsyncOpenAI:
-    """构造与主导诊断官一致的 AsyncOpenAI 客户端 (独立调用复用同一连接)."""
-    return AsyncOpenAI(
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-        timeout=45.0,
-    )

@@ -183,7 +183,7 @@ class PostFilter:
 
                         votes = 0
                         for sname, sfunc in monitors:
-                            bt = sfunc(df)
+                            bt = sfunc(df, symbol=sym)
                             if bt.get("win_rate", 0) > 0.35 and bt.get("signals", 0) >= 2:
                                 votes += 1
 

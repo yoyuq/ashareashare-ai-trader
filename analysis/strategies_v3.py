@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 from typing import Any, Dict, List
 
+# v5.6 P1-10/P1-12: 涨跌停板块感知 + 费率单一来源 — 复用 broker 的纯函数
+from backtest.broker import limit_pct_for_symbol, round_trip_cost_rate
+
 
 def _rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     delta = closes.diff()
@@ -27,22 +30,25 @@ def _atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return tr.ewm(span=period, adjust=False).mean()
 
 
-def _exec(df: pd.DataFrame):
+def _exec(df: pd.DataFrame, symbol: str = ""):
     opens = pd.Series(df["open"].values)
     closes = pd.Series(df["close"].values)
     highs = pd.Series(df["high"].values)
     ep = opens.shift(-1).copy(); ep.iloc[-1] = closes.iloc[-1]
     xp = opens.shift(-1).copy(); xp.iloc[-1] = closes.iloc[-1]
     # v3.0: 涨停基准改用 prev_close (此前误用 prev_high, 判定失真)
+    # v5.6 P1-10: 涨跌停板块感知 (主板10/创业板科创20/北交所30), 单一来源
+    limit = limit_pct_for_symbol(symbol) / 100.0
     pre_close = closes.shift(1)
-    lu = closes >= np.round(pre_close * 1.10, 2) - 0.01
-    ld = closes <= np.round(pre_close * 0.90, 2) + 0.01
+    lu = closes >= np.round(pre_close * (1 + limit), 2) - 0.01
+    ld = closes <= np.round(pre_close * (1 - limit), 2) + 0.01
     ep[lu] = np.nan; xp[ld] = np.nan
     return ep, xp
 
 
 def _stats(trades: List[float]) -> Dict[str, Any]:
-    COST = 0.0031
+    # v5.6 P1-12: 往返成本收敛到 broker 单一费率源 (此前硬编码 0.0031)
+    COST = round_trip_cost_rate()
     if not trades:
         return {"signals": 0, "win_rate": 0, "profit_factor": 1,
                 "expected_value": 0, "sharpe": 0, "max_dd": 0,
@@ -95,7 +101,7 @@ def _update_stop(entry_price, stop_price, cur_pnl):
 # ═══════════════════════════════════════════════════════════════
 
 
-def bollinger_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
+def bollinger_reversal_v3(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """布林带回归 v3: 标准BB(20,2), 下轨买入→中轨卖出, 无任何过滤器"""
     closes = pd.Series(df["close"].values)
     n = len(closes)
@@ -106,9 +112,11 @@ def bollinger_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
     std20 = closes.rolling(20).std()
     lower = ma20 - 2 * std20
     atr = _atr(df, 14)
-    ep, xp = _exec(df)
+    ep, xp = _exec(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_pos = False
     entry_price = 0.0
     stop_price = 0.0
@@ -117,6 +125,7 @@ def bollinger_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
     for i in range(25, n):
         if not in_pos:
             if closes.iloc[i] <= lower.iloc[i]:
+                entry_idx.append(i)
                 px = ep[i]
                 if not np.isnan(px) and atr.iloc[i] > 0:
                     in_pos = True
@@ -127,6 +136,7 @@ def bollinger_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
             exit_sig, cur_pnl, peak_price = _check_exit(closes, i, entry_price, stop_price, peak_price)
             back_ma = closes.iloc[i] >= ma20.iloc[i]  # 回归中轨
             if exit_sig or back_ma:
+                exit_idx.append(i)
                 px = xp[i]
                 if not np.isnan(px):
                     trades.append((px / entry_price - 1) * 100)
@@ -137,10 +147,13 @@ def bollinger_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     if in_pos and n > 0:
         trades.append((closes.iloc[-1] / entry_price - 1) * 100)
-    return _stats(trades)
+    r = _stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def rsi_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
+def rsi_reversal_v3(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """RSI回归 v3: 标准RSI<30买入, RSI>55卖出, 无确认过滤器"""
     closes = pd.Series(df["close"].values)
     n = len(closes)
@@ -149,9 +162,11 @@ def rsi_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     rsi = _rsi(closes, 14)
     atr = _atr(df, 14)
-    ep, xp = _exec(df)
+    ep, xp = _exec(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_pos = False
     entry_price = 0.0
     stop_price = 0.0
@@ -160,6 +175,7 @@ def rsi_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
     for i in range(20, n):
         if not in_pos:
             if rsi.iloc[i] < 30:
+                entry_idx.append(i)
                 px = ep[i]
                 if not np.isnan(px) and atr.iloc[i] > 0:
                     in_pos = True
@@ -170,6 +186,7 @@ def rsi_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
             exit_sig, cur_pnl, peak_price = _check_exit(closes, i, entry_price, stop_price, peak_price)
             rsi_out = rsi.iloc[i] > 55
             if exit_sig or rsi_out:
+                exit_idx.append(i)
                 px = xp[i]
                 if not np.isnan(px):
                     trades.append((px / entry_price - 1) * 100)
@@ -180,10 +197,13 @@ def rsi_reversal_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     if in_pos and n > 0:
         trades.append((closes.iloc[-1] / entry_price - 1) * 100)
-    return _stats(trades)
+    r = _stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def macd_trend_v3(df: pd.DataFrame) -> Dict[str, Any]:
+def macd_trend_v3(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """MACD趋势 v3: 标准MACD(12,26,9)金叉/死叉, 无过滤器"""
     closes = pd.Series(df["close"].values)
     n = len(closes)
@@ -194,9 +214,11 @@ def macd_trend_v3(df: pd.DataFrame) -> Dict[str, Any]:
     ema26 = closes.ewm(span=26, adjust=False).mean()
     histogram = (ema12 - ema26) - (ema12 - ema26).ewm(span=9, adjust=False).mean()
     atr = _atr(df, 14)
-    ep, xp = _exec(df)
+    ep, xp = _exec(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_pos = False
     entry_price = 0.0
     stop_price = 0.0
@@ -206,6 +228,7 @@ def macd_trend_v3(df: pd.DataFrame) -> Dict[str, Any]:
         if not in_pos:
             golden = histogram.iloc[i] > 0 and histogram.iloc[i-1] <= 0
             if golden:
+                entry_idx.append(i)
                 px = ep[i]
                 if not np.isnan(px) and atr.iloc[i] > 0:
                     in_pos = True
@@ -216,6 +239,7 @@ def macd_trend_v3(df: pd.DataFrame) -> Dict[str, Any]:
             exit_sig, cur_pnl, peak_price = _check_exit(closes, i, entry_price, stop_price, peak_price)
             dead = histogram.iloc[i] < 0 and histogram.iloc[i-1] >= 0
             if exit_sig or dead:
+                exit_idx.append(i)
                 px = xp[i]
                 if not np.isnan(px):
                     trades.append((px / entry_price - 1) * 100)
@@ -226,10 +250,13 @@ def macd_trend_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     if in_pos and n > 0:
         trades.append((closes.iloc[-1] / entry_price - 1) * 100)
-    return _stats(trades)
+    r = _stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def multifactor_v3(df: pd.DataFrame) -> Dict[str, Any]:
+def multifactor_v3(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """多因子融合 v3: 等权5因子, 20日评估, 无调优阈值"""
     closes = pd.Series(df["close"].values)
     volumes = pd.Series(df["volume"].values)
@@ -240,9 +267,11 @@ def multifactor_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     rsi = _rsi(closes, 14)
     atr = _atr(df, 14)
-    ep, xp = _exec(df)
+    ep, xp = _exec(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_pos = False
     entry_price = 0.0
     stop_price = 0.0
@@ -268,6 +297,7 @@ def multifactor_v3(df: pd.DataFrame) -> Dict[str, Any]:
         composite = 0.2 * (mom + rsi_s + vol_s + trend_s + qual_s)
 
         if not in_pos and composite > 0.15:
+            entry_idx.append(i)
             px = ep[i]
             if not np.isnan(px) and atr.iloc[i] > 0:
                 in_pos = True
@@ -278,6 +308,7 @@ def multifactor_v3(df: pd.DataFrame) -> Dict[str, Any]:
         elif in_pos:
             exit_sig, cur_pnl, peak_price = _check_exit(closes, i, entry_price, stop_price, peak_price)
             if exit_sig or composite < -0.15 or hold_days >= 20:
+                exit_idx.append(i)
                 px = xp[i]
                 if not np.isnan(px):
                     trades.append((px / entry_price - 1) * 100)
@@ -288,10 +319,13 @@ def multifactor_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     if in_pos and n > 0:
         trades.append((closes.iloc[-1] / entry_price - 1) * 100)
-    return _stats(trades)
+    r = _stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def pv_tension_v3(df: pd.DataFrame) -> Dict[str, Any]:
+def pv_tension_v3(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """价量张力反转 v3: 虚涨→等回调→抄底, 去参数化"""
     closes = pd.Series(df["close"].values)
     volumes = pd.Series(df["volume"].values)
@@ -303,9 +337,11 @@ def pv_tension_v3(df: pd.DataFrame) -> Dict[str, Any]:
     atr = _atr(df, 14)
     vol_ma20 = volumes.rolling(20).mean()
     ma20 = closes.rolling(20).mean()
-    ep, xp = _exec(df)
+    ep, xp = _exec(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_pos = False
     entry_price = 0.0
     stop_price = 0.0
@@ -322,6 +358,7 @@ def pv_tension_v3(df: pd.DataFrame) -> Dict[str, Any]:
         elif watch:
             # 等回调到位: RSI回落 + 回到均线下方
             if rsi.iloc[i] < 50 and closes.iloc[i] < ma20.iloc[i]:
+                entry_idx.append(i)
                 px = ep[i]
                 if not np.isnan(px) and atr.iloc[i] > 0:
                     in_pos = True
@@ -335,6 +372,7 @@ def pv_tension_v3(df: pd.DataFrame) -> Dict[str, Any]:
             exit_sig, cur_pnl, peak_price = _check_exit(closes, i, entry_price, stop_price, peak_price)
             back_ma = closes.iloc[i] >= ma20.iloc[i] and cur_pnl > 0
             if exit_sig or back_ma:
+                exit_idx.append(i)
                 px = xp[i]
                 if not np.isnan(px):
                     trades.append((px / entry_price - 1) * 100)
@@ -345,7 +383,10 @@ def pv_tension_v3(df: pd.DataFrame) -> Dict[str, Any]:
 
     if in_pos and n > 0:
         trades.append((closes.iloc[-1] / entry_price - 1) * 100)
-    return _stats(trades)
+    r = _stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
 # ═══════════════════════════════════════════════════════════════

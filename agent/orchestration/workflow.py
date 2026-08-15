@@ -387,11 +387,15 @@ class AnalysisWorkflow:
             state["scan_results"] = [{"raw_analysis": result.response}]
             state["model_trace"].append({
                 "node": "market_scanner",
-                "tier": result.tier.value,
+                "tier": result.tier,
+                "input_tokens": result.input_tokens,
+                "output_tokens": result.output_tokens,
                 "cost": result.cost,
+                "latency_ms": result.latency_ms,
             })
         except Exception as e:
             state["errors"].append({"node": "market_scanner", "error": str(e)})
+            logger.error(f"[市场扫描] 节点失败: {e}")
 
         return state
 
@@ -600,11 +604,15 @@ class AnalysisWorkflow:
 
             state["model_trace"].append({
                 "node": "market_diagnostic",
-                "tier": result.tier.value,
+                "tier": result.tier,
+                "input_tokens": result.input_tokens,
+                "output_tokens": result.output_tokens,
                 "cost": result.cost,
+                "latency_ms": result.latency_ms,
             })
         except Exception as e:
-            logger.warning(f"市场诊断官失败 ({e}), 使用默认保守值")
+            # v5.6 P1-7: 核心风控节点失败须显式告警 (error 级), 降级为默认保守值
+            logger.error(f"[市场诊断官] 失败 ({e}), 降级为默认保守值")
             state["market_diagnostic"] = default_diag
             state["errors"].append({"node": "market_diagnostic", "error": str(e)})
 
@@ -712,7 +720,28 @@ class AnalysisWorkflow:
                                     checker = NumericSafetyChecker(computed)
                                     safe, violations = checker.validate_report(reports[sym])
                                     if not safe:
-                                        logger.warning(f"[{sym}] 数字校验未通过: {'; '.join(violations[:3])}")
+                                        # v5.6 P1-9: 校验失败 → 显式改写重生成 (而非仅告警)
+                                        logger.warning(f"[{sym}] 数字校验未通过: {'; '.join(violations[:3])}; 触发改写")
+                                        _locked = {k: v.value for k, v in computed.items()}
+                                        correction = (
+                                            f"你上一版报告包含无法溯源的数字(疑似编造), 请改写。\n"
+                                            f"合法计算指标(只能引用这些):\n"
+                                            f"{json.dumps(_locked, ensure_ascii=False)}\n\n"
+                                            f"被标记的未溯源数字: {'; '.join(violations[:10])}\n"
+                                            "改写要求: 删除/修正所有未溯源数字, 只保留能对应到上述指标的数字, 并标注来源。"
+                                        )
+                                        try:
+                                            rewritten = await self.router.route(
+                                                messages=[
+                                                    {"role": "system", "content": system_prompt},
+                                                    {"role": "user", "content": correction},
+                                                ],
+                                                task_type="technical_analysis",
+                                            )
+                                            reports[sym] = rewritten.response
+                                            safe, violations = checker.validate_report(reports[sym])
+                                        except Exception as _re:
+                                            logger.debug(f"[{sym}] 数字校验改写失败: {_re}")
                                 except Exception as e:
                                     logger.debug(f"[{sym}] 数字校验异常: {e}")
                         except Exception:
@@ -732,6 +761,7 @@ class AnalysisWorkflow:
 
         except Exception as e:
             state["errors"].append({"node": "technical_analysis", "error": str(e)})
+            logger.error(f"[技术分析] 节点失败: {e}")
 
         return state
 
@@ -856,6 +886,7 @@ class AnalysisWorkflow:
 
         except Exception as e:
             state["errors"].append({"node": "backtest_verification", "error": str(e)})
+            logger.error(f"[回测验证] 节点失败: {e}")
 
         state["backtest_results"] = results
         return state
@@ -1011,6 +1042,7 @@ class AnalysisWorkflow:
 
         except Exception as e:
             state["errors"].append({"node": "adversarial_debate", "error": str(e)})
+            logger.error(f"[多空辩论] 节点失败: {e}")
             state["debate_result"] = {
                 "bull_argument": "", "bear_argument": "", "judge_verdict": "",
                 "bull_score": 0.5, "bear_score": 0.5,
@@ -1753,19 +1785,24 @@ class AnalysisWorkflow:
                 state["final_report"] = result.response
 
                 # v3.0: 代码兜底覆盖交易参数 — LLM 常输出 0/null (此前 null→0.0),
-                # 用 computed trade_params 强制填入, 消除日报幻觉价格
+                # 用 computed trade_params 强制填入, 消除日报幻觉价格。
+                # v5.6 P1-9: 此前只在 LLM 输出空值时补填, 未拦截"非零但错误"的幻觉价格;
+                # 改为 4 个数值字段一律以代码计算值为准 (代码是唯一价格权威源),
+                # 使 final_report 的交易参数与 trade_params 完全一致 (相当于 checker 的硬约束版本)。
                 try:
                     _parsed = json.loads(result.response)
                     _recs = _parsed.get("recommendations", [])
-                    _filled = 0
+                    _overridden = 0
                     for _rec in _recs:
                         _tp = trade_params.get(_rec.get("symbol"))
                         if _tp:
                             for _k in ("entry_price", "stop_loss", "take_profit", "position_pct"):
-                                if not _rec.get(_k):
+                                if _rec.get(_k) != _tp[_k]:
                                     _rec[_k] = _tp[_k]
-                                    _filled += 1
+                                    _overridden += 1
                     state["final_report"] = json.dumps(_parsed, ensure_ascii=False, indent=2)
+                    if _overridden:
+                        logger.info(f"[综合研判] 代码兜底覆盖 {_overridden} 个交易参数字段")
                     # 仅在实际计算失败(推荐对应 trade_params 为空)时告警
                     if _recs and not any(trade_params.get(r.get("symbol")) for r in _recs):
                         logger.warning(

@@ -17,170 +17,21 @@ from dotenv import load_dotenv; load_dotenv()
 
 # v3.1: Enhanced visualization components
 from web.viz_components import make_radar_chart, make_kpi_tiles, make_equity_curve, make_heatmap
+from web.render import render_dataframe
+from web.theme import apply_theme
 from scripts.shared import NAME_MAP
+from data.symbols import market_prefix, to_symbol
 
 VERSION = "3.1.0"
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 # ═══════════════════════════════════════════════════════════════
-# Professional Dark Theme CSS
+# Professional Dark Theme CSS (拆到 web/theme.py, v5.6 P1-14)
 # ═══════════════════════════════════════════════════════════════
 st.set_page_config(page_title="A股智能分析Agent", page_icon="📈", layout="wide",
                    initial_sidebar_state="expanded")
 
-st.markdown("""
-<style>
-    /* ================================================================
-       Theme-aware CSS — Streamlit handles base colors, we handle components
-       Uses CSS variables synced to Streamlit's theme via JS
-       ================================================================ */
-
-    /* --- Spinner replaces running-man, hide Stop button --- */
-    header[data-testid="stHeader"] button[kind="header"] { display: none !important; }
-    [data-testid="stStatusWidget"] svg,
-    [data-testid="stStatusWidget"] button { display: none !important; }
-    [data-testid="stStatusWidget"] { position: relative; margin-right: 8px; }
-    [data-testid="stStatusWidget"]::before {
-        content: "";
-        display: inline-block; width: 20px; height: 20px;
-        border: 2.5px solid var(--ds-border); border-top-color: #58a6ff;
-        border-radius: 50%;
-        animation: ds-spin 0.7s linear infinite;
-        position: absolute; top: 50%; left: 50%;
-        transform: translate(-50%, -50%);
-    }
-    @keyframes ds-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-
-    /* ================================================================
-       DARK THEME CSS variables (default / fallback)
-       ================================================================ */
-    html:not([data-theme="light"]) {
-        --ds-bg: #0d1117; --ds-bg2: #161b22; --ds-bg3: #21262d;
-        --ds-border: #30363d; --ds-text: #c9d1d9; --ds-text2: #8b949e;
-        --ds-text-h: #f0f6fc; --ds-accent: #58a6ff; --ds-green: #3fb950;
-        --ds-red: #f85149; --ds-orange: #f0883e; --ds-hover: #1c2128;
-    }
-
-    /* ================================================================
-       LIGHT THEME CSS variables
-       ================================================================ */
-    html[data-theme="light"] {
-        --ds-bg: #ffffff; --ds-bg2: #f0f2f5; --ds-bg3: #e4e6eb;
-        --ds-border: #dadde1; --ds-text: #1c1e21; --ds-text2: #65676b;
-        --ds-text-h: #050505; --ds-accent: #1877f2; --ds-green: #00a400;
-        --ds-red: #fa383e; --ds-orange: #e67600; --ds-hover: #ebedf0;
-    }
-
-    /* --- NOTE: Base page colors (.stApp, .main, sidebar, headings, text)
-       are intentionally NOT overridden. Streamlit's built-in theme
-       handles them. We only style CUSTOM components below. --- */
-
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background-color: var(--ds-bg2) !important;
-        border: 1px solid var(--ds-border) !important;
-        border-radius: 8px; padding: 12px 16px;
-    }
-    [data-testid="stMetric"] label { color: var(--ds-text2) !important; font-size: 12px; }
-    [data-testid="stMetric"] div[data-testid="stMetricValue"] { color: var(--ds-accent) !important; font-size: 24px; }
-    [data-testid="stMetric"] div[data-testid="stMetricDelta"] { color: var(--ds-text) !important; }
-
-    /* Expanders */
-    [data-testid="stExpander"] {
-        background-color: var(--ds-bg2) !important;
-        border: 1px solid var(--ds-border) !important; border-radius: 8px;
-    }
-    [data-testid="stExpander"] details { background-color: var(--ds-bg2) !important; }
-    [data-testid="stExpander"] details summary { color: var(--ds-text) !important; }
-    [data-testid="stExpander"] details div { background-color: var(--ds-bg2) !important; color: var(--ds-text) !important; }
-    .streamlit-expanderContent { background-color: var(--ds-bg2) !important; }
-
-    /* Callout boxes */
-    [data-testid="stNotification"], [data-testid="stInfo"], [data-testid="stWarning"],
-    [data-testid="stSuccess"], [data-testid="stError"],
-    .stAlert, div[data-testid="stAlert"], .stNotification {
-        background-color: var(--ds-bg2) !important;
-        border: 1px solid var(--ds-border) !important;
-        color: var(--ds-text) !important; border-radius: 8px !important;
-    }
-    div[data-testid="stNotificationContent"] { background: transparent !important; }
-    .stAlert p, .stAlert span, [data-testid="stNotification"] p { color: var(--ds-text) !important; }
-
-    /* Tabs */
-    button[data-baseweb="tab"] { color: var(--ds-text2) !important; background: transparent !important; }
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: var(--ds-accent) !important; border-bottom: 2px solid var(--ds-accent) !important;
-    }
-    div[data-testid="stTabs"] { background: transparent; }
-    div.stTabs [data-baseweb="tab-panel"] { background: transparent; }
-
-    /* Input widgets */
-    input, textarea, select, .stTextInput input, .stSelectbox select {
-        background-color: var(--ds-bg) !important; color: var(--ds-text) !important;
-        border: 1px solid var(--ds-border) !important; border-radius: 6px !important;
-    }
-    input:focus, textarea:focus { border-color: var(--ds-accent) !important; box-shadow: 0 0 0 2px rgba(88,166,255,0.2) !important; }
-    div[data-baseweb="select"] > div { background-color: var(--ds-bg) !important; border-color: var(--ds-border) !important; }
-    div[data-baseweb="popover"] { background-color: var(--ds-bg2) !important; }
-    div[data-baseweb="popover"] li { color: var(--ds-text) !important; }
-    div[data-baseweb="popover"] li:hover { background-color: var(--ds-hover) !important; }
-
-    /* Buttons */
-    button[kind="primary"], .stButton > button[kind="primary"] { background-color: var(--ds-green) !important; }
-    button[kind="secondary"], .stButton > button {
-        background-color: var(--ds-bg3) !important; color: var(--ds-text) !important;
-        border: 1px solid var(--ds-border) !important; border-radius: 6px !important;
-    }
-    .stButton > button:hover { background-color: var(--ds-border) !important; border-color: var(--ds-text2) !important; }
-
-    /* Slider */
-    div[data-testid="stSlider"] div[role="slider"] { background-color: var(--ds-accent) !important; }
-    div[data-testid="stSlider"] div { color: var(--ds-text); }
-
-    /* Chat messages */
-    [data-testid="stChatMessage"] {
-        background-color: var(--ds-bg2) !important;
-        border: 1px solid var(--ds-border) !important; border-radius: 8px !important;
-    }
-    [data-testid="stChatMessage"] p, [data-testid="stChatMessage"] span,
-    [data-testid="stChatMessage"] div { color: var(--ds-text) !important; background: transparent !important; }
-
-    /* Spinner / Progress */
-    .stSpinner > div { border-top-color: var(--ds-accent) !important; }
-    div[data-testid="stProgressBar"] > div { background-color: var(--ds-bg3); }
-    div[data-testid="stProgressBar"] > div > div { background-color: var(--ds-accent); }
-
-    /* Status bar */
-    .status-bar { background-color: var(--ds-bg2); border: 1px solid var(--ds-border); border-radius: 8px; padding: 8px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 20px; }
-    .status-bar .label { color: var(--ds-text2); font-size: 12px; }
-    .status-bar .value { color: var(--ds-text); font-size: 16px; font-weight: 600; }
-    .status-bar .change-positive { color: var(--ds-green); }
-    .status-bar .change-negative { color: var(--ds-red); }
-
-    /* Radio buttons (navigation) */
-    div[data-testid="stRadio"] > div { gap: 0; }
-    div[data-testid="stRadio"] label { padding: 8px 16px; border-radius: 6px; font-size: 13px; }
-    div[data-testid="stRadio"] label:hover { background-color: var(--ds-hover); }
-</style>
-
-<!-- Theme sync: detect Streamlit theme and set html[data-theme] -->
-<script>
-(function(){
-  function syncTheme() {
-    var el = document.querySelector('.stApp') || document.body;
-    var bg = getComputedStyle(el).backgroundColor;
-    var nums = bg.match(/\d+/g);
-    var isDark = nums ? (+nums[0] + +nums[1] + +nums[2]) < 300 : true;
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  }
-  syncTheme();
-  var mo = new MutationObserver(syncTheme);
-  mo.observe(document.documentElement, {attributes: true, subtree: true, attributeFilter: ['class','style']});
-  mo.observe(document.body, {attributes: true, attributeFilter: ['class']});
-  setInterval(syncTheme, 800);
-})();
-</script>
-""", unsafe_allow_html=True)
+apply_theme()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -220,8 +71,7 @@ def load_full_market_stocks():
             for item in market_data.get("data", []):
                 code = item.get("code", "")
                 if code:
-                    prefix = "sh" if code.startswith("6") else "sz"
-                    result[code] = f"{prefix}.{code}"
+                    result[code] = to_symbol(code)  # v5.6 P2-2: 补北交所 bj 前缀
     except Exception:
         pass
     if len(result) < 10:
@@ -384,70 +234,7 @@ def get_stock_quick(sym, days=90):
         return None
 
 
-def render_dataframe(df: pd.DataFrame, max_rows: int = 500, height: int = 400,
-                     col_rename: dict = None, formatters: dict = None) -> None:
-    """用 HTML 表格渲染 DataFrame, 绕过 st.dataframe 在暗色主题下的 CSS 冲突.
-
-    Streamlit 1.60 的 GlideDataEditor 与自定义 .stDataFrame CSS 选择器不兼容,
-    导致表格内容不可见。此函数直接生成 GitHub-dark 风格 HTML 表格。
-
-    Args:
-        df: 要渲染的 DataFrame
-        max_rows: 最多显示行数
-        height: 表格滚动区域高度 (px)
-        col_rename: {原列名: 中文显示名} 映射
-        formatters: {列名: format_spec} 如 {'price': '¥%.2f', 'pct_change': '%+.2f%%'}
-    """
-    col_rename = col_rename or {}
-    formatters = formatters or {}
-
-    df = df.head(max_rows)
-    cols = df.columns.tolist()
-    # 中文列名 (表头用)
-    header_names = [col_rename.get(c, c) for c in cols]
-    rows = df.values.tolist()
-
-    html = f'<div style="max-height:{height}px;overflow-y:auto;border:1px solid var(--ds-border,#30363d);border-radius:8px">'
-    html += '<table style="width:100%;border-collapse:collapse;font-size:13px">'
-
-    # Header
-    html += '<thead><tr style="background:var(--ds-bg3,#21262d);position:sticky;top:0;z-index:10">'
-    for name in header_names:
-        html += f'<th style="padding:6px 10px;text-align:left;color:var(--ds-text2,#8b949e);border-bottom:2px solid var(--ds-border,#30363d);white-space:nowrap">{name}</th>'
-    html += '</tr></thead><tbody>'
-
-    # Body — alternate row colors using CSS vars
-    html += '<tr style="background:var(--ds-bg2,#161b22);border-bottom:1px solid var(--ds-bg3,#21262d)">'
-    for i, row in enumerate(rows):
-        if i > 0:
-            bg = "var(--ds-bg,#0d1117)" if i % 2 == 0 else "var(--ds-bg2,#161b22)"
-            html += f'<tr style="background:{bg};border-bottom:1px solid var(--ds-bg3,#21262d)">'
-        for j, val in enumerate(row):
-            col = cols[j] if j < len(cols) else ""
-            fmt = formatters.get(col, "")
-            # Use explicit formatter if provided
-            if fmt and isinstance(val, (int, float)) and not (isinstance(val, float) and pd.isna(val)):
-                tv = fmt % val
-            elif isinstance(val, float):
-                if abs(val) >= 1e8:
-                    tv = f"{val:,.0f}"
-                elif abs(val) >= 100:
-                    tv = f"{val:,.1f}"
-                elif abs(val) >= 1:
-                    tv = f"{val:.2f}"
-                else:
-                    tv = f"{val:.4f}"
-            elif val is None or (isinstance(val, float) and pd.isna(val)):
-                tv = "-"
-            else:
-                tv = str(val)
-            # 右对齐数字列, 左对齐文本列
-            align = "right" if isinstance(val, (int, float)) and not (isinstance(val, float) and pd.isna(val)) else "left"
-            html += f'<td style="padding:4px 10px;color:var(--ds-text,#c9d1d9);white-space:nowrap;text-align:{align}">{tv}</td>'
-        html += '</tr>'
-
-    html += '</tbody></table></div>'
-    st.markdown(html, unsafe_allow_html=True)
+# render_dataframe 已拆到 web/render.py (v5.6 P1-14), 见顶部导入.
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -484,9 +271,12 @@ def get_portfolio_state():
 def get_full_market():
     """获取全A股行情。AKShare → 本地缓存 → 东方财富直连 → 分析报告, 闭市时自动回退到缓存数据。"""
     import numpy as np
+    from data.full_market_cache import (
+        write_full_market_cache, read_full_market_cache, market_cache_lag_days,
+    )
 
-    cache_path = Path(__file__).parent.parent / "simulation_data" / "full_market_cache.json"
     source = None
+    _provider = None
     data_date = date.today().isoformat()
     df = None
 
@@ -495,20 +285,17 @@ def get_full_market():
         import akshare as ak
         df = ak.stock_zh_a_spot_em()
         source = "live"
+        _provider = "akshare"
     except Exception:
         pass
 
     # ── 尝试 2: 本地缓存 (优先于网络请求, 避免闭市时段 API 限流) ──
-    if (df is None or df.empty) and cache_path.exists():
-        try:
-            import json as _json
-            with open(cache_path, "r", encoding="utf-8") as f:
-                cache = _json.load(f)
-            df = pd.DataFrame(cache.get("data", []))
+    if df is None or df.empty:
+        _cached_df, _cached_date = read_full_market_cache()
+        if _cached_df is not None:
+            df = _cached_df
             source = "cached"
-            data_date = cache.get("date", "unknown")
-        except Exception:
-            pass
+            data_date = _cached_date or "unknown"
 
     # ── 尝试 3: 东方财富 API 直连 (闭市仍可获取前一日收盘数据, 带限速) ──
     if df is None or df.empty:
@@ -516,6 +303,7 @@ def get_full_market():
             df = _fetch_eastmoney_full_market()
             if df is not None and not df.empty:
                 source = "live"
+                _provider = "eastmoney"
         except Exception:
             pass
 
@@ -567,10 +355,11 @@ def get_full_market():
     if "name" in df.columns:
         df = df[df["name"].notna() & (df["name"] != "")]
 
-    # 添加交易所标识
-    df["exchange"] = df["code"].apply(
-        lambda x: "SH" if str(x).startswith(("6", "9")) else "SZ"
-    )
+    # 预计算搜索索引 (v5.6 P1-14): name 小写 + code, 避免每次交互 astype(str) 全量扫描
+    df["_search_key"] = df["name"].str.lower().str.strip() + " " + df["code"].astype(str)
+
+    # 添加交易所标识 (v5.6 P2-2: 补北交所 BJ, 不再把 bj 误归 SZ)
+    df["exchange"] = df["code"].apply(lambda x: market_prefix(str(x)).upper())
 
     # 市值分位标记
     if "total_mv" in df.columns:
@@ -581,19 +370,17 @@ def get_full_market():
                 lambda x: "🟢大盘" if x > q80 else ("🟡中盘" if x > q50 else ("🟠小盘" if x > q20 else "🔴微盘"))
             )
 
-    # ── 缓存成功的全市场数据 ──
+    # ── 缓存成功的全市场数据 (统一写缓存, v5.6 P1-15) ──
     if source == "live" and len(df) > 1000:
         try:
-            import json as _json
-            cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_data = {"date": data_date, "count": len(df), "source": "eastmoney",
-                          "data": df.to_dict(orient="records")}
-            with open(cache_path, "w", encoding="utf-8") as f:
-                _json.dump(cache_data, f, ensure_ascii=False, default=str)
+            write_full_market_cache(df, data_date, _provider or "live")
         except Exception:
             pass
 
-    st.session_state._market_source = {"source": source, "date": data_date, "count": len(df)}
+    st.session_state._market_source = {
+        "source": source, "date": data_date, "count": len(df),
+        "lag_days": market_cache_lag_days(data_date),
+    }
     return df
 
 
@@ -651,6 +438,8 @@ def _fetch_eastmoney_full_market():
 # 行业板块映射 (申万一级 — 基于代码区间)
 def _guess_sector(code: str) -> str:
     code_str = str(code)
+    if code_str.startswith(("8", "4", "920")):  # 北交所 (v5.6 P2-2)
+        return "北交所"
     if code_str.startswith(("60","68")):  # 上交所
         num = int(code_str[:3]) if len(code_str) >= 3 else 0
         if 36 <= num <= 39: return "银行"
@@ -1058,12 +847,17 @@ elif tab == "📋 全市场行情":
                 st.cache_data.clear()
                 st.rerun()
     else:
-        # ── 数据来源横幅 ──
+        # ── 数据来源横幅 (v5.6 P1-15: 显著展示时间戳 + 陈旧标记) ──
         ms = st.session_state.get("_market_source", {})
         src = ms.get("source", "unknown")
         data_date = ms.get("date", "N/A")
         count = ms.get("count", len(df_market))
+        lag = ms.get("lag_days", -1)
 
+        # 陈旧数据优先显著警示 (滞后 > 1 自然日即提示, 无论来源)
+        if lag > 1:
+            st.warning(f"⚠️ 数据已滞后 {lag} 天 (快照 {data_date}) — 当前展示为历史行情, "
+                       f"非实时数据。建议交易时段 (9:30-15:00) 查看, 或运行 `python scripts/refresh_market_cache.py` 刷新。")
         if src == "live":
             st.success(f"✅ 实时行情 — {count:,} 只 | 数据时间: {data_date}")
         elif src == "cached":
@@ -1101,7 +895,7 @@ elif tab == "📋 全市场行情":
         with f4:
             sort_by = st.selectbox("📊 排序", ["涨跌幅↓", "涨跌幅↑", "最新价↓", "最新价↑", "成交额↓", "市盈率↓", "换手率↓"])
         with f5:
-            exchange_filter = st.selectbox("🏛 交易所", ["全部", "SH(沪市)", "SZ(深市)"])
+            exchange_filter = st.selectbox("🏛 交易所", ["全部", "SH(沪市)", "SZ(深市)", "BJ(北交所)"])
 
         # --- Apply Filters ---
         df_filtered = df_market.copy()
@@ -1109,8 +903,7 @@ elif tab == "📋 全市场行情":
         if search:
             search_lower = search.lower().strip()
             df_filtered = df_filtered[
-                df_filtered["name"].str.contains(search_lower, na=False) |
-                df_filtered["code"].astype(str).str.contains(search_lower, na=False)
+                df_filtered["_search_key"].str.contains(search_lower, na=False)
             ]
 
         if price_range != "全部":
@@ -1126,7 +919,7 @@ elif tab == "📋 全市场行情":
             df_filtered = df_filtered[df_filtered["mv_tier"] == mv_range]
 
         if exchange_filter != "全部":
-            ex = "SH" if "沪" in exchange_filter else "SZ"
+            ex = "SH" if "沪" in exchange_filter else ("BJ" if "北" in exchange_filter else "SZ")
             df_filtered = df_filtered[df_filtered["exchange"] == ex]
 
         # --- Sort ---
@@ -1282,8 +1075,7 @@ elif tab == "📈 技术分析":
             format_func=lambda x: f"{x} | {NAME_MAP.get(x, '')}",
             help=f"共 {len(stock_list):,} 只A股，输入代码即可搜索"
         )
-    sym = all_stock_map.get(selected_code,
-            f"sh.{selected_code}" if selected_code.startswith("6") else f"sz.{selected_code}")
+    sym = all_stock_map.get(selected_code, to_symbol(selected_code))
 
     info = get_stock_quick(sym, 365)
     if info:
@@ -1488,7 +1280,7 @@ elif tab == "🧪 策略回测":
         bts = st.selectbox("标的 (全市场)", fm_list,
                           format_func=lambda x: f"{x} | {NAME_MAP.get(x, '')}",
                           help=f"共 {len(fm_list):,} 只")
-    sym = fm_stocks.get(bts, f"sh.{bts}" if bts.startswith("6") else f"sz.{bts}")
+    sym = fm_stocks.get(bts, to_symbol(bts))
     with c3: yrs = st.slider("回测年数", 1, 5, 3)
     with c4:
         if st.button("▶ 运行", type="primary", use_container_width=True):

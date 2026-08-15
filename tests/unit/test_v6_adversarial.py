@@ -1,6 +1,6 @@
 """v5.6 假多元化 — 独立对抗调用 + 闸门 A/B 单测.
 
-覆盖: adversarial_risk 独立二次调用解析/裁剪/失败回退; 无 client 时降级;
+覆盖: adversarial_risk 独立二次调用解析/裁剪/失败回退; 无 client 走 router(实盘记账);
       _apply_adversarial_gate 在独立对抗分歧>=2级时保守收敛.
 """
 
@@ -60,7 +60,32 @@ async def test_adv_risk_clamps_bounds():
 
 
 @pytest.mark.asyncio
-async def test_adv_risk_none_client_returns_none():
+async def test_adv_risk_none_client_walks_router(monkeypatch):
+    """无 client (实盘路径) → 走 ModelRouter, 不再直接返回 None (v5.7 统一记账)."""
+    import models.router as mr
+
+    class _FakeRouteResult:
+        def __init__(self, response):
+            self.response = response
+
+    class _FakeRouter:
+        async def route(self, **kwargs):
+            return _FakeRouteResult('{"adversarial_risk_level": 3, "adversarial_reason": "中性"}')
+
+    monkeypatch.setattr(mr, "get_shared_router", lambda: _FakeRouter())
+    assert await adversarial_risk(None, "s", "d", "r") == 3
+
+
+@pytest.mark.asyncio
+async def test_adv_risk_none_client_router_failure_returns_none(monkeypatch):
+    """实盘路径 router 抛错 → 降级 None (失败不拦截)."""
+    import models.router as mr
+
+    class _BoomRouter:
+        async def route(self, **kwargs):
+            raise RuntimeError("no api key")
+
+    monkeypatch.setattr(mr, "get_shared_router", lambda: _BoomRouter())
     assert await adversarial_risk(None, "s", "d", "r") is None
 
 
@@ -87,6 +112,74 @@ async def test_adv_risk_exception_returns_none():
             raise RuntimeError("timeout")
 
     assert await adversarial_risk(Boom(), "s", "d", "r") is None
+
+
+# ═══════════════════════════════════════════════════════════════
+# 多模型对抗 — 独立模型开关 (v5.8 预注册 A/B 脚手架)
+# ═══════════════════════════════════════════════════════════════
+
+import agent.evolution.adversarial as adv
+
+
+def test_adv_llm_cfg_unset_returns_none(monkeypatch):
+    monkeypatch.delenv("ADVERSARIAL_LLM_MODEL", raising=False)
+    assert adv._adversarial_llm_cfg() is None
+
+
+def test_adv_llm_cfg_reads_model_with_defaults(monkeypatch):
+    monkeypatch.setenv("ADVERSARIAL_LLM_MODEL", "deepseek-v4-pro")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    key, base, model = adv._adversarial_llm_cfg()
+    assert model == "deepseek-v4-pro"
+    assert key == "sk-test"
+    assert base == "https://api.deepseek.com/v1"
+
+
+@pytest.mark.asyncio
+async def test_adv_multimodel_uses_dedicated_model(monkeypatch):
+    """设 ADVERSARIAL_LLM_MODEL → 对抗票走独立模型, 优先于传入 client (主导)."""
+    monkeypatch.setenv("ADVERSARIAL_LLM_MODEL", "glm-4-flash")
+    seen = {}
+
+    class _FakeChat:
+        def __init__(self):
+            self.completions = self
+
+        async def create(self, **kw):
+            seen["model"] = kw.get("model")
+            return _R('{"adversarial_risk_level": 2}')
+
+    class _FakeAdvClient:
+        def __init__(self, **kw):
+            seen["api_key"] = kw.get("api_key")
+            seen["base_url"] = kw.get("base_url")
+            self.chat = _FakeChat()
+
+    monkeypatch.setattr(adv, "AsyncOpenAI", _FakeAdvClient)
+    # 传入主导 client (会被忽略): 独立模型返回 2, 而非主导 client 的 5
+    got = await adversarial_risk(
+        _FakeClient('{"adversarial_risk_level": 5}'), "s", "d", "r")
+    assert got == 2
+    assert seen["model"] == "glm-4-flash"
+    assert seen["base_url"] == "https://api.deepseek.com/v1"
+
+
+@pytest.mark.asyncio
+async def test_adv_multimodel_failure_returns_none(monkeypatch):
+    """独立模型调用抛错 → 降级 None (失败不拦截), 不落到主导 client."""
+    monkeypatch.setenv("ADVERSARIAL_LLM_MODEL", "deepseek-v4-pro")
+
+    class _Boom:
+        def __init__(self, **kw):
+            self.chat = type("Chat", (), {"completions": type(
+                "Comp", (), {"create": self._boom})()})()
+
+        async def _boom(self, **kw):
+            raise RuntimeError("dedicated model down")
+
+    monkeypatch.setattr(adv, "AsyncOpenAI", _Boom)
+    assert await adversarial_risk(
+        _FakeClient('{"adversarial_risk_level": 5}'), "s", "d", "r") is None
 
 
 # ═══════════════════════════════════════════════════════════════

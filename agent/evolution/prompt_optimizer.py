@@ -18,11 +18,23 @@
 from __future__ import annotations
 
 import json
-import os
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+# v5.6 P1-6: 统一 LLM 调用走 ModelRouter (记账/扣预算/峰谷计价),
+# 消除自进化模块直连 AsyncOpenAI 绕过成本核算的问题
+_shared_router = None
+
+
+def _get_router():
+    """懒加载共享 ModelRouter (进化优化是长流程, 复用单例避免重复读配置/建连接)"""
+    global _shared_router
+    if _shared_router is None:
+        from models.router import ModelRouter
+        _shared_router = ModelRouter()
+    return _shared_router
 
 
 @dataclass
@@ -252,14 +264,6 @@ class PromptOptimizer:
     async def _generate_variants(self, round_num: int) -> dict[str, str]:
         """让 LLM 根据历史表现生成新的提示词变体。"""
         try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI(
-                api_key=os.getenv("DEEPSEEK_API_KEY"),
-                base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-                timeout=120.0,
-            )
-
             # 构建历史表现摘要
             history_text = self._build_history_summary()
 
@@ -270,16 +274,16 @@ class PromptOptimizer:
                 f"请生成 3 个新的提示词变体。"
             )
 
-            resp = await client.chat.completions.create(
-                model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+            # v5.6 P1-6: 统一走 ModelRouter (记账/扣预算/峰谷), 不再直连 AsyncOpenAI
+            result = await _get_router().route(
                 messages=[{"role": "system", "content": OPTIMIZER_SYSTEM_PROMPT},
                           {"role": "user", "content": user_msg}],
+                task_type="strategy_optimize",
                 temperature=0.7,  # 温度稍高，增加多样性
                 max_tokens=6000,
-                extra_body={"thinking": {"type": "disabled"}},
             )
 
-            content = (resp.choices[0].message.content or "").strip()
+            content = (result.response or "").strip()
             return self._parse_variants(content, round_num)
 
         except Exception as e:
@@ -325,13 +329,8 @@ class PromptOptimizer:
         use_holdout=True 时用留出集(真实样本外), 否则用选择集(用于选优).
         """
         try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI(
-                api_key=os.getenv("DEEPSEEK_API_KEY"),
-                base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-                timeout=30.0,
-            )
+            # v5.6 P1-6: 统一走 ModelRouter (记账/扣预算/峰谷), 不再直连 AsyncOpenAI
+            router = _get_router()
 
             deviations = []
             direction_correct = 0
@@ -342,15 +341,14 @@ class PromptOptimizer:
 
             for sample in _samples:
                 try:
-                    resp = await client.chat.completions.create(
-                        model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                    result = await router.route(
                         messages=[{"role": "system", "content": prompt},
                                   {"role": "user", "content": sample["user_msg"]}],
+                        task_type="risk_assessment",
                         temperature=0.3,
                         max_tokens=400,
-                        extra_body={"thinking": {"type": "disabled"}},
                     )
-                    content = (resp.choices[0].message.content or "").strip()
+                    content = (result.response or "").strip()
                     if content.startswith("```"):
                         content = content.strip("`")
                         if content.lower().startswith("json"):

@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from loguru import logger
 from dotenv import load_dotenv
 
@@ -203,6 +203,29 @@ class BacktestRequest(BaseModel):
     end_date: str = Field(default="2024-12-31")
     initial_capital: float = Field(default=100000, ge=10000)
 
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def _validate_date_format(cls, v: str) -> str:
+        """日期必须为严格 YYYY-MM-DD (零填充) 格式 (v5.6 P1-16: 此前裸 str 未校验)。
+
+        先用正则锁定零填充格式, 再用 strptime 校验日历有效性 (如 2023-02-30 拒绝),
+        避免 strptime 对 "2023-1-1" 这类非严格格式的宽松接受。
+        """
+        import re
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+            raise ValueError(f"日期格式须为 YYYY-MM-DD (零填充), 收到: {v!r}")
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"无效日期: {v!r}")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_date_order(self) -> "BacktestRequest":
+        if datetime.strptime(self.start_date, "%Y-%m-%d") > datetime.strptime(self.end_date, "%Y-%m-%d"):
+            raise ValueError("start_date 不得晚于 end_date")
+        return self
+
 
 class AnalyzeResponse(BaseModel):
     task_id: str
@@ -219,11 +242,72 @@ class TaskResult(BaseModel):
     completed_at: Optional[str] = None
 
 
+# ── v5.6 P1-16: 响应模型 (此前多数端点返回裸 dict, 无 OpenAPI schema) ──
+# 带 extra="allow" 的模型保留端点可能追加的额外字段, 避免反序列化时静默丢字段。
+
+class HealthResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    status: str
+    version: str
+    timestamp: str
+
+
+class StockInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    symbol: str
+    date: Optional[str] = None
+    close: Optional[float] = None
+    active_patterns: List[str] = Field(default_factory=list)
+
+
+class BacktestResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    symbol: str
+    strategy: str
+    strategy_name: str = ""
+    period: str = ""
+    total_return_pct: Optional[float] = None
+    annual_return_pct: Optional[float] = None
+    sharpe: Optional[float] = None
+    sortino: Optional[float] = None
+    max_drawdown_pct: Optional[float] = None
+    total_trades: Optional[int] = None
+    win_rate: Optional[float] = None
+    var_95: Optional[float] = None
+    cvar_95: Optional[float] = None
+    strategy_backtest: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategiesResponse(BaseModel):
+    total: int
+    strategies: List[Dict[str, Any]]
+
+
+class RegimeResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    regime: str
+    confidence: Optional[float] = None
+    details: Optional[Dict[str, Any]] = None
+    suggested_params: Optional[Dict[str, Any]] = None
+
+
+class ChatHistoryResponse(BaseModel):
+    session_id: str
+    message_count: int
+    history: List[Dict[str, Any]]
+
+
+class DecisionsResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    total: int
+    decisions: List[Dict[str, Any]]
+
+
 # ═══════════════════════════════════════════════════════════════
 # 端点
 # ═══════════════════════════════════════════════════════════════
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health_check():
     """系统健康检查"""
     status = {
@@ -254,7 +338,7 @@ async def health_check():
     return status
 
 
-@app.get("/api/v1/stock/{symbol}")
+@app.get("/api/v1/stock/{symbol}", response_model=StockInfoResponse)
 async def get_stock_info(symbol: str):
     """获取单只股票的行情与技术指标"""
     router = get_router()
@@ -369,7 +453,7 @@ async def get_analysis_result(task_id: str):
     return TaskResult(**task)
 
 
-@app.post("/api/v1/backtest")
+@app.post("/api/v1/backtest", response_model=BacktestResponse)
 async def run_backtest(req: BacktestRequest):
     """运行回测"""
     from backtest.engine import BacktestConfig, EventDrivenBacktestEngine
@@ -472,7 +556,7 @@ async def run_backtest(req: BacktestRequest):
     }
 
 
-@app.get("/api/v1/strategies")
+@app.get("/api/v1/strategies", response_model=StrategiesResponse)
 async def list_strategies():
     """获取所有可用策略"""
     km = get_knowledge()
@@ -493,7 +577,7 @@ async def list_strategies():
     }
 
 
-@app.get("/api/v1/market/regime")
+@app.get("/api/v1/market/regime", response_model=RegimeResponse)
 async def market_regime():
     """获取当前市场状态"""
     router = get_router()
@@ -606,7 +690,7 @@ async def chat(req: ChatRequest):
         raise HTTPException(500, f"对话处理失败: {e}")
 
 
-@app.get("/api/v1/chat/history")
+@app.get("/api/v1/chat/history", response_model=ChatHistoryResponse)
 async def chat_history(session_id: str = "default"):
     """获取会话历史"""
     agent = get_chat_agent()
@@ -859,8 +943,11 @@ async def system_benchmark():
 
 class CompetitionBenchmarkResponse(BaseModel):
     """竞赛Benchmark响应"""
+    model_config = ConfigDict(extra="allow")
+    status: str = "ok"
     total_score: float
     max_score: float = 80.0
+    percentage: Optional[float] = None
     modules: Dict[str, Any]
     elapsed_s: float
     mode: str
@@ -961,7 +1048,7 @@ async def get_prompt_detail(agent_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/competition/benchmark", tags=["competition"])
+@app.get("/api/v1/competition/benchmark", response_model=CompetitionBenchmarkResponse, tags=["competition"])
 async def run_competition_benchmark(quick: bool = True):
     """
     运行竞赛Benchmark (比赛模块4 — 端到端模拟)
@@ -1351,7 +1438,7 @@ async def portfolio_mtm():
 # 🆕 v3.1: 决策日志 API
 # ═══════════════════════════════════════════════════════════════
 
-@app.get("/api/v1/decisions/", tags=["decisions"])
+@app.get("/api/v1/decisions", response_model=DecisionsResponse, tags=["decisions"])
 async def list_decisions(symbol: str = None, days: int = 30):
     """
     查询历史决策日志
@@ -1372,7 +1459,7 @@ async def list_decisions(symbol: str = None, days: int = 30):
             "decisions": [r.to_dict() for r in records],
         }
     except Exception as e:
-        return {"error": str(e), "decisions": []}
+        return {"total": 0, "error": str(e), "decisions": []}
 
 
 @app.get("/api/v1/decisions/stats", tags=["decisions"])

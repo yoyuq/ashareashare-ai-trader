@@ -94,6 +94,29 @@ def test_cost_cache_hit_discount(monkeypatch):
     assert abs(cost_fresh - 0.12) < 1e-6, f"无缓存计价错误: {cost_fresh}"
 
 
+def test_save_budget_state_serializes_date(tmp_path, monkeypatch):
+    """today_cn() 返回 datetime.date → _save_budget_state 必须 str() 化落盘.
+
+    v5.8 修复: 此前 json.dump(daily_reset_date=date 对象) 抛
+    "Object of type date is not JSON serializable", 且该 TypeError 未被 except OSError
+    捕获 → 传播到 _execute_with_fallback 被判为"调用失败"重试, 导致实盘进化复盘/总结
+    静默失败 (冒烟测试暴露). 落盘后 daily_reset_date 应为字符串, 可跨进程恢复.
+    """
+    import models.router as mr
+
+    monkeypatch.setattr(mr, "_BUDGET_STATE_FILE", str(tmp_path / "budget_state.json"))
+    router = mr.ModelRouter()
+    router._daily_reset_date = date(2026, 8, 13)  # 直接注入 date 对象
+    router._daily_cost = 0.5
+    router._monthly_cost = 3.0
+
+    router._save_budget_state()  # 不应抛异常
+
+    data = json.loads((tmp_path / "budget_state.json").read_text(encoding="utf-8"))
+    assert data["daily_reset_date"] == "2026-08-13"
+    assert isinstance(data["daily_reset_date"], str)
+
+
 # ═══════════════════════════════════════════════════════════════
 # 3. daily_runner Phase 2 异常路径
 # ═══════════════════════════════════════════════════════════════

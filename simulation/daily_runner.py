@@ -260,14 +260,19 @@ async def _apply_learned_sell(engine, data_router, mtm_pct, gate: Optional[int] 
     from data.providers.base import DataFrequency, DataRequest
     _today = today_cn()
     sold = []
-    for sym, pos in list(engine.account.positions.items()):
+    for sym, pos in list(engine.state.positions.items()):
         try:
             req = DataRequest(sym, _today - timedelta(days=200), _today, DataFrequency.DAILY)
             r = await data_router.get_daily_kline(req)
             df = r.data
-            if df is None or df.empty or "peTTM" not in df.columns:
+            if df is None or df.empty:
                 continue
-            pe = pd.to_numeric(df["peTTM"], errors="coerce").iloc[-1]
+            # 日线 pe 列名随数据源而异 (Baostock=peTTM, Tencent/EastMoney/AKShare=pe_ttm),
+            # 与 daily_runner 其他取数点一致做防御式取列, 避免降级源下静默跳过卖出信号。
+            pe_col = "pe_ttm" if "pe_ttm" in df.columns else ("peTTM" if "peTTM" in df.columns else None)
+            if pe_col is None:
+                continue
+            pe = pd.to_numeric(df[pe_col], errors="coerce").iloc[-1]
             if not pd.notna(pe) or pe <= 0:
                 continue
             _one = pd.DataFrame([{"code": sym.split(".")[-1], "pe_ttm": pe}])
@@ -616,6 +621,7 @@ _DIAGNOSTIC_SYSTEM_PROMPT = """你是A股市场的【风险诊断官】。
 async def phase1_analyze(
     use_llm: bool = True,
     enable_evolution: bool = True,
+    cold_tilt: bool = False,
 ) -> Dict[str, Any]:
     """全市场分析: 5884 → 规则预筛 → [LLM] → DeepSeek → 结果
 
@@ -707,7 +713,13 @@ async def phase1_analyze(
         logger.info(f"市场体制: {regime} ({regime_info.get('label', '')}) | 结构→初筛 {screen_regime}")
 
         screener = PreScreener()
-        result = screener.screen(df, regime=screen_regime, top_n=top_n, structure=_structure)
+        result = screener.screen(df, regime=screen_regime, top_n=top_n, structure=_structure,
+                                 cold_tilt=cold_tilt)
+        if cold_tilt:
+            logger.info(
+                f"冷落模式 (cold_tilt) 启用: 选股池 = 低换手(被冷落) bottom-{top_n} tilt "
+                f"— 跑赢指数构造 (5/5 窗口实证, 见 reports/improved_portfolio_ab.md)"
+            )
         df_top = result.df
         # v5.11 方案3: 知识选股过滤 (确定性, gate<=0 时零开销原样返回; 与诊断官解耦)
         df_top, _krep = _apply_learned_filter(df_top)
@@ -2251,6 +2263,7 @@ async def run_full_day(
     reset: bool = False,
     skip_analyze: bool = False,
     enable_evolution: bool = True,
+    cold_tilt: bool = False,
 ) -> dict:
     """全市场AI选股 — 每日自主工作流"""
     today = today_cn().isoformat()
@@ -2266,6 +2279,7 @@ async def run_full_day(
         analysis = await phase1_analyze(
             use_llm=not no_llm,
             enable_evolution=enable_evolution,
+            cold_tilt=cold_tilt,
         )
         logger.info(f"Phase 1 完成: {analysis['deep_analyzed_count']}只分析 | 耗时{analysis.get('elapsed_seconds',0)}s")
     else:
@@ -2406,6 +2420,8 @@ async def main():
     parser.add_argument("--skip-analyze", action="store_true", help="跳过分析(使用已有结果)")
     parser.add_argument("--no-evolution", action="store_true",
                         help="禁用自我进化系统 (默认开启)")
+    parser.add_argument("--cold-tilt", action="store_true",
+                        help="冷落模式: 选股池=低换手(被冷落)bottom-N tilt (跑赢指数构造)")
     args = parser.parse_args()
 
     result = await run_full_day(
@@ -2414,6 +2430,7 @@ async def main():
         reset=args.reset,
         skip_analyze=args.skip_analyze,
         enable_evolution=not args.no_evolution,
+        cold_tilt=args.cold_tilt,
     )
 
     s = result["summary"]

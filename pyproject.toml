@@ -89,6 +89,9 @@ target-version = ["py311"]
 
 [tool.mypy]
 python_version = "3.11"
+# 逐步放开起点 (P2-6): 第三方依赖 (numpy/pandas/akshare 等) 无类型存根,
+# 先全局忽略 missing imports 让 mypy 能跑起来, 后续再逐包收紧。
+ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
 
@@ -98,7 +101,4 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 # 默认跳过联网测试(会真实调用付费API); 需要时显式 pytest -m network
 addopts = "-m \"not network\""
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "network: marks tests requiring network access",
-]
+# marker 注册已统一到 tests/conftest.py::pytest_configure (P2-6)

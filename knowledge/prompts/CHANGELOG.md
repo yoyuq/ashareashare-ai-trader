@@ -57,6 +57,24 @@
 
 **详细对比**: 见 `docs/competition/PROMPT_AB_COMPARISON.md`
 
+---
+
+## 2026-08-13 — P2-4 提示词孤儿清理 + ChatAgent 单源化
+
+**删除文件 (无加载方/对应类不存在):**
+- `bull_researcher.txt` — 多空论据由 workflow 内联 `_lens_prompt` 生成, 无独立加载方
+- `bear_researcher.txt` — 同上
+- `fundamental_analyst.txt` — 无对应 Agent 类/加载方
+- `chat_assistant_v1.1.txt` — 残留版本, 从未被 `_get_system_prompt()` 接线 (仍只加载 `chat_assistant.txt`)
+
+**保留 (仍有加载方):**
+- `judge.txt` — workflow.py `_load_agent_prompt("judge")` 直接加载 (无独立 Agent 类)
+- `macro_analyst.txt` — `scripts/macro_context.py` 直接读取
+
+**变更说明:**
+- `ChatAgent.SYSTEM_PROMPT` (chat_agent.py) 收敛为最小兜底; 权威源统一为
+  `chat_assistant.txt` (经 KnowledgeManager 加载), 消除硬编码与 .txt 双源漂移。
+
 ```markdown
 ## YYYY-MM-DD — 简短标题
 

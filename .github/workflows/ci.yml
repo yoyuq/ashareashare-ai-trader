@@ -71,3 +71,23 @@ jobs:
       - name: Ruff full E/F/W — debt report (non-blocking)
         run: ruff check . --select=E,F,W --ignore=E501 \
           || echo "::warning::full lint 存在存量债, 仅 F821/F823 为硬门槛"
+
+  typecheck:
+    name: Type check (mypy 逐步放开, 非阻断)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project + dev extra
+        run: pip install -e ".[dev]" --quiet
+
+      # P2-6: mypy 逐步放开 — 先只覆盖核心四包 + ignore-missing-imports,
+      # 报告存量错误但不阻断 CI (continue-on-error), 后续逐包收紧为硬门槛。
+      - name: mypy core modules (non-blocking)
+        continue-on-error: true
+        run: mypy agent analysis data models --ignore-missing-imports

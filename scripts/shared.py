@@ -145,10 +145,10 @@ def get_fallback_price(symbol: str) -> Tuple[Optional[float], Optional[str]]:
     if age > _PRICE_MAX_AGE_DAYS:
         msg = (
             f"⚠️ {symbol} 兜底价格已过期{age}天(最后更新{_PRICE_LAST_UPDATED}),"
-            f" 当前使用价格¥{price}可能不准确,请尽快更新 COMMON_PRICES"
+            f" 拒绝使用过期价格¥{price} (fail-closed, 请先刷新兜底价)"
         )
         logger.warning(msg)
-        return price, msg
+        return None, msg  # 过期返回 None, 调用方不得用陈旧价格下单
 
     return price, None
 
@@ -172,6 +172,7 @@ async def refresh_fallback_prices_from_tencent() -> int:
     Returns:
         成功更新的标的数量
     """
+    from loguru import logger
     try:
         from data.providers.tencent_provider import TencentFinanceProvider
         tp = TencentFinanceProvider()
@@ -188,11 +189,15 @@ async def refresh_fallback_prices_from_tencent() -> int:
         if updated > 0:
             global _PRICE_LAST_UPDATED
             _PRICE_LAST_UPDATED = date.today().isoformat()
-            from loguru import logger
             logger.info(f"🔄 兜底价格已刷新: {updated}只 (来源: 腾讯行情)")
+        else:
+            # 显式区分「拉到空行情」与「无异常但无有效价」: 刷新失败必须可观测
+            logger.warning(f"兜底价格刷新失败: 腾讯行情返回 0/{len(symbols)} 只有效价格"
+                           f" (未更新时间戳, 兜底价将按过期 fail-closed)")
 
         return updated
-    except Exception:
+    except Exception as e:
+        logger.error(f"兜底价格刷新异常: {e}")
         return 0
 
 

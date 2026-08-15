@@ -66,10 +66,18 @@ def robust_fetch(universe, start: date, end: date, out_path: Path,
                 bs.logout()
             except Exception:
                 pass
-            bs.login()
+            # 重连登录: 失败退避重试, 避免黑名单/网络抖动直接崩进程
+            for _attempt in range(5):
+                try:
+                    lg = bs.login()
+                    if lg.error_code == "0":
+                        break
+                except Exception as e:
+                    print(f"    [重连] login 异常 {e}, 退避重试", flush=True)
+                time.sleep(3)
         time.sleep(throttle)
-        if (i + 1) % 1000 == 0:
-            print(f"  {i+1}/{len(pending)} 处理中 | 成功 {ok} | 耗时 {time.time()-t0:.0f}s")
+        if (i + 1) % reconnect_every == 0:
+            print(f"  {i+1}/{len(pending)} 处理中 | 成功 {ok} | 耗时 {time.time()-t0:.0f}s", flush=True)
             _save()
     try:
         bs.logout()

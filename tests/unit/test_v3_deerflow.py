@@ -10,7 +10,6 @@
 import asyncio
 import json
 from datetime import date
-from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -23,7 +22,7 @@ import pytest
 class _FakeRouteResult:
     def __init__(self, response):
         self.response = response
-        self.tier = SimpleNamespace(value="flash")
+        self.tier = "flash"           # P2-5: tier 从单值枚举收敛为字符串
         self.cost = 0.0
         self.model_name = "deepseek-v4-flash"
 

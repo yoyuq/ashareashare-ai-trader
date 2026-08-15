@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from loguru import logger
+
 
 SYSTEM_PROMPT = """你是一位交易系统的进化导师。
 
@@ -173,12 +175,23 @@ class EvolutionManager:
         # 距离上次进化已经过了 period_days 个决策日
         return decision_count - len(self.snapshots) * self.period_days >= self.period_days
 
-    async def evolve(self, decisions: list, memory_items: list) -> Optional[EvolutionSnapshot]:
+    async def evolve(
+        self,
+        decisions: list,
+        memory_items: list,
+        client=None,
+        model: Optional[str] = None,
+        extra_body: Optional[dict] = None,
+    ) -> Optional[EvolutionSnapshot]:
         """执行一次进化总结。
 
         Args:
             decisions: 本周期内的所有决策记录（含复盘）
             memory_items: 本周期内积累的经验条目
+            client: 可选直连 AsyncOpenAI（回放路径传, 支持换模型）。
+                    为 None 时走 ModelRouter（实盘路径, 记账/扣预算）。
+            model: 直连时的模型名（回放换 REPLAY_LLM_MODEL）。
+            extra_body: 直连时的额外请求体（thinking 开关）。
 
         Returns:
             EvolutionSnapshot，失败返回 None
@@ -191,14 +204,6 @@ class EvolutionManager:
             decisions = decisions[-self.rolling_window:]
 
         try:
-            from openai import AsyncOpenAI
-
-            client = AsyncOpenAI(
-                api_key=os.getenv("DEEPSEEK_API_KEY"),
-                base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-                timeout=60.0,
-            )
-
             # 构建决策摘要（精简，不给全部原文）
             decision_summary = []
             for d in decisions:
@@ -225,16 +230,31 @@ class EvolutionManager:
                 f"请进行深度反思，输出进化总结。"
             )
 
-            resp = await client.chat.completions.create(
-                model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
-                messages=[{"role": "system", "content": SYSTEM_PROMPT},
-                          {"role": "user", "content": user_msg}],
-                temperature=0.4,
-                max_tokens=1500,
-                extra_body={"thinking": {"type": "disabled"}},
-            )
-
-            content = (resp.choices[0].message.content or "").strip()
+            msgs = [{"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_msg}]
+            if client is not None:
+                # 回放路径: 直连, 支持换模型/thinking 开关
+                _mdl = model or os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash")
+                logger.info(f"[进化总结] 直连模型: {_mdl}")
+                resp = await client.chat.completions.create(
+                    model=_mdl,
+                    messages=msgs,
+                    temperature=0.4,
+                    max_tokens=1500,
+                    extra_body=extra_body or {"thinking": {"type": "disabled"}},
+                )
+                content = (resp.choices[0].message.content or "").strip()
+            else:
+                # 实盘路径: 走 ModelRouter (统一记账/扣预算)
+                from models.router import get_shared_router
+                result = await get_shared_router().route(
+                    messages=msgs,
+                    task_type="evolution_summary",
+                    temperature=0.4,
+                    max_tokens=1500,
+                    extra_body={"thinking": {"type": "disabled"}},
+                )
+                content = (result.response or "").strip()
             if content.startswith("```"):
                 content = content.strip("`")
                 if content.lower().startswith("json"):

@@ -99,6 +99,32 @@ Three-layer system managed by `knowledge/manager.py`:
 2. **Reference markdown** (`knowledge/reference/`) — glossary (~45 terms), market cycle history (7 bull/bear cycles), fundamental analysis thresholds
 3. **ChromaDB vector store** — K-line pattern similarity search, RAG semantic retrieval
 
+Rebuild the vector index (after editing any YAML rule / reference md) with `python scripts/rebuild_knowledge_index.py`; it also validates `trading_rules.yaml` against `knowledge/rules/trading_rules.schema.json`. Offline retrieval quality (recall@k) benchmark: `python scripts/eval_retrieval.py`.
+
+### Autonomous Learning Loop (自主学习闭环)
+
+Research → dedup → test-on-real-data → vector-DB record → rolling re-test. Entry point `scripts/learn_external.py`:
+
+```bash
+python scripts/learn_external.py --topics 价值投资策略 --dry-run   # 研究+测试+记录 (不联网, 仅 LLM 知识)
+python scripts/learn_external.py --auto 3 --dry-run                # 好奇队列自动轮转 3 主题
+python scripts/learn_external.py --revalidate                      # 已学 rule 在新鲜 out-of-sample 窗口滚动重测
+python scripts/learn_external.py --report                          # 学习元报告 (留/删分布)
+```
+
+- `agent/learning/researcher.py` — 研究官 (Bocha web search + LLM 提炼候选, `KnowledgeCandidate`); `.env` 配 `SEARCH_PROVIDER=bocha` + `SEARCH_API_KEY` 即真联网
+- `agent/learning/tester.py` — 测试器: 忠实模板库 (9 类规则) + 真实回测 A/B + `_sanitize_params` 参数防幻觉护栏; 无法忠实映射 → `not_yet_testable` (不造假验证)
+- `agent/learning/knowledge_history.py` — 历史向量库 (ChromaDB `learned_knowledge_sem` 集合, bge-m3 语义向量) + LLM 语义查重 + 注入门槛 `LEARNED_KNOWLEDGE_GATE` (0/1/2, 默认 0)
+- `agent/learning/curiosity.py` — 好奇主题队列 (`simulation_data/learning_topic_queue.json`) + 学习元报告
+- `agent/learning/kb_writer.py` — P4 fact 回写: verified→`learned_facts.md`, 冲突→`reports/learning_contradictions.jsonl`, 未覆盖高置信→`reports/facts_pending_review.jsonl` (不入库)
+- 纪律: 全程零模拟 (缺数据报错不兜底); 判据预注册 (`apply_keep_criterion` v2: 风险调整改善 + 降险改善两条通道, 禁止事后调参追赢); 滚动重测只认 out-of-sample 新鲜窗口
+
+**向量库语义化 (v5.10)**: embedding 用硅基流动 `BAAI/bge-m3` (1024维, key 在 `.env` `SILICONFLOW_API_KEY`), 集合 `learned_knowledge_sem`; 旧 `_stable_hash_embed`(256维) 集合 `learned_knowledge` 保留未删 (stale 存档)。
+
+**每周自动学习** (Windows 任务计划 `AITraderWeeklyLearn`, 已注册): 每周一 15:30 跑 `python scripts\learn_external.py --auto 3` (真联网博查, 非 dry-run; 注册脚本 `scripts/register_weekly_learn.ps1`, 日志 `reports/weekly_learn.log`).
+
+**交互式学习入口 (v5.11)**: `agent/chat_agent.py` 新增 4 个工具 — `search_trading_strategy`(联网搜策略)、`judge_trading_strategy`(真实回测给留/删判断)、`suggest_backtest_windows`(纯 LLM 荐回测区间, 基于 `_WINDOW_REGIME` 窗口状态标注)、`learn_trading_strategy`(完整学习落库, `n=3`)。慢工具(联网/回测/学习)超时放宽到 300s, 快工具仍 15s。
+
 ### Dashboard Dark Theme CSS
 
 The CSS at the top of `dashboard.py` uses `!important` broadly. When debugging UI issues:

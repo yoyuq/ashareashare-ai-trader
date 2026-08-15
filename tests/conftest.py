@@ -10,6 +10,18 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
+def pytest_configure(config):
+    """统一注册自定义 marker (P2-6)。
+
+    网络/慢测试标记集中于此, 替代 pyproject.toml 中分散的 markers 列表,
+    保证 `pytest -m "not network"` 默认跳过联网测试时无 unknown-marker 告警。
+    """
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    )
+    config.addinivalue_line("markers", "network: marks tests requiring network access")
+
+
 @pytest.fixture(scope="session")
 def project_root():
     return Path(__file__).parent.parent

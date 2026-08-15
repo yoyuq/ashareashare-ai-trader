@@ -236,13 +236,17 @@ class NumericSafetyChecker:
     )
 
     # 已知指标参数上下文: RSI(14), ATR(14), MA(20), EMA(12), MACD(12,26,9)
-    # 这些括号中的数字是指标参数，不是计算输出
+    # 这些括号中的数字是指标参数，不是计算输出。
+    # v5.6 P1-9: 支持多参数 (MACD(12,26,9)) — 此前只匹配单参数 \d+, 导致
+    # "MACD(12,26,9)" 里的 "26" 被误判为未溯源数字。
     INDICATOR_PARAM_PATTERN = re.compile(
-        r'(RSI|ATR|MA|EMA|SMA|MACD|BB|KDJ|CCI|ADX|OBV)\s*\(\s*\d+\s*\)'
+        r'(RSI|ATR|MA|EMA|SMA|MACD|BB|KDJ|CCI|ADX|OBV)\s*\(\s*[\d,\s]+\s*\)'
     )
 
-    # 容忍度: 允许±0.5%的浮点误差
-    TOLERANCE = 0.005
+    # v5.6 P1-9: 按量级绝对容差 — 小数字用绝对容差下限, 大数字按相对比例缩放,
+    # 避免此前单一相对容差对量级小的数字过严 (浮点误差占比被放大)。
+    ABS_TOLERANCE = 0.05    # 绝对容差下限
+    REL_TOLERANCE = 0.005   # 相对容差 (量级大的数字按比例)
 
     def __init__(self, computed_numbers: Dict[str, ComputedNumber]):
         self._computed = computed_numbers
@@ -316,16 +320,16 @@ class NumericSafetyChecker:
         return is_safe, violations
 
     def _find_matching_value(self, value: float) -> bool:
-        """在计算值中查找匹配"""
+        """在计算值中查找匹配 (v5.6 P1-9: 按量级绝对容差)"""
         # 精确匹配
         rounded = round(value, 4)
         if rounded in self._value_index:
             return True
 
-        # 容差匹配
+        # 按量级容差匹配: tol = 绝对下限 + 相对比例 (适配大/小量级)
         for computed_val in self._value_index:
-            diff = abs(value - computed_val) / max(abs(computed_val), 1e-10)
-            if diff < self.TOLERANCE:
+            tol = self.ABS_TOLERANCE + self.REL_TOLERANCE * abs(computed_val)
+            if abs(value - computed_val) <= tol:
                 return True
 
         return False
@@ -414,9 +418,17 @@ class CodeAsReasoningPipeline:
             )
             report.execution_log.append(f"Phase 4: 叙事报告生成完成")
 
-            # 安全校验
+            # 安全校验 (v5.6 P1-9: 失败 → 显式改写重生成一次, 而非仅告警)
             checker = NumericSafetyChecker(report.computed_numbers)
             is_safe, violations = checker.validate_report(narrative)
+            if not is_safe:
+                report.execution_log.append(
+                    f"安全校验: ❌ {len(violations)}个违规, 触发改写重生成"
+                )
+                narrative = await self._regenerate_narrative(
+                    plan, report.computed_numbers, context, router, violations
+                )
+                is_safe, violations = checker.validate_report(narrative)
             report.num_safe = is_safe
             report.violations = violations
             report.execution_log.append(
@@ -557,3 +569,40 @@ class CodeAsReasoningPipeline:
             return result.response
         except Exception as e:
             return f"叙事生成失败: {e}\n\n计算数据: {numbers_summary}"
+
+    async def _regenerate_narrative(
+        self,
+        plan: str,
+        computed: Dict[str, ComputedNumber],
+        context: Dict[str, Any],
+        router,
+        violations: List[str],
+    ) -> str:
+        """v5.6 P1-9: 校验失败后显式改写 — 把违规数字清单回喂, 要求删除/改述"""
+        numbers_summary = {
+            k: {"value": v.value, "unit": v.unit, "source": v.source}
+            for k, v in computed.items()
+        }
+
+        prompt = (
+            f"你上一版技术分析报告包含无法溯源的数字(疑似编造), 请改写:\n\n"
+            f"任务: {plan}\n\n"
+            f"合法计算指标(只能引用这些):\n{numbers_summary}\n\n"
+            f"被标记的未溯源数字:\n{'; '.join(violations[:10])}\n\n"
+            "改写要求:\n"
+            "1. 删除或修正所有未溯源数字, 只保留能对应到上述指标的数字\n"
+            "2. 引用数字时必须标注来源(如'根据代码计算的RSI(14)=xxx')\n"
+            "3. 不要编造任何不在指标列表中的数字\n"
+        )
+
+        try:
+            result = await router.route(
+                messages=[
+                    {"role": "system", "content": "你是量化技术分析报告生成器, 负责修正编造数字。"},
+                    {"role": "user", "content": prompt},
+                ],
+                task_type="indicator_read",
+            )
+            return result.response
+        except Exception as e:
+            return f"改写失败: {e}\n\n计算数据: {numbers_summary}"

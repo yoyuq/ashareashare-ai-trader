@@ -27,32 +27,32 @@ from loguru import logger
 REGIME_WEIGHTS = {
     "strong_bull": {
         "momentum": 0.35, "value": 0.05, "quality": 0.10,
-        "volatility": 0.05, "sentiment": 0.25, "size": 0.20,
+        "volatility": 0.05, "sentiment": 0.25, "size": 0.20, "neglect": 0.15,
         "rationale": "牛市重势 — 动量+情绪主导, 价格强度至上"
     },
     "weak_bull": {
         "momentum": 0.25, "value": 0.15, "quality": 0.15,
-        "volatility": 0.10, "sentiment": 0.15, "size": 0.20,
+        "volatility": 0.10, "sentiment": 0.15, "size": 0.20, "neglect": 0.15,
         "rationale": "弱牛均衡 — 动量减弱, 开始关注基本面和估值"
     },
     "range_bound": {
         "momentum": 0.10, "value": 0.25, "quality": 0.20,
-        "volatility": 0.25, "sentiment": 0.10, "size": 0.10,
+        "volatility": 0.25, "sentiment": 0.10, "size": 0.10, "neglect": 0.15,
         "rationale": "震荡重质 — 低波动+估值保护, 反转因子有效"
     },
     "weak_bear": {
         "momentum": 0.05, "value": 0.30, "quality": 0.30,
-        "volatility": 0.20, "sentiment": 0.05, "size": 0.10,
+        "volatility": 0.20, "sentiment": 0.05, "size": 0.10, "neglect": 0.15,
         "rationale": "弱熊防守 — 质量+估值优先, 避开高波动"
     },
     "strong_bear": {
         "momentum": 0.00, "value": 0.25, "quality": 0.40,
-        "volatility": 0.25, "sentiment": 0.00, "size": 0.10,
+        "volatility": 0.25, "sentiment": 0.00, "size": 0.10, "neglect": 0.15,
         "rationale": "强熊避险 — 质量>低波>估值, 不追动量"
     },
     "crisis": {
         "momentum": 0.00, "value": 0.20, "quality": 0.35,
-        "volatility": 0.30, "sentiment": 0.00, "size": 0.15,
+        "volatility": 0.30, "sentiment": 0.00, "size": 0.15, "neglect": 0.15,
         "rationale": "危机模式 — 低波+质量+大盘, 流动性优先"
     },
 }
@@ -102,6 +102,8 @@ class PreScreener:
         structure: str = None,
         crowding_penalty: bool = False,
         enable_rps: bool = False,
+        neglect: bool = True,
+        cold_tilt: bool = False,
     ) -> ScreenResult:
         """
         执行全市场初筛
@@ -129,10 +131,38 @@ class PreScreener:
         df = self._quality_filter(df, relax_valuation=(structure == "抱团动量"))
         after_L1 = len(df)
 
+        # 冷落组合模式 (v5.12): 低换手 bottom top_n — 实证 5/5 窗口跑赢上证综指 return+Sharpe
+        # (run_improved_portfolio_ab.py)。跑赢指数靠小盘+冷落系统性 beta, 非选股 alpha。
+        # 此模式跳过 6 维打分, 直接选最低换手的 top_n (等价「被冷落票」等权组合)。
+        if cold_tilt:
+            df_cold = df.sort_values('turnover', ascending=True, kind='mergesort')
+            df_top = df_cold.head(top_n).copy()
+            df_top['rank'] = range(1, len(df_top) + 1)
+            # composite_score 用作单调排序标签 (换手越低分越高)
+            span = max(1, len(df_top) - 1)
+            df_top['composite_score'] = 100.0 - (df_top['rank'] - 1) / span * 100.0
+            score_dist = {
+                "min": float(df_top['composite_score'].min()),
+                "p25": float(df_top['composite_score'].quantile(0.25)),
+                "median": float(df_top['composite_score'].median()),
+                "p75": float(df_top['composite_score'].quantile(0.75)),
+                "max": float(df_top['composite_score'].max()),
+            }
+            logger.info(
+                f"[PreScreener:冷落] {total_in} -> L0:{after_L0} -> L1:{after_L1} -> "
+                f"低换手Top{top_n}"
+            )
+            return ScreenResult(
+                df=df_top, total_in=total_in, total_out=top_n, regime=regime,
+                weights={"neglect": 1.0}, score_distribution=score_dist,
+                filter_stats={"total": total_in, "after_hard_filter": after_L0,
+                              "after_quality_filter": after_L1, "final": top_n},
+            )
+
         # L2: 6维打分 (v3.4 可选拥挤度惩罚: 极度活跃股降权, 避动量崩盘尾部)
         weights = REGIME_WEIGHTS.get(regime, REGIME_WEIGHTS["range_bound"])
         df = self._compute_scores(df, weights, crowding_penalty=crowding_penalty,
-                                  enable_rps=enable_rps)
+                                  enable_rps=enable_rps, neglect=neglect)
 
         # 行业中性化 (可选)
         if industry_neutral and 'industry' in df.columns:
@@ -265,7 +295,8 @@ class PreScreener:
 
     def _compute_scores(self, df: pd.DataFrame, weights: Dict,
                         crowding_penalty: bool = True,
-                        enable_rps: bool = True) -> pd.DataFrame:
+                        enable_rps: bool = True,
+                        neglect: bool = True) -> pd.DataFrame:
         """计算6个维度的因子分并合成综合评分"""
         df = df.copy()
 
@@ -288,6 +319,12 @@ class PreScreener:
 
         # 维度6: 规模 (Size) — 市值特征
         scores["size"] = self._score_size(df)
+
+        # 维度7: 冷落 (Neglect) — 换手率越低分越高 (被市场忽视的票)
+        # 实证 (run_improved_portfolio_ab.py): 低换手 bottom-100 tilt 5/5 窗口跑赢上证综指 return+Sharpe,
+        # 与「动量强负/不追涨」同源 (A股均值回归/注意力溢价). 反制 _score_sentiment 的高换手"受关注"偏好。
+        if neglect:
+            scores["neglect"] = self._score_neglect(df)
 
         # 加权合成
         composite = pd.Series(0.0, index=df.index)
@@ -533,6 +570,26 @@ class PreScreener:
             score += sweet_price + too_low
 
         return self._normalize_score(score, "size")
+
+    # ── 冷落维度 ──
+
+    def _score_neglect(self, df: pd.DataFrame) -> pd.Series:
+        """
+        冷落评分: 换手率越低分越高 (被市场忽视 = 低注意力 = 低估)
+
+        实证 (run_improved_portfolio_ab.py): 低换手 bottom-100 tilt 在 5/5 窗口
+        同时跑赢上证综指 return 与 Sharpe (2018熊+1.7 / 2019牛+8.5 / 2020牛转崩+24.8
+        / 2024震荡+7.0 / 2025-26+16.5 pp). 高换手 = 投机性关注 = 高估 (与动量强负同源)。
+
+        因子: turnover 排名分位越低 (换手越低) → 冷落分越高。
+        """
+        score = pd.Series(0.0, index=df.index)
+        if 'turnover' in df.columns:
+            t = pd.to_numeric(df['turnover'], errors='coerce')
+            t_rank = t.rank(pct=True)  # 0 = 最低换手, 1 = 最高换手
+            # 冷落溢价: 换手越低分越高 (bottom 20% 换手 = 高分)
+            score = (1.0 - t_rank) * 100.0
+        return self._normalize_score(score, "neglect")
 
     # ═══════════════════════════════════════════════════════════════
     # Helpers

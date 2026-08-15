@@ -100,7 +100,7 @@ async def test_model_router():
             task_type="kline_describe",
         )
         assert result.response, "ModelRouter 返回空响应"
-        print(f"  ✅ 路由: {result.tier.value} → {result.model_name}")
+        print(f"  ✅ 路由: {result.tier} → {result.model_name}")
         print(f"  📄 响应: {result.response[:120]}...")
         print(f"  💰 成本: ¥{result.cost:.6f} | 延迟: {result.latency_ms:.0f}ms")
     except Exception as e:
@@ -114,7 +114,7 @@ async def test_model_router():
             task_type="technical_analysis",
         )
         assert result.response, "ModelRouter 返回空响应"
-        print(f"  ✅ 路由: {result.tier.value} → {result.model_name}")
+        print(f"  ✅ 路由: {result.tier} → {result.model_name}")
         print(f"  📄 响应: {result.response[:120]}...")
         print(f"  💰 成本: ¥{result.cost:.6f} | 延迟: {result.latency_ms:.0f}ms")
     except Exception as e:
@@ -181,7 +181,7 @@ async def test_knowledge_with_llm():
             ],
             task_type="technical_analysis",
         )
-        print(f"  ✅ 路由: {result.tier.value}")
+        print(f"  ✅ 路由: {result.tier}")
         print(f"  📄 分析: {result.response[:200]}...")
         print(f"  💰 成本: ¥{result.cost:.6f}")
     except Exception as e:

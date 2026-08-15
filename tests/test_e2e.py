@@ -54,7 +54,7 @@ async def test_model_router_hybrid():
             [{"role":"user","content":"什么是十字星K线?一句话回答"}],
             task_type="kline_describe"
         )
-        print(f"  Tier: {r.tier.value} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
+        print(f"  Tier: {r.tier} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
     except Exception as e:
         print(f"  Failed: {e}")
 
@@ -65,7 +65,7 @@ async def test_model_router_hybrid():
             [{"role":"user","content":"RSI=62, MACD金叉, 量比1.8, 简要分析"}],
             task_type="technical_analysis"
         )
-        print(f"  Tier: {r.tier.value} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
+        print(f"  Tier: {r.tier} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
     except Exception as e:
         print(f"  Failed: {e}")
 
@@ -76,7 +76,7 @@ async def test_model_router_hybrid():
             [{"role":"user","content":"当前市场弱牛, 请给一个简短的综合研判"}],
             task_type="daily_synthesis"
         )
-        print(f"  Tier: {r.tier.value} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
+        print(f"  Tier: {r.tier} | Model: {r.model_name} | {r.latency_ms:.0f}ms | Cost: {r.cost:.6f}")
     except Exception as e:
         print(f"  Failed: {e}")
 

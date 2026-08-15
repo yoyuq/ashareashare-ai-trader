@@ -189,11 +189,11 @@ knowledge/prompts/
 │   ├── chat_assistant.txt
 │   ├── technical_analyst.txt
 │   ├── market_scanner.txt
-│   ├── bull_researcher.txt
-│   ├── bear_researcher.txt
-│   ├── judge.txt
+│   ├── judge.txt            # 多空辩论裁判 (workflow 直接加载, 无独立 Agent 类)
 │   ├── synthesis.txt
-│   └── risk_assessor.txt
+│   ├── risk_assessor.txt
+│   ├── critic.txt
+│   └── macro_analyst.txt    # scripts/macro_context.py 直接读取
 ├── tasks/           # 任务级提示词 (场景化指令)
 │   ├── competition_demo.txt
 │   ├── risk_alert.txt
@@ -205,6 +205,10 @@ knowledge/prompts/
     ├── sector_rotation.json
     └── stop_loss_execution.json
 ```
+
+> 注: `bull_researcher.txt`/`bear_researcher.txt`/`fundamental_analyst.txt`/
+> `chat_assistant_v1.1.txt` 已清理 (P2-4) — 对应类不存在或无加载方, 多空论据由
+> workflow 内联 `_lens_prompt` 生成, 不再依赖独立提示词文件。
 
 ---
 

@@ -16,10 +16,13 @@ import numpy as np
 import pandas as pd
 from typing import Any, Dict, List
 
+# v5.6 P1-10/P1-12: 涨跌停板块感知 + 费率单一来源 — 复用 broker 的纯函数
+from backtest.broker import limit_pct_for_symbol, round_trip_cost_rate
+
 
 # ── 复用的工具函数 ──
 
-def _exec_prices(df: pd.DataFrame) -> tuple:
+def _exec_prices(df: pd.DataFrame, symbol: str = "") -> tuple:
     """T日信号/T+1开盘执行 — 返回 (entry_px, exit_px) 两个Series"""
     opens = pd.Series(df["open"].values)
     closes = pd.Series(df["close"].values)
@@ -30,9 +33,11 @@ def _exec_prices(df: pd.DataFrame) -> tuple:
     exit_px.iloc[-1] = closes.iloc[-1]
     # 涨停买不进 / 跌停卖不出 → NaN
     # v3.0: 基准改用 prev_close (此前误用 prev_high, 除权/长上影时判定失真)
+    # v5.6 P1-10: 涨跌停板块感知 (主板10/创业板科创20/北交所30), 单一来源
+    limit = limit_pct_for_symbol(symbol) / 100.0
     pre_close = closes.shift(1)
-    limit_up = closes >= np.round(pre_close * 1.10, 2) - 0.01
-    limit_down = closes <= np.round(pre_close * 0.90, 2) + 0.01
+    limit_up = closes >= np.round(pre_close * (1 + limit), 2) - 0.01
+    limit_down = closes <= np.round(pre_close * (1 - limit), 2) + 0.01
     entry_px[limit_up] = np.nan
     exit_px[limit_down] = np.nan
     return entry_px, exit_px
@@ -64,7 +69,8 @@ def _compute_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
     """从交易盈亏列表计算回测统计 (与原版一致)"""
-    COST_PER_RT = 0.0031
+    # v5.6 P1-12: 往返成本收敛到 broker 单一费率源 (此前硬编码 0.0031)
+    COST_PER_RT = round_trip_cost_rate()
     if not trades:
         return {"signals": 0, "win_rate": 0, "profit_factor": 1,
                 "expected_value": 0, "sharpe": 0, "max_dd": 0,
@@ -104,7 +110,7 @@ def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════
 
 
-def backtest_momentum_v2(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_momentum_v2(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     动量突破 v2 — 研究成果:
     - 10日动量窗口 (浙商: 10日优于30日, A股趋势持续性弱)
@@ -123,9 +129,11 @@ def backtest_momentum_v2(df: pd.DataFrame) -> Dict[str, Any]:
     rsi = _compute_rsi(closes, 14)
     atr = _compute_atr(df, 14)
     vol_ma20 = volumes.rolling(20).mean()
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     stop_price = 0
@@ -139,6 +147,7 @@ def backtest_momentum_v2(df: pd.DataFrame) -> Dict[str, Any]:
             vol_ok = volumes.iloc[i] > vol_ma20.iloc[i] * 1.2
 
             if closes.iloc[i] >= high_10 and rsi_ok and vol_ok:
+                entry_idx.append(i)
                 px = entry_px[i]
                 if not np.isnan(px) and atr.iloc[i] > 0:
                     in_position = True
@@ -158,6 +167,7 @@ def backtest_momentum_v2(df: pd.DataFrame) -> Dict[str, Any]:
             time_exit = False  # 不再使用固定持有天数
 
             if hit_stop or trail_stop or (cur_pnl < -8):
+                exit_idx.append(i)
                 px = exit_px[i]
                 if not np.isnan(px):
                     pnl = (px / entry_price - 1) * 100
@@ -174,10 +184,13 @@ def backtest_momentum_v2(df: pd.DataFrame) -> Dict[str, Any]:
         pnl = (closes.iloc[-1] / entry_price - 1) * 100
         trades.append(pnl)
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def backtest_multifactor_v2(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_multifactor_v2(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     多因子融合 v2
     - 10日动量 + RSI + 成交量 + 趋势 + 低波 五因子
@@ -192,7 +205,7 @@ def backtest_multifactor_v2(df: pd.DataFrame) -> Dict[str, Any]:
         return {"signals": 0}
 
     rsi = _compute_rsi(closes, 14)
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     trades = []
     in_position = False
     entry_price = 0.0
@@ -255,7 +268,7 @@ def backtest_multifactor_v2(df: pd.DataFrame) -> Dict[str, Any]:
 
     return _calc_bt_stats(trades)
 
-def backtest_ma_trend_v2(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_ma_trend_v2(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     双均线趋势 v2
     - 短周期均线 (5/20)
@@ -275,7 +288,7 @@ def backtest_ma_trend_v2(df: pd.DataFrame) -> Dict[str, Any]:
     rsi = _compute_rsi(closes, 14)
     atr = _compute_atr(df, 14)
     vol_ma20 = volumes.rolling(20).mean()
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     trades = []
     in_position = False
@@ -317,7 +330,7 @@ def backtest_ma_trend_v2(df: pd.DataFrame) -> Dict[str, Any]:
 
     return _calc_bt_stats(trades)
 
-def backtest_macd_v2(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_macd_v2(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     MACD趋势 v2
     - MACD(12,26,9) 金叉 + RSI确认
@@ -340,7 +353,7 @@ def backtest_macd_v2(df: pd.DataFrame) -> Dict[str, Any]:
     rsi = _compute_rsi(closes, 14)
     atr = _compute_atr(df, 14)
     vol_ma20 = volumes.rolling(20).mean()
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     trades = []
     in_position = False
@@ -389,7 +402,7 @@ def backtest_macd_v2(df: pd.DataFrame) -> Dict[str, Any]:
 
     return _calc_bt_stats(trades)
 
-def backtest_rsi_reversal_v2(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_rsi_reversal_v2(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     RSI均值回归 v2
     - RSI14<28 + RSI3<20 双重超卖确认
@@ -408,7 +421,7 @@ def backtest_rsi_reversal_v2(df: pd.DataFrame) -> Dict[str, Any]:
     atr = _compute_atr(df, 14)
     ma20 = closes.rolling(20).mean()
     vol_ma20 = volumes.rolling(20).mean()
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     trades = []
     in_position = False
@@ -443,7 +456,7 @@ def backtest_rsi_reversal_v2(df: pd.DataFrame) -> Dict[str, Any]:
     return _calc_bt_stats(trades)
 
 
-def backtest_bollinger_v2(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_bollinger_v2(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     布林带回归 v2 — 研究成果:
     - 布林带(20,2) + RSI双确认
@@ -463,7 +476,7 @@ def backtest_bollinger_v2(df: pd.DataFrame) -> Dict[str, Any]:
     rsi = _compute_rsi(closes, 14)
     atr = _compute_atr(df, 14)
     vol_ma20 = volumes.rolling(20).mean()
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     trades = []
     in_position = False
@@ -502,7 +515,7 @@ def backtest_bollinger_v2(df: pd.DataFrame) -> Dict[str, Any]:
     return _calc_bt_stats(trades)
 
 
-def backtest_pv_tension(df: pd.DataFrame) -> Dict[str, Any]:
+def backtest_pv_tension(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """
     价量张力反转 (Price-Volume Tension Reversal)
     基于国联民生金工 2026.7 研究
@@ -524,7 +537,7 @@ def backtest_pv_tension(df: pd.DataFrame) -> Dict[str, Any]:
     amp_ma20 = amplitude.rolling(20).mean()
     vol_ma20 = volumes.rolling(20).mean()
     ma20 = closes.rolling(20).mean()
-    ep, xp = _exec_prices(df)
+    ep, xp = _exec_prices(df, symbol)
 
     trades = []
     in_position = False

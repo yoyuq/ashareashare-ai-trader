@@ -6,17 +6,19 @@ EastMoney/AKShare 常被墙/需代理; 腾讯 qt.gtimg.cn 免代理稳定。
 用法: python scripts/refresh_market_cache.py
 """
 
-import json
 import sys
 import time
-from datetime import date
 from pathlib import Path
 
+import pandas as pd
 import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-CACHE = Path("simulation_data/full_market_cache.json")
+from data.full_market_cache import (  # noqa: E402
+    CACHE_PATH, read_full_market_cache, write_full_market_cache,
+)
+from timeutil import last_trade_date  # noqa: E402
 
 
 def fetch_tencent(symbols: list, batch: int = 50) -> dict:
@@ -60,11 +62,11 @@ def fetch_tencent(symbols: list, batch: int = 50) -> dict:
 
 
 def main():
-    if not CACHE.exists():
+    _old_df, _old_date = read_full_market_cache()
+    if _old_df is None:
         print("无现有缓存, 无法获取股票列表")
         return
-    old = json.loads(CACHE.read_text(encoding="utf-8"))
-    symbols = [d["code"] for d in old.get("data", [])]
+    symbols = [str(d) for d in _old_df["code"].tolist()]
     print(f"从旧缓存读取 {len(symbols)} 只股票")
 
     # 转成带前缀 symbol
@@ -85,14 +87,10 @@ def main():
             continue
         new_data.append(q)
 
-    new_cache = {
-        "date": date.today().isoformat(),
-        "count": len(new_data),
-        "source": "tencent_realtime",
-        "data": new_data,
-    }
-    CACHE.write_text(json.dumps(new_cache, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"✅ 缓存已更新: {new_cache['date']} | {len(new_data)} 只 | {CACHE}")
+    # 快照日期用最近 A 股交易日 (非宿主机 date.today()), 周末/节假日刷新时陈旧标记不失真
+    trade_date = last_trade_date().isoformat()
+    write_full_market_cache(pd.DataFrame(new_data), trade_date, "tencent_realtime")
+    print(f"✅ 缓存已更新: {trade_date} (最近交易日) | {len(new_data)} 只 | {CACHE_PATH}")
     if new_data:
         print("样例:", new_data[0]["name"], new_data[0]["price"], f"涨跌{new_data[0]['pct_change']}%")
 

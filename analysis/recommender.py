@@ -17,6 +17,9 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+# v5.6 P1-10/P1-12: 涨跌停板块感知 + 费率单一来源 — 复用 broker 的纯函数
+from backtest.broker import limit_pct_for_symbol, round_trip_cost_rate
+
 # 延迟导入避免循环依赖
 from .scanner import ScanResult
 from .sector_rotation import SectorHeatmap
@@ -113,7 +116,7 @@ class DailyRecommendations:
 # 每策略的真实回测函数
 # ═══════════════════════════════════════════════════════════════
 
-def _exec_prices(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+def _exec_prices(df: pd.DataFrame, symbol: str = "") -> Tuple[np.ndarray, np.ndarray]:
     """
     构建回测执行层价格数组 — 消除"同日收盘决策+同日收盘成交"的时序乐观偏差。
 
@@ -144,11 +147,14 @@ def _exec_prices(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         pct = np.zeros(n)
         pct[1:] = (closes[1:] / np.maximum(closes[:-1], 1e-10) - 1) * 100
 
-    # 一字封板判定: 收盘=最高/最低 (全天封死) 且涨幅触及下限 9.3%
-    # (主板涨停10%, 创业板/科创板20%, 北交所30%; 用 9.3 作"已触及涨停区间"的下限,
-    #  配合 close==high/low 的封板条件, 对各板块均保守安全 — 宁可漏买不可买封板)
-    sealed_up = (np.abs(closes - highs) < 0.01) & (pct >= 9.3)
-    sealed_down = (np.abs(closes - lows) < 0.01) & (pct <= -9.3)
+    # 一字封板判定: 收盘=最高/最低 (全天封死) 且涨幅触及涨停区间下限。
+    # v5.6 P1-10: 下限按板块感知 (主板10/创业板科创20/北交所30), 用 `limit-0.7`
+    # 作"已触及涨停区间"的保守下限 (原硬编码 9.3 仅适配主板), 配合 close==high/low
+    # 封板条件对全板块均保守安全 — 宁可漏买不可买封板。
+    limit = limit_pct_for_symbol(symbol)
+    floor = limit - 0.7
+    sealed_up = (np.abs(closes - highs) < 0.01) & (pct >= floor)
+    sealed_down = (np.abs(closes - lows) < 0.01) & (pct <= -floor)
 
     entry_px = exec_px.copy()
     exit_px = exec_px.copy()
@@ -158,7 +164,7 @@ def _exec_prices(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     return entry_px, exit_px
 
 
-def _backtest_ma_trend(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_ma_trend(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """双均线趋势策略回测 (T日信号/T+1开盘成交)"""
     closes = df["close"].values
     n = len(closes)
@@ -167,19 +173,23 @@ def _backtest_ma_trend(df: pd.DataFrame) -> Dict[str, Any]:
 
     ma10 = pd.Series(closes).rolling(10).mean().values
     ma30 = pd.Series(closes).rolling(30).mean().values
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
 
     for i in range(60, n):
         if not in_position and ma10[i] > ma30[i] and ma10[i-1] <= ma30[i-1]:
+            entry_idx.append(i)
             px = entry_px[i]
             if not np.isnan(px):  # 次日涨停封板则买不进, 放弃本次信号
                 in_position = True
                 entry_price = px
         elif in_position and ma10[i] < ma30[i] and ma10[i-1] >= ma30[i-1]:
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):  # 次日跌停封板则卖不出, 持有至可卖日
                 pnl = (px / entry_price - 1) * 100
@@ -187,10 +197,13 @@ def _backtest_ma_trend(df: pd.DataFrame) -> Dict[str, Any]:
                 in_position = False
                 entry_price = 0
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_macd_trend(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_macd_trend(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """MACD趋势策略回测 (T日信号/T+1开盘成交)"""
     closes = pd.Series(df["close"].values)
     ema12 = closes.ewm(span=12, adjust=False).mean()
@@ -199,28 +212,35 @@ def _backtest_macd_trend(df: pd.DataFrame) -> Dict[str, Any]:
     signal = macd.ewm(span=9, adjust=False).mean()
 
     n = len(closes)
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
 
     for i in range(30, n):
         if not in_position and macd.iloc[i] > signal.iloc[i] and macd.iloc[i-1] <= signal.iloc[i-1]:
+            entry_idx.append(i)
             px = entry_px[i]
             if not np.isnan(px):
                 in_position = True
                 entry_price = px
         elif in_position and macd.iloc[i] < signal.iloc[i] and macd.iloc[i-1] >= signal.iloc[i-1]:
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):
                 pnl = (px / entry_price - 1) * 100
                 trades.append(pnl)
                 in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_bollinger_reversal(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """布林带均值回归策略回测 (v2.10: 放宽入场条件)"""
     closes = pd.Series(df["close"].values)
     ma20 = closes.rolling(20).mean()
@@ -237,8 +257,10 @@ def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
                         (loss.ewm(span=14, adjust=False).mean() + 1e-10)))
 
     n = len(closes)
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
 
@@ -248,27 +270,33 @@ def _backtest_bollinger_reversal(df: pd.DataFrame) -> Dict[str, Any]:
         moderate_oversold = closes.iloc[i] <= mid_lower.iloc[i] and rsi.iloc[i] < 40
         shallow_pullback = closes.iloc[i] <= ma20.iloc[i] and rsi.iloc[i] < 35
         if not in_position and (deep_oversold or moderate_oversold or shallow_pullback):
+            entry_idx.append(i)
             px = entry_px[i]
             if not np.isnan(px):
                 in_position = True
                 entry_price = px
         elif in_position and (closes.iloc[i] >= ma20.iloc[i] or closes.iloc[i] >= upper.iloc[i]):
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):  # 跌停封板卖不出, 持有至可卖日
                 pnl = (px / entry_price - 1) * 100
                 trades.append(pnl)
                 in_position = False
         elif in_position and (closes.iloc[i] / entry_price - 1) < -0.05:  # 5%止损
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):
                 pnl = (px / entry_price - 1) * 100  # 次日开盘实际止损价 (可能跳空低于-5%)
                 trades.append(pnl)
                 in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_rsi_reversal(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_rsi_reversal(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """RSI均值回归回测 (v2.10: 放宽入场RSI<35)"""
     closes = pd.Series(df["close"].values)
     delta = closes.diff()
@@ -278,42 +306,52 @@ def _backtest_rsi_reversal(df: pd.DataFrame) -> Dict[str, Any]:
                         (loss.ewm(span=14, adjust=False).mean() + 1e-10)))
 
     n = len(closes)
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
 
     for i in range(14, n):
         if not in_position and rsi.iloc[i] < 35:  # v2.10: 30→35, 增加信号量
+            entry_idx.append(i)
             px = entry_px[i]
             if not np.isnan(px):
                 in_position = True
                 entry_price = px
         elif in_position and rsi.iloc[i] > 55:
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):
                 pnl = (px / entry_price - 1) * 100
                 trades.append(pnl)
                 in_position = False
         elif in_position and (closes.iloc[i] / entry_price - 1) < -0.05:
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):
                 pnl = (px / entry_price - 1) * 100  # 次日开盘实际止损价
                 trades.append(pnl)
                 in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_momentum_breakout(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_momentum_breakout(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """动量突破策略回测 (T日信号/T+1开盘成交)"""
     closes = pd.Series(df["close"].values)
     volumes = pd.Series(df["volume"].values)
     vol_ma20 = volumes.rolling(20).mean()
 
     n = len(closes)
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     hold_days = 0
@@ -323,6 +361,7 @@ def _backtest_momentum_breakout(df: pd.DataFrame) -> Dict[str, Any]:
             high_20 = closes.iloc[i-20:i].max()
             vol_surge = volumes.iloc[i] > vol_ma20.iloc[i] * 1.3
             if closes.iloc[i] >= high_20 and vol_surge:
+                entry_idx.append(i)
                 px = entry_px[i]
                 if not np.isnan(px):  # 突破日涨停封板 → 买不进, 放弃信号
                     in_position = True
@@ -332,16 +371,20 @@ def _backtest_momentum_breakout(df: pd.DataFrame) -> Dict[str, Any]:
             hold_days += 1
             # 持有5天或下跌5%止损 (跌停封板卖不出 → 顺延至可卖日)
             if hold_days >= 5 or (closes.iloc[i] / entry_price - 1) < -0.05:
+                exit_idx.append(i)
                 px = exit_px[i]
                 if not np.isnan(px):
                     pnl = (px / entry_price - 1) * 100
                     trades.append(pnl)
                     in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_limit_up(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_limit_up(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """涨停板策略回测 — 只看封板质量 (T日信号/T+1开盘成交)
 
     关键修复: 首板封板日无法买入, 信号次日以开盘价执行;
@@ -352,8 +395,10 @@ def _backtest_limit_up(df: pd.DataFrame) -> Dict[str, Any]:
     volumes = pd.Series(df["volume"].values)
 
     n = len(closes)
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     hold_days = 0
@@ -366,6 +411,7 @@ def _backtest_limit_up(df: pd.DataFrame) -> Dict[str, Any]:
         vol_ok = volumes.iloc[i] > volumes.iloc[i-5:i].mean() * 1.5
 
         if is_limit_up and is_sealed and vol_ok and not in_position:
+            entry_idx.append(i)
             px = entry_px[i]  # 次日开盘价; 次日继续封板 → NaN
             if not np.isnan(px):
                 in_position = True
@@ -374,16 +420,20 @@ def _backtest_limit_up(df: pd.DataFrame) -> Dict[str, Any]:
         elif in_position:
             hold_days += 1
             if hold_days >= 3 or (closes.iloc[i] / entry_price - 1) < -0.03:
+                exit_idx.append(i)
                 px = exit_px[i]
                 if not np.isnan(px):  # 跌停封板卖不出, 顺延
                     pnl = (px / entry_price - 1) * 100
                     trades.append(pnl)
                     in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_low_volatility(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_low_volatility(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """低波动策略回测 — 买入持有低波标的 (T日信号/T+1开盘成交)"""
     closes = pd.Series(df["close"].values)
     returns = closes.pct_change().fillna(0)  # fillna 保持索引与 closes 对齐 (dropna 会错位1根)
@@ -392,9 +442,11 @@ def _backtest_low_volatility(df: pd.DataFrame) -> Dict[str, Any]:
     if n < 60:
         return {"signals": 0}
 
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
     # 每20天检查: 20日波动是否在最低30%分位
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     hold_days = 0
@@ -404,6 +456,7 @@ def _backtest_low_volatility(df: pd.DataFrame) -> Dict[str, Any]:
             hv20 = returns.iloc[i-20:i].std() * np.sqrt(252) * 100
             hv60 = returns.iloc[max(0, i-60):i].std() * np.sqrt(252) * 100
             if hv20 < hv60 * 0.7:  # 波动率显著低于历史
+                entry_idx.append(i)
                 px = entry_px[i]
                 if not np.isnan(px):
                     in_position = True
@@ -414,16 +467,20 @@ def _backtest_low_volatility(df: pd.DataFrame) -> Dict[str, Any]:
             hv20_now = returns.iloc[i-20:i].std() * np.sqrt(252) * 100
             hv60_now = returns.iloc[max(0, i-60):i].std() * np.sqrt(252) * 100
             if hold_days >= 20 or hv20_now > hv60_now * 1.3:
+                exit_idx.append(i)
                 px = exit_px[i]
                 if not np.isnan(px):
                     pnl = (px / entry_price - 1) * 100
                     trades.append(pnl)
                     in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_turtle_trend(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_turtle_trend(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """🆕 v2.10 海龟趋势突破策略回测
 
     入场: 价格突破20日最高价 (Donchian Channel上轨)
@@ -446,16 +503,19 @@ def _backtest_turtle_trend(df: pd.DataFrame) -> Dict[str, Any]:
     atr = tr.rolling(20).mean()
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     stop_price = 0
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     for i in range(60, n):
         if not in_position:
             # 入场: 突破20日高点
             high_20 = highs.iloc[i-20:i].max()
             if closes.iloc[i] >= high_20 and atr.iloc[i] > 0:
+                entry_idx.append(i)
                 px = entry_px[i]
                 if not np.isnan(px):
                     in_position = True
@@ -467,16 +527,20 @@ def _backtest_turtle_trend(df: pd.DataFrame) -> Dict[str, Any]:
             hit_stop = closes.iloc[i] <= stop_price
             hit_exit = closes.iloc[i] <= low_10
             if hit_stop or hit_exit:
+                exit_idx.append(i)
                 px = exit_px[i]
                 if not np.isnan(px):  # 跌停封板卖不出, 顺延
                     pnl = (px / entry_price - 1) * 100
                     trades.append(pnl)
                     in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_multi_factor(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_multi_factor(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """🆕 v2.10 多因子选股策略回测
 
     基于5因子综合评分 (动量+波动率+趋势+成交量+质量代理),
@@ -492,10 +556,12 @@ def _backtest_multi_factor(df: pd.DataFrame) -> Dict[str, Any]:
 
     # 每月(约20个交易日)计算一次因子评分
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     hold_days = 0
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     for i in range(120, n):
         if i % 20 != 0:  # 每月调仓
@@ -532,22 +598,27 @@ def _backtest_multi_factor(df: pd.DataFrame) -> Dict[str, Any]:
         composite = mom_score + lowvol_score + trend_score + volume_score + qual_score
 
         if not in_position and composite > 0.5:  # 综合评分>0.5入场
+            entry_idx.append(i)
             px = entry_px[i]
             if not np.isnan(px):
                 in_position = True
                 entry_price = px
                 hold_days = 0
         elif in_position and (composite < -0.3 or hold_days >= 20):
+            exit_idx.append(i)
             px = exit_px[i]
             if not np.isnan(px):
                 pnl = (px / entry_price - 1) * 100
                 trades.append(pnl)
                 in_position = False
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
-def _backtest_northbound_follow(df: pd.DataFrame) -> Dict[str, Any]:
+def _backtest_northbound_follow(df: pd.DataFrame, symbol: str = "") -> Dict[str, Any]:
     """v3.1 North-bound capital following strategy backtest.
 
     Tracks consecutive net inflow days as proxy for north-bound direction,
@@ -560,10 +631,12 @@ def _backtest_northbound_follow(df: pd.DataFrame) -> Dict[str, Any]:
         return {"signals": 0}
 
     trades = []
+    entry_idx = []
+    exit_idx = []
     in_position = False
     entry_price = 0
     consecutive_inflow = 0
-    entry_px, exit_px = _exec_prices(df)
+    entry_px, exit_px = _exec_prices(df, symbol)
 
     for i in range(60, n):
         # Proxy: positive price change + above-average volume = capital inflow
@@ -577,6 +650,7 @@ def _backtest_northbound_follow(df: pd.DataFrame) -> Dict[str, Any]:
             # Entry: 3+ consecutive inflow days + price above MA20
             ma20 = closes.iloc[i-20:i].mean()
             if consecutive_inflow >= 3 and closes.iloc[i] > ma20:
+                entry_idx.append(i)
                 px = entry_px[i]
                 if not np.isnan(px):
                     in_position = True
@@ -585,6 +659,7 @@ def _backtest_northbound_follow(df: pd.DataFrame) -> Dict[str, Any]:
             # Exit: outflow (not inflow) for 2 days or stop loss
             pnl_pct = (closes.iloc[i] / entry_price - 1) if entry_price > 0 else 0
             if (consecutive_inflow == 0 and not is_inflow_day) or pnl_pct <= -0.06 or pnl_pct >= 0.15:
+                exit_idx.append(i)
                 px = exit_px[i]
                 if not np.isnan(px):  # 跌停封板卖不出, 顺延
                     pnl = (px / entry_price - 1) * 100
@@ -596,7 +671,10 @@ def _backtest_northbound_follow(df: pd.DataFrame) -> Dict[str, Any]:
         pnl = (closes.iloc[-1] / entry_price - 1) * 100 if entry_price > 0 else 0
         trades.append(pnl)
 
-    return _calc_bt_stats(trades)
+    r = _calc_bt_stats(trades)
+    r["entry_sig"] = entry_idx
+    r["exit_sig"] = exit_idx
+    return r
 
 
 # 策略ID → 回测函数映射
@@ -626,7 +704,8 @@ def _calc_bt_stats(trades: List[float]) -> Dict[str, Any]:
       - 单边总成本 ≈ 0.03% + 0.05% + 0.1% = 0.18% (卖出)
       - 往返总成本 ≈ 0.31% per round-trip
     """
-    COST_PER_RT = 0.0031  # 往返交易成本 0.31%
+    # v5.6 P1-12: 往返成本收敛到 broker 单一费率源 (此前硬编码 0.0031)
+    COST_PER_RT = round_trip_cost_rate()  # 往返交易成本 0.31%
 
     if not trades:
         return {"signals": 0, "win_rate": 0, "profit_factor": 1,

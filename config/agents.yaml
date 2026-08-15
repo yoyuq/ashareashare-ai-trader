@@ -97,25 +97,35 @@ tools:
     timeout_seconds: 30
 
 # ── 工作流配置 ──
+# v5.6 P1-8: 与 workflow.py::_build_graph 实际拓扑对齐 (v3.5 市场诊断官 +
+# v3.1-deerflow 反思循环), 此前缺失 market_diagnostic/evaluation/synthesis_revision
+# 且边关系过时。
 workflow:
   # 节点执行顺序
   nodes:
     - data_preparation
     - technical_analysis
     - market_scanner
+    - market_diagnostic
     - strategy_matching
     - backtest_verification
     - adversarial_debate
     - critic_audit
     - synthesis
+    - evaluation
+    - synthesis_revision
 
   # 节点间依赖关系
   edges:
     - [data_preparation, technical_analysis]
     - [technical_analysis, market_scanner]
-    - [market_scanner, strategy_matching]
+    - [market_scanner, market_diagnostic]
+    - [market_diagnostic, strategy_matching]
     - [strategy_matching, backtest_verification]
     - [backtest_verification, adversarial_debate]
     - [adversarial_debate, critic_audit]
     - [critic_audit, synthesis]
-    - [synthesis, END]
+    - [synthesis, evaluation]
+    - [evaluation, synthesis_revision]   # 条件边: 评估不通过 → 回炉修订
+    - [evaluation, END]                  # 条件边: 评估通过 → 结束
+    - [synthesis_revision, evaluation]

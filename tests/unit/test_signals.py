@@ -338,6 +338,23 @@ class TestFallbackPrices:
         price = get_best_price("sh.999999", {})
         assert price == 0.0
 
+    def test_get_fallback_price_expired_returns_none(self, monkeypatch):
+        """兜底价过期 (>3天) → 返回 None, 拒绝用陈旧价格下单 (fail-closed)。"""
+        from datetime import date
+        from scripts import shared
+        monkeypatch.setattr(shared, "_PRICE_LAST_UPDATED", "2020-01-01")
+        price, msg = shared.get_fallback_price("sh.600519")
+        assert price is None
+        assert msg and "过期" in msg
+
+    def test_get_fallback_price_fresh_returns_price(self, monkeypatch):
+        from datetime import date
+        from scripts import shared
+        monkeypatch.setattr(shared, "_PRICE_LAST_UPDATED", date.today().isoformat())
+        price, msg = shared.get_fallback_price("sh.600519")
+        assert price is not None and price > 0
+        assert msg is None
+
     def test_resolve_name(self):
         from scripts.shared import resolve_name
         assert resolve_name("sh.600519") == "贵州茅台"
