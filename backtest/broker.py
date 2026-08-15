@@ -21,6 +21,23 @@ import pandas as pd
 from loguru import logger
 
 
+def limit_pct_for_symbol(symbol: str) -> float:
+    """按板块返回涨跌幅限制(%) — 纯函数, 供简化回测器复用。
+
+    主板±10%, 创业板/科创板(30/68开头)±20%, 北交所(8/4/920开头)±30%。
+    不含主板 ST 的 ±5% 特殊规则 (该逻辑依赖日期/ST集合, 由
+    `AShareBroker._limit_pct_for` 处理)。
+    """
+    if not symbol:
+        return 10.0
+    sym = symbol.replace("sh.", "").replace("sz.", "").replace("bj.", "")
+    if sym.startswith("30") or sym.startswith("68"):
+        return 20.0  # 创业板/科创板
+    if sym.startswith("8") or sym.startswith("4") or sym.startswith("920"):
+        return 30.0  # 北交所 (8/4 旧段, 920 新段)
+    return 10.0
+
+
 class OrderSide(Enum):
     BUY = "buy"
     SELL = "sell"
@@ -139,8 +156,9 @@ class AShareBroker:
     MIN_COMMISSION = 5.0           # 最低佣金: ¥5
     STAMP_DUTY_RATE = 0.0005       # 印花税: 0.05% (仅卖出)
     TRANSFER_FEE_RATE = 0.00001    # 过户费: 0.001% (沪深两市, 2015年起均收)
+    SLIPPAGE_PCT = 0.001           # 滑点: 10bp (买卖各一次)
 
-    def __init__(self, initial_capital: float = 100000.0, slippage_pct: float = 0.001):
+    def __init__(self, initial_capital: float = 100000.0, slippage_pct: Optional[float] = None):
         self.account = Account(initial_capital=initial_capital)
         self.account.cash = initial_capital
         self.orders: List[Order] = []
@@ -148,7 +166,8 @@ class AShareBroker:
         self._cur_date: Optional[date] = None
         self._cur_prices: Dict[str, pd.Series] = {}  # {symbol: daily_bar}
         # v5.6 纸盘面: 滑点 (此前 slippage_pct 在 config 定义但从未接线, 现真正用于成交价)
-        self.slippage_pct = float(slippage_pct or 0.0)
+        # P1-12: 默认值收敛到单一常量 SLIPPAGE_PCT, 不再在签名里散落魔法数
+        self.slippage_pct = float(self.SLIPPAGE_PCT if slippage_pct is None else slippage_pct)
         # T+1 延迟执行: True 时 buy/sell 只入队挂单, 由 execute_pending_orders()
         # 在次日以开盘价执行 (消除"收盘价决策+收盘价成交"的时序乐观偏差)
         self.deferred_execution: bool = False
@@ -576,11 +595,10 @@ class AShareBroker:
         主板 ST/ST*: 2026-07-06 起涨跌幅由 ±5% 调至 ±10% (2026-07-06 之前仍为 ±5%)。
         ST 判定优先用 bar.name 字段; 无 name 时回退到 register_st 注册的集合。
         """
-        sym_stripped = symbol.replace("sh.", "").replace("sz.", "").replace("bj.", "")
-        if sym_stripped.startswith("30") or sym_stripped.startswith("68"):
-            return 20.0  # 创业板/科创板 (ST 同为 20%)
-        if sym_stripped.startswith("8") or sym_stripped.startswith("4"):
-            return 30.0  # 北交所 (8/4 开头)
+        # P1-10: 板块基础限制收敛到纯函数 limit_pct_for_symbol (单一来源)
+        board_limit = limit_pct_for_symbol(symbol)
+        if board_limit != 10.0:
+            return board_limit  # 创业板/科创板/北交所 (ST 同为 20%/30%)
         # 主板: ST 检测
         is_st = symbol in self._st_symbols
         if not is_st and bar is not None:
@@ -752,3 +770,22 @@ class AShareBroker:
                     "buy_date": pos.buy_date,
                 })
         return pd.DataFrame(records)
+
+
+def round_trip_cost_rate(slippage_pct: Optional[float] = None) -> float:
+    """往返交易成本率 (单一费率源, P1-12)。
+
+    简化回测器 (optimized_strategies/recommender/strategies_v3) 的
+    COST_PER_RT 此前各自硬编码 0.0031, 与此处 broker 费率并存易漂移。
+    统一为: 佣金×2(买卖) + 印花税(卖) + 过户费×2 + 滑点×2。
+
+    默认滑点取 AShareBroker.SLIPPAGE_PCT (10bp), 可显式覆盖。
+    """
+    if slippage_pct is None:
+        slippage_pct = AShareBroker.SLIPPAGE_PCT
+    return (
+        AShareBroker.COMMISSION_RATE * 2
+        + AShareBroker.STAMP_DUTY_RATE
+        + AShareBroker.TRANSFER_FEE_RATE * 2
+        + float(slippage_pct) * 2
+    )

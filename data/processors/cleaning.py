@@ -33,4 +33,15 @@ def clean_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
         if col in out.columns:
             out[col] = out[col].ffill()
 
+    # 4. 量/额负值清洗 (数据源偶发负值 → NaN, 防止污染量比/换手等指标)
+    for col in ["volume", "amount", "turnover", "turn"]:
+        if col in out.columns:
+            s = pd.to_numeric(out[col], errors="coerce")
+            out[col] = s.mask(s < 0)
+
+    # 5. 日期单调排序 + 去重 (防御: 双源拼接/脏数据; providers 已排, 此处兜底)
+    if "date" in out.columns:
+        out["date"] = pd.to_datetime(out["date"], errors="coerce")
+        out = out.dropna(subset=["date"]).sort_values("date").drop_duplicates("date", keep="last")
+
     return out

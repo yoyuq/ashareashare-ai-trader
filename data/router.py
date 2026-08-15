@@ -9,6 +9,7 @@
 
 import asyncio
 import hashlib
+import os
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -49,9 +50,21 @@ class DataRouter:
         self._max_failures = 3
         self._downgrade_duration = timedelta(minutes=5)
         self.last_used_source: str = ""  # v2.10: 追踪实际使用的数据源
-        # v2.10: 简易内存缓存 (无需Redis)
-        self._cache: Dict[str, tuple] = {}  # key → (timestamp, DataResult)
-        self._cache_ttl = timedelta(minutes=5)  # K线缓存5分钟
+        # v5.6 P1-1/P1-3: 分层 TTL 内存缓存 + LRU 上限 + 负缓存 + 并发合并
+        self._cache: Dict[str, tuple] = {}  # key → (timestamp, DataResult | [失败源])
+        # 按方法分层 TTL: 日K线 1h (盘中可能有新数据); 分钟K线 5min
+        self._cache_ttl: Dict[str, timedelta] = {
+            "get_daily_kline": timedelta(hours=1),
+            "get_minute_kline": timedelta(minutes=5),
+        }
+        self._cache_max_entries = int(os.getenv("DATA_CACHE_MAX_ENTRIES", "5000"))
+        self._negative_cache_ttl = timedelta(seconds=30)  # 全源失败短期负缓存 (防击穿)
+        self._inflight: Dict[str, asyncio.Future] = {}  # v5.6 P1-3: 并发合并 (单飞)
+        # 实时行情 / 股票列表缓存 (v5.6 P1-1: 此前无缓存, 每次全量走网络)
+        self._quote_cache: Dict[str, tuple] = {}  # ",".join(sorted(symbols)) → (ts, df)
+        self._quote_cache_ttl = timedelta(seconds=3)
+        self._stock_list_cache: Optional[tuple] = None  # (ts, df)
+        self._stock_list_cache_ttl = timedelta(minutes=5)  # 内存兜底 5min (Redis 层可用则 24h)
 
     def register(self, provider: DataProvider, priority: int = 0):
         """注册数据源 (priority 越小越优先)
@@ -78,7 +91,12 @@ class DataRouter:
         return await self._route_with_fallback("get_minute_kline", request)
 
     async def get_stock_list(self) -> pd.DataFrame:
-        """获取全市场股票列表 (v3.0: 统一 schema 后返回)"""
+        """获取全市场股票列表 (v3.0: 统一 schema 后返回; v5.6 P1-1: 5min 内存缓存)"""
+        # v5.6 P1-1: 内存缓存 (Redis 层可用则 24h, 无 Redis 兜底 5min)
+        if self._stock_list_cache is not None:
+            ts, df = self._stock_list_cache
+            if now_cn_naive() - ts < self._stock_list_cache_ttl:
+                return df
         for source in self._active_sources():
             provider = self._providers.get(source)
             if provider is None:
@@ -88,7 +106,9 @@ class DataRouter:
                 # v3.0: 排除错误占位 DataFrame (如 Tencent 返回 {"error": [...]} 为非空)
                 if not df.empty and "error" not in df.columns:
                     self._on_success(source)
-                    return self._normalize_stock_list(df)
+                    out = self._normalize_stock_list(df)
+                    self._stock_list_cache = (now_cn_naive(), out)  # v5.6 P1-1: 缓存
+                    return out
                 # v5.6 P0-6: 空数据/错误占位表与"确实无数据"分离 — 计入失败,
                 # 触发熔断降级而非静默吞掉 (Tencent 不支持股票列表属永久缺能力,
                 # 仍计入但由 5 分钟降级窗口限频, 不会影响其实时行情/K线等已支持维度)。
@@ -136,7 +156,12 @@ class DataRouter:
         return out
 
     async def get_realtime_quote(self, symbols: List[str]) -> pd.DataFrame:
-        """获取实时行情(只用主源)"""
+        """获取实时行情(只用主源; v5.6 P1-1: 3s 缓存防高频/并发重复请求)"""
+        cache_key = ",".join(sorted(symbols))
+        if cache_key in self._quote_cache:
+            ts, df = self._quote_cache[cache_key]
+            if now_cn_naive() - ts < self._quote_cache_ttl:
+                return df
         for source in self._active_sources():
             provider = self._providers.get(source)
             if provider is None:
@@ -145,6 +170,7 @@ class DataRouter:
                 df = await provider.get_realtime_quote(symbols)
                 if not df.empty and "error" not in df.columns:
                     self._on_success(source)
+                    self._quote_cache[cache_key] = (now_cn_naive(), df)  # v5.6 P1-1
                     return df
                 # v5.6 P0-6: 空/错误占位表计入失败 (静默失败分离)
                 logger.warning(f"{source.value} 实时行情返回空/错误占位表")
@@ -159,27 +185,67 @@ class DataRouter:
     # ═══════════════════════════════════════════════════════════════
 
     async def _route_with_fallback(self, method: str, request: DataRequest) -> DataResult:
-        """带自动降级的路由 (v2.10: 缓存 + 数据校验 + 超时)"""
+        """带自动降级的路由 (v2.10: 缓存 + 数据校验 + 超时; v5.6: 分层 TTL + 负缓存 + 单飞)"""
 
-        # 🆕 v2.10: 内存缓存检查
         # 缓存键必须含复权方式与频率, 否则 qfq/hfq/raw 数据互相污染
         cache_key = (
             f"{method}:{request.symbol}:{request.start_date}:{request.end_date}:"
             f"{request.frequency.value}:{request.adjust}"
         )
-        if cache_key in self._cache:
-            ts, cached_result = self._cache[cache_key]
-            if now_cn_naive() - ts < self._cache_ttl:
-                return cached_result
+        ttl = self._cache_ttl.get(method, self._cache_ttl["get_daily_kline"])
 
+        # 1. 命中缓存 (正缓存按分层 TTL; 负缓存按 30s 短期)
+        if cache_key in self._cache:
+            ts, cached = self._cache[cache_key]
+            if isinstance(cached, list):  # 负缓存 (全源失败的源清单)
+                if now_cn_naive() - ts < self._negative_cache_ttl:
+                    # v5.6 P1-3: 命中负缓存视为再次失败, 计入降级 (保持 3 次降级语义)
+                    for src in cached:
+                        self._on_failure(src, request.symbol)
+                    raise RuntimeError(
+                        f"{request.symbol} 的 {method} 近期全源失败 (负缓存, "
+                        f"{int(self._negative_cache_ttl.total_seconds())}s 内不重试)"
+                    )
+                del self._cache[cache_key]
+            elif now_cn_naive() - ts < ttl:
+                return cached
+            else:
+                del self._cache[cache_key]
+
+        # 2. 并发合并 (单飞): 相同 key 的并发请求共享同一个 in-flight Future, 防击穿
+        inflight = self._inflight.get(cache_key)
+        if inflight is not None and not inflight.done():
+            logger.debug(f"{cache_key} 已有在途请求, 合并等待")
+            return await asyncio.shield(inflight)
+
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future = loop.create_future()
+        self._inflight[cache_key] = fut
+        try:
+            result = await self._fetch(method, request, cache_key)
+            if not fut.done():
+                fut.set_result(result)
+            return result
+        except BaseException as e:  # 含 CancelledError — 需同步给等待方
+            if not fut.done():
+                fut.set_exception(e)
+            raise
+        finally:
+            self._inflight.pop(cache_key, None)
+            # 无并发 waiter 时显式取走异常, 避免 "Future exception was never retrieved" 警告
+            if fut.done() and not fut.cancelled():
+                fut.exception()
+
+    async def _fetch(self, method: str, request: DataRequest, cache_key: str) -> DataResult:
+        """实际执行多源降级获取 (不含缓存/单飞逻辑; 失败写负缓存)"""
         errors = []
+        failed_sources: List[DataSource] = []
         for source in self._active_sources(request.symbol):
             provider = self._providers.get(source)
             if provider is None:
                 continue
             try:
                 func = getattr(provider, method)
-                import asyncio
                 result = await asyncio.wait_for(func(request), timeout=30)
                 if result is not None and not result.data.empty:
                     # v2.10: 数据质量校验
@@ -187,28 +253,45 @@ class DataRouter:
                         is_valid = provider._validate_response(result.data, request)
                         if not is_valid:
                             errors.append(f"{source.value}: 数据校验失败")
+                            failed_sources.append(source)
                             self._on_failure(source, request.symbol)
                             continue
                     self._on_success(source, request.symbol)
                     self.last_used_source = source.value
-                    self._cache[cache_key] = (now_cn_naive(), result)  # 缓存
+                    self._cache_set(cache_key, result)  # v5.6 P1-3: 缓存 (含 LRU 淘汰)
                     return result
                 else:
                     errors.append(f"{source.value}: 返回空数据")
+                    failed_sources.append(source)
                     self._on_failure(source, request.symbol)  # v3.0: 空响应同样触发熔断降级
             except asyncio.TimeoutError:
                 logger.warning(f"{source.value}.{method}({request.symbol}) 超时(30s)")
                 errors.append(f"{source.value}: 超时")
+                failed_sources.append(source)
                 self._on_failure(source, request.symbol)
             except Exception as e:
                 logger.warning(f"{source.value}.{method}({request.symbol}) 失败: {e}")
                 errors.append(f"{source.value}: {e}")
+                failed_sources.append(source)
                 self._on_failure(source, request.symbol)
                 continue
 
+        # v5.6 P1-3: 全源失败 → 写负缓存 (短期), 防对坏标的反复击穿
+        self._cache_set(cache_key, failed_sources)
         raise RuntimeError(
             f"所有数据源均无法获取{request.symbol}的{method}数据: {'; '.join(errors)}"
         )
+
+    def _cache_set(self, key: str, value: Any) -> None:
+        """写缓存 + LRU 淘汰 (超出上限淘汰最旧条目)
+
+        v5.6 P1-3: dict 在 Python 3.7+ 保插入序, 超限时淘汰最旧 key;
+        value 为 list 时表示负缓存 (由读路径按 _negative_cache_ttl 判失效)。
+        """
+        if len(self._cache) >= self._cache_max_entries and key not in self._cache:
+            oldest = next(iter(self._cache))
+            self._cache.pop(oldest, None)
+        self._cache[key] = (now_cn_naive(), value)
 
     def _active_sources(self, symbol: Optional[str] = None) -> List[DataSource]:
         """返回当前可用的数据源列表(已排除降级中的)

@@ -112,8 +112,8 @@ class DataResult:
         self.data = self.data.rename(columns={
             k: v for k, v in col_map.items() if k in self.data.columns
         })
-        # v3.0: 成交量统一为"股" — AKShare/EastMoney 返回"手"(×100), Baostock 返回股, Tushare 已×100
-        if self.source in (DataSource.AKSHARE, DataSource.EASTMONEY) and "volume" in self.data.columns:
+        # v3.0: 成交量统一为"股" — AKShare/EastMoney/Tencent 返回"手"(×100), Baostock 返回股, Tushare 已×100
+        if self.source in (DataSource.AKSHARE, DataSource.EASTMONEY, DataSource.TENCENT) and "volume" in self.data.columns:
             self.data["volume"] = pd.to_numeric(self.data["volume"], errors="coerce") * 100
 
         # v3.0: 数据清洗 — 停牌零价→NaN→ffill, 标注 is_trade (2026 量化最佳实践)

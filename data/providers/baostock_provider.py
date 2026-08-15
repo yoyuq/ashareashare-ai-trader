@@ -48,7 +48,14 @@ class BaostockSession:
                 cls._instance = cls()
             cls._refcount += 1
             if not cls._instance._logged_in:
-                bs.login()
+                # v5.6 P1-5: 校验 login 返回码 (此前忽略, 登录失败会静默进入坏会话)
+                lg = bs.login()
+                if lg.error_code != "0" or "success" not in lg.error_msg.lower():
+                    cls._refcount -= 1
+                    raise RuntimeError(
+                        f"Baostock登录失败: error_code={lg.error_code} "
+                        f"error_msg={lg.error_msg}"
+                    )
                 cls._instance._logged_in = True
             return cls._instance
 

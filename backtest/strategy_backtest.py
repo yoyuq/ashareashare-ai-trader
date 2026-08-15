@@ -156,7 +156,7 @@ async def run_strategy_backtests(
                 if df.empty or len(df) < 60:
                     continue
 
-                bt = bt_func(df)
+                bt = bt_func(df, symbol=sym)
                 n_trades = bt.get("signals", 0)
                 if n_trades < 3:
                     continue
@@ -249,14 +249,82 @@ async def run_strategy_backtests(
         # 组合级事件回测由 backtest/engine.py (EventDrivenBacktestEngine) 承担,
         # 被 strategy_executor/api/dashboard/benchmark 使用。
         "methodology": (
-            "signal-level per-stock ranking (simplified backtesters), "
-            "NOT event-driven portfolio simulation. "
+            "signal-level per-stock ranking (simplified backtesters) as PRIMARY; "
+            "event-driven portfolio simulation (EventDrivenBacktestEngine + AShareBroker, "
+            "T+1/涨跌停/费率/滑点/共享资金/持仓上限) reported under results[*].event_driven "
+            "and top-level event_driven as a second opinion (P0-2). "
             "sharpe = per-trade mean/std (cross-sectional, not annualized); "
             "total_return_pct = median per-stock compounded return; "
-            "max_drawdown = median per-stock max drawdown."
+            "max_drawdown = median per-stock max drawdown. "
+            "Pre-registered downgrade: event-driven portfolio total_return_pct <= 0 "
+            "downgrades the signal-level grade by one notch."
         ),
         "results": strategy_results,
     }
+
+
+async def _run_event_driven_ranking(
+    stocks: List[str],
+    backtesters: Dict,
+    lookback_days: int,
+) -> Dict[str, Any]:
+    """组合级事件驱动回测 (P0-2) — 把信号策略灌进 AShareBroker 引擎, 补组合摩擦维度。
+
+    与 run_strategy_backtests (信号级) 并列, 不替换: 前者报「单票信号聚合」,
+    本函数报「共享资金 + 持仓上限 + 真实券商」的组合级结果, 供评级做第二意见。
+
+    口径差异 (涨跌停阈值/封板重试/组合约束) 详见 backtest/strategy_portfolio_bt.py 模块文档。
+    """
+    from data.router import get_data_router
+    from data.providers.base import DataFrequency, DataRequest
+    from backtest.engine import BacktestConfig
+    from backtest.strategy_portfolio_bt import run_portfolio_event_backtest, summarize
+
+    router = get_data_router()
+    today = date.today()
+
+    # 1. 一次性拉取全部股票日K (缓存, 避免逐策略重复拉取)
+    stock_dfs: Dict[str, pd.DataFrame] = {}
+    for sym in stocks:
+        try:
+            req = DataRequest(sym, today - timedelta(days=lookback_days), today, DataFrequency.DAILY)
+            r = await router.get_daily_kline(req)
+            df = r.data
+            if df is not None and not df.empty and len(df) >= 60 and "date" in df.columns:
+                stock_dfs[sym] = df
+        except Exception:
+            continue
+    if len(stock_dfs) < 3:
+        logger.warning("[事件驱动评级] 有效股票不足 3 只, 跳过")
+        return {}
+
+    # 2. 回测区间 = 股票池最早交易日 → 最晚交易日
+    bt_start = max(pd.to_datetime(df["date"]).min().date() for df in stock_dfs.values())
+    bt_end = min(pd.to_datetime(df["date"]).max().date() for df in stock_dfs.values())
+    if bt_start >= bt_end:
+        logger.warning("[事件驱动评级] 区间无效, 跳过")
+        return {}
+
+    config = BacktestConfig(
+        initial_capital=1_000_000.0,
+        start_date=bt_start,
+        end_date=bt_end,
+        max_positions=5,
+        max_position_pct=0.20,
+    )
+
+    results: Dict[str, Any] = {}
+    for sid, bt_func in backtesters.items():
+        try:
+            res = run_portfolio_event_backtest(bt_func, stock_dfs, config)
+            if res is None or res.total_trades == 0:
+                results[sid] = {"note": "无有效信号/交易", "total_trades": 0}
+                continue
+            results[sid] = summarize(res)
+        except Exception as e:  # noqa: BLE001 — 单策略失败不阻断其余策略
+            logger.warning(f"[事件驱动评级] {sid} 失败: {e}")
+            results[sid] = {"error": str(e)}
+    return results
 
 
 async def _overfitting_check(
@@ -308,7 +376,7 @@ async def _overfitting_check(
                     df = r.data
                     if df.empty or len(df) < 60:
                         continue
-                    bt = bt_func(df)
+                    bt = bt_func(df, symbol=sym)
                     n = bt.get("signals", 0)
                     if n >= 2:
                         tested += 1
@@ -351,14 +419,15 @@ async def _overfitting_check(
         # SR 衰减: (验证 - 训练) / |训练|
         sr_decay = (val_sr - train_sr) / (abs(train_sr) + 1e-10)
 
-        # Deflated Sharpe (Harvey & Liu 2015)
+        # Deflated Sharpe (Bailey & López de Prado, 单源) — val_sr 为年化, /√252 换回每期
+        from backtest.overfitting import deflated_sharpe_ratio
         total_val_trades = len(val_trades)
-        if val_sr > 0:
-            expected_max = np.sqrt(2 * np.log(max(n_strats, 2)))
-            se_sr = np.sqrt((1 + 0.5 * val_sr**2) / max(total_val_trades, 1))
-            dsr = (val_sr - expected_max) / (se_sr + 1e-10)
-        else:
-            dsr = 0.0
+        dsr, _ = deflated_sharpe_ratio(
+            sharpe=val_sr / np.sqrt(252),
+            n_trials=n_strats,
+            n_obs=total_val_trades,
+            annualize=True,
+        )
 
         # 过拟合判定: valSR为正=可用, valSR>1且衰减<30%=稳健
         of_score = abs(sr_decay) + (0.5 if dsr < 0 else 0)
@@ -417,7 +486,7 @@ async def _pbo_analysis(
                 df = r.data
                 if df.empty or len(df) < 60:
                     continue
-                bt = bt_func(df)
+                bt = bt_func(df, symbol=sym)
                 raw = bt.get("trades") or []
                 trades.extend(raw)
             except Exception:
@@ -542,6 +611,41 @@ async def main():
         logger.warning(f"  PBO 分析失败: {e}")
         result["overfitting"]["cscv_pbo"] = {"error": str(e)}
 
+    # P0-2: 组合级事件驱动回测 (第二意见) — 共享资金+持仓上限+真实券商摩擦
+    # 预注册降级规则 (定义于运行前, 禁事后调参): 信号级 exc/good/ok 但组合级
+    # 事件驱动组合收益 <= 0 (真实摩擦后亏钱) → 降一档 (exc→good→ok→weak)。
+    # 组合级不盈利说明策略信号在共享资金/持仓上限/真实成本下不可行。
+    try:
+        logger.info("运行组合级事件驱动回测 (AShareBroker: 共享资金+持仓上限)...")
+        ed_result = await _run_event_driven_ranking(stocks, ALL_BACKTESTERS, args.days)
+        result["event_driven"] = {
+            "method": "EventDrivenBacktestEngine + AShareBroker (T+1/涨跌停/费率/滑点/共享资金/持仓上限)",
+            "initial_capital": 1_000_000,
+            "max_positions": 5,
+            "note": "信号级排名的组合级第二意见; 与信号级口径差异见 backtest/strategy_portfolio_bt.py 模块文档",
+            "results": ed_result,
+        }
+        _downgrade_order = {"exc": "good", "good": "ok", "ok": "weak", "weak": "weak"}
+        for sid, ed in ed_result.items():
+            if sid not in result["results"]:
+                continue
+            r = result["results"][sid]
+            r["event_driven"] = ed
+            if "total_return_pct" in ed and ed["total_return_pct"] <= 0:
+                old = r["grade"]
+                new = _downgrade_order.get(old, old)
+                if new != old:
+                    r["grade"] = new
+                    r["grade_note"] = (
+                        f"组合级事件驱动不盈利 (ED收益{ed['total_return_pct']:+.1f}%), "
+                        f"{old}→{new}"
+                    )
+        n_ed_ok = sum(1 for e in ed_result.values() if "sharpe" in e)
+        logger.info(f"  事件驱动评级完成: {n_ed_ok}/{len(ed_result)} 策略")
+    except Exception as e:
+        logger.warning(f"  事件驱动评级失败: {e}")
+        result["event_driven"] = {"error": str(e)}
+
     # 保存
     outdir = Path(__file__).parent.parent / "reports"
     outdir.mkdir(parents=True, exist_ok=True)
@@ -562,6 +666,18 @@ async def main():
         print(f"{i:<4} {r['name']:<12} {r['win_rate']:.0%}   "
               f"{r['sharpe']:+.1f}   {r['max_drawdown']:+.1f}% "
               f"{r['profit_factor']:.1f}  {grade_map.get(r['grade'], '?')}")
+    print(f"{'='*65}")
+
+    # P0-2: 组合级事件驱动回测结果 (第二意见)
+    print(f"\n组合级事件驱动回测 (AShareBroker: T+1/涨跌停/费率/滑点/共享资金/持仓上限)")
+    print(f"{'-'*65}")
+    for sid, r in ranked:
+        ed = r.get("event_driven", {})
+        if "sharpe" in ed:
+            print(f"  {r['name']:<12} ED夏普 {ed['sharpe']:+.2f} | ED收益 {ed['total_return_pct']:+.1f}% "
+                  f"| ED回撤 {ed['max_drawdown']:+.1f}% | ED交易 {ed['total_trades']}")
+        else:
+            print(f"  {r['name']:<12} ED: {ed.get('note', ed.get('error', 'N/A'))}")
     print(f"{'='*65}")
 
     elapsed = time.time() - t0

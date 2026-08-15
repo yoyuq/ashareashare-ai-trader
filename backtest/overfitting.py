@@ -2,11 +2,13 @@
 过拟合防控体系 — 6层防御
 
 层级设计:
-  L1: 严格时间分割 (60% train / 20% validation / 20% test)
+  L1: 严格时间分割 (60% train / 20% validation / 20% test) — `split_time_series()`
+      静态方法, 供调用方在 evaluate 前切分 train/val/test (非 evaluate 内部指标)
   L2: PBO (Probability of Backtest Overfitting, CSCV法 — 需多变体绩效矩阵)
-  L3: Deflated Sharpe Ratio (DSR, 多重检验校正 + Lo 2002 标准误)
-  L4: Walk-Forward Validation (滚动窗口验证)
-  L5: 参数敏感性分析
+  L3: Deflated Sharpe Ratio (DSR, 多重检验校正 + Lo 2002 标准误) — 唯一口径
+      `deflated_sharpe_ratio()` 公开函数, OverfittingGuard 与 CLI 脚本共用
+  L4: Walk-Forward Validation (滚动窗口验证) — 未提供 oos_returns 时返回 NaN (未定义)
+  L5: 参数稳健性 (跨参数/跨变体 Sharpe 变异系数) — 提供参数值列时另算逐参数相关
   L6: Monte Carlo 随机化检验 (符号翻转零假设)
 
 v2.1新增:
@@ -44,6 +46,57 @@ class OverfittingReport:
         if self.pbo > 0.1 or self.deflated_sharpe_pvalue > 0.05:
             return "⚡ 中风险: 策略可能需要更多样本外验证"
         return "✅ 低风险: 策略通过过拟合防控检验"
+
+
+def deflated_sharpe_ratio(
+    sharpe: float,
+    n_trials: int = 1,
+    n_obs: int = 0,
+    skew: float = 0.0,
+    kurt_excess: float = 0.0,
+    annualize: bool = True,
+) -> Tuple[float, float]:
+    """Deflated Sharpe Ratio — 单一来源 (Bailey & López de Prado 2014 + Lo 2002 标准误)。
+
+    从「已算好的 Sharpe + 试验次数 K」直接得到经多重检验校正的 DSR 与 p 值。
+    `OverfittingGuard._deflated_sharpe_ratio` 内部复用本函数 (传 raw returns 的
+    skew/kurtosis); CLI/脚本可从聚合 Sharpe 直接调用 — 统一 DSR 口径, 消除
+    `overfitting.py` 与 `overfitting_check.py` 两套公式的分叉。
+
+    Args:
+        sharpe: 每期 Sharpe (非年化; 若传入年化值需置 annualize=False)
+        n_trials: 试验次数 K (参数/策略组合数), 用于多重检验基准 SR₀=E[max SR]
+        n_obs: 样本期数 T (用于 Lo 2002 标准误)
+        skew: 收益偏度 γ₃ (pandas skew)
+        kurt_excess: 收益超额峰度 γ₄-3 (pandas kurt)
+        annualize: 返回的 deflated_sharpe 是否年化 (×√252)
+
+    Returns:
+        (deflated_sharpe, p_value) — p 小表示通过多重检验校正
+    """
+    if sharpe <= 0:
+        return 0.0, 1.0
+
+    K = max(int(n_trials), 1)
+    if K > 1:
+        # 多重检验基准 SR₀ = E[max SR] (K 个独立试验, Bailey & López de Prado)
+        euler = 0.5772156649
+        sr0 = (1 - euler) * stats.norm.ppf(1 - 1.0 / K) \
+            + euler * stats.norm.ppf(1 - 1.0 / (K * np.e))
+        sr0 = max(sr0, 0.0)
+    else:
+        sr0 = 0.0
+
+    # SR 估计量方差 (Lo 2002; (γ₄-1)/4 = (超额峰度+2)/4), 用每期 SR
+    n = max(int(n_obs), 1)
+    var_sr = (1.0 - skew * sharpe + (kurt_excess + 2) / 4.0 * sharpe ** 2) / max(n - 1, 1)
+    se = float(np.sqrt(max(var_sr, 1e-12)))
+
+    dsr_stat = (sharpe - sr0) / se
+    p_value = float(1.0 - stats.norm.cdf(dsr_stat))  # 单侧: SR 显著高于多重检验基准
+
+    deflated = (sharpe - sr0) * np.sqrt(252) if annualize else (sharpe - sr0)
+    return float(deflated), p_value
 
 
 class OverfittingGuard:
@@ -95,24 +148,27 @@ class OverfittingGuard:
             returns, param_results if param_results is not None else pd.DataFrame()
         )
 
-        # L4: Walk-Forward
-        wf_sharpe, wf_stability = (0, 0)
+        # L4: Walk-Forward — 未提供 oos_returns 时返回 NaN (未定义), 不再伪装成 0
+        wf_sharpe, wf_stability = (float("nan"), float("nan"))
+        wf_defined = False
         if oos_returns is not None and len(oos_returns) > 0:
             wf_sharpe, wf_stability = self._walk_forward_stability(oos_returns)
+            wf_defined = bool(np.isfinite(wf_sharpe) or np.isfinite(wf_stability))
 
-        # L5: 参数敏感性
+        # L5: 参数稳健性 (跨变体 Sharpe 变异系数; 无参数扫描时 NaN)
         param_sens = self._parameter_sensitivity(param_results)
+        param_metric, param_corr = self._param_sensitivity_meta(param_results)
 
         # L6: Monte Carlo
         mc_pval = self._monte_carlo_test(returns, benchmark_returns)
 
-        # 综合判断 (至少2项触发即标记)
+        # 综合判断 (至少2项触发即标记; NaN 项不触发 — NaN 比较恒为 False)
         flags = sum([
-            pbo > 0.1,
-            dsr_pval > 0.05,
-            wf_stability > 0.5,  # 样本外Sharpe波动>50%
-            param_sens > 1.0,    # 参数敏感度>1.0
-            mc_pval > 0.05,
+            bool(pbo > 0.1),
+            bool(dsr_pval > 0.05),
+            bool(wf_stability > 0.5),  # 样本外Sharpe波动>50%
+            bool(param_sens > 1.0),    # 参数稳健性CV>1.0
+            bool(mc_pval > 0.05),
         ])
         is_overfit = flags >= 2
 
@@ -130,6 +186,9 @@ class OverfittingGuard:
                 "flags_triggered": flags,
                 "threshold": 2,
                 "pbo_defined": variant_returns is not None,  # False: 未提供多变体矩阵, PBO=NaN 不参与判定
+                "walk_forward_defined": wf_defined,          # False: 未提供 oos, WF=NaN 不参与判定
+                "parameter_sensitivity_metric": param_metric,  # "sharpe_cv" 或 "param_corr"
+                "parameter_sensitivity_corr": param_corr,      # 提供参数值列时的逐参数相关性
             },
         )
 
@@ -225,7 +284,7 @@ class OverfittingGuard:
 
         修复: 旧实现返回的 p 值基于"未缩减的原始SR", 多重检验校正从未进入 p 值。
 
-        Returns:
+        返回:
             (deflated_sharpe_年化, p_value) — p 小表示通过多重检验校正
         """
         if returns.empty:
@@ -243,24 +302,11 @@ class OverfittingGuard:
         else:
             K = 1
 
-        # 多重检验基准 SR₀ = E[max SR] (K 个独立试验, Bailey & López de Prado)
-        if K > 1:
-            euler = 0.5772156649
-            sr0 = (1 - euler) * stats.norm.ppf(1 - 1.0 / K) \
-                + euler * stats.norm.ppf(1 - 1.0 / (K * np.e))
-            sr0 = max(sr0, 0.0)
-        else:
-            sr0 = 0.0
-
-        # SR 估计量方差 (Lo 2002; (γ₄-1)/4 = (超额峰度+2)/4)
-        var_sr = (1.0 - skew * sr + (kurt_excess + 2) / 4.0 * sr ** 2) / max(n - 1, 1)
-        se = float(np.sqrt(max(var_sr, 1e-12)))
-
-        dsr_stat = (sr - sr0) / se
-        p_value = float(1.0 - stats.norm.cdf(dsr_stat))  # 单侧: SR 显著高于多重检验基准
-
-        deflated_sr_annualized = (sr - sr0) * np.sqrt(252)
-        return deflated_sr_annualized, p_value
+        # 委托公开单源函数 (统一 overfitting.py / overfitting_check.py 口径)
+        return deflated_sharpe_ratio(
+            sharpe=sr, n_trials=K, n_obs=n,
+            skew=skew, kurt_excess=kurt_excess, annualize=True,
+        )
 
     # ═══════════════════════════════════════════════════════════════
     # L4: Walk-Forward Validation
@@ -273,10 +319,11 @@ class OverfittingGuard:
         """
         Walk-Forward 样本外稳定性
 
-        按季度/年度分组 → 每组计算Sharpe → 统计均值和标准差
+        按季度/月度分组 → 每组计算Sharpe → 统计均值和标准差。
+        样本不足 (不满一个季度或分组<2) 时返回 (NaN, NaN) — 未定义, 不伪装成 0。
         """
         if len(oos_returns) < 63:  # 至少一个季度
-            return 0, 0
+            return float("nan"), float("nan")
 
         # 按季度分组
         quarterly = oos_returns.resample("QE").apply(
@@ -289,7 +336,9 @@ class OverfittingGuard:
                 lambda x: x.mean() / max(x.std(), 1e-10) * np.sqrt(252)
             ).dropna()
             if len(monthly) < 2:
-                return oos_returns.mean() / max(oos_returns.std(), 1e-10) * np.sqrt(252), 0
+                # 只有一个分组: 有样本外 Sharpe, 但稳定性 (跨组波动) 未定义
+                oos_sr = oos_returns.mean() / max(oos_returns.std(), 1e-10) * np.sqrt(252)
+                return oos_sr, float("nan")
             oos_groups = monthly
         else:
             oos_groups = quarterly
@@ -301,33 +350,70 @@ class OverfittingGuard:
         return avg_sr, stability
 
     # ═══════════════════════════════════════════════════════════════
-    # L5: 参数敏感性分析
+    # L5: 参数稳健性
     # ═══════════════════════════════════════════════════════════════
+
+    _PARAM_ID_COLS = {"sharpe", "variant", "name", "param", "params", "strategy", "sid"}
 
     def _parameter_sensitivity(
         self,
         param_results: Optional[pd.DataFrame],
     ) -> float:
         """
-        参数敏感性 = ΔSharpe / ΔParam
+        参数稳健性 = 跨参数/跨变体 Sharpe 变异系数 (CV)。
 
-        如果微小参数变化导致Sharpe剧烈波动→大概率过拟合
+        若参数扫描使 Sharpe 剧烈波动 (CV 大) → 策略对参数/变体选择敏感 → 更可能过拟合。
+        真正「ΔSharpe/ΔParam」需参数值列, 见 `_param_sensitivity_meta` (逐参数相关性)。
+
+        无 param_results、无 sharpe 列、或样本 <2 时返回 NaN (未定义), 不再静默返回 0。
         """
         if param_results is None or param_results.empty:
-            return 0
+            return float("nan")
 
         if "sharpe" not in param_results.columns:
-            return 0
+            return float("nan")
 
-        sharpes = param_results["sharpe"].values
-
+        sharpes = pd.to_numeric(param_results["sharpe"], errors="coerce").dropna().to_numpy()
         if len(sharpes) < 2:
-            return 0
+            return float("nan")
 
-        # 变异系数
-        sensitivity = np.std(sharpes) / max(abs(np.mean(sharpes)), 1e-10)
+        cv = np.std(sharpes) / max(abs(np.mean(sharpes)), 1e-10)
+        return float(cv)
 
-        return sensitivity
+    def _param_sensitivity_meta(
+        self,
+        param_results: Optional[pd.DataFrame],
+    ) -> Tuple[str, Optional[float]]:
+        """
+        参数敏感性元数据: 判断当前度量口径, 并在提供真实参数值列时计算逐参数相关性。
+
+        Returns:
+            (metric, corr)
+              - metric: "sharpe_cv" (跨变体 Sharpe 变异系数) 或
+                        "param_corr" (逐参数 |Pearson r(sharpe, param)| 均值)
+              - corr: 参数值列存在时返回逐参数相关性均值; 否则 None
+        """
+        if param_results is None or param_results.empty or "sharpe" not in param_results.columns:
+            return "sharpe_cv", None
+
+        param_cols = [
+            c for c in param_results.columns
+            if c not in self._PARAM_ID_COLS
+            and pd.api.types.is_numeric_dtype(param_results[c])
+            and param_results[c].nunique() > 1
+        ]
+        if not param_cols:
+            return "sharpe_cv", None
+
+        sharpe = pd.to_numeric(param_results["sharpe"], errors="coerce")
+        corrs = []
+        for c in param_cols:
+            r = sharpe.corr(param_results[c])
+            if np.isfinite(r):
+                corrs.append(abs(r))
+        if not corrs:
+            return "sharpe_cv", None
+        return "param_corr", float(np.mean(corrs))
 
     # ═══════════════════════════════════════════════════════════════
     # L6: Monte Carlo置换检验
