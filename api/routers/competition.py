@@ -121,7 +121,6 @@ async def run_competition_benchmark(quick: bool = True):
             score_module_1_architecture,
             score_module_2_knowledge_base,
             score_module_3_prompt_engineering,
-            score_module_4_testing,
         )
         import time
 

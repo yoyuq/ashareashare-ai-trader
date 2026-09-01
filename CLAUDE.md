@@ -125,9 +125,14 @@ python scripts/learn_external.py --report                          # 学习元�
 
 **交互式学习入口 (v5.11)**: `agent/chat_agent.py` 新增 4 个工具 — `search_trading_strategy`(联网搜策略)、`judge_trading_strategy`(真实回测给留/删判断)、`suggest_backtest_windows`(纯 LLM 荐回测区间, 基于 `_WINDOW_REGIME` 窗口状态标注)、`learn_trading_strategy`(完整学习落库, `n=3`)。慢工具(联网/回测/学习)超时放宽到 300s, 快工具仍 15s。
 
+### Dashboard / API Module Layout (v6.0)
+
+- `web/dashboard.py` is a thin entry (~180 lines): theme → sidebar → tab dispatch. Loaders live in `web/data.py` (`@st.cache_data`), shared HTTP in `web/api_client.py`, each tab in `web/tabs/<name>.py` exposing `render()` (lazy-imported in the `if/elif` dispatch). `@st.fragment` functions stay at module top level (Streamlit requirement).
+- `api/server.py` keeps app/CORS/auth-globals/middleware (tests monkeypatch `server._API_KEYS` etc. — do NOT move them) and re-exports `api/schemas.py` models (`server.BacktestRequest` namespace compatibility). Domain routes live in `api/routers/*.py` with paths verbatim from the pre-split single file.
+
 ### Dashboard Dark Theme CSS
 
-The CSS at the top of `dashboard.py` uses `!important` broadly. When debugging UI issues:
+The CSS lives in `web/theme.py` and uses `!important` broadly. When debugging UI issues:
 - DataFrames: use `render_dataframe()` not `st.dataframe` (GlideDataEditor incompatibility)
 - The `[data-testid="stStatusWidget"]` spinner customization hides the default running-man SVG and replaces it with a CSS `::before` pseudo-element spinning circle
 - All metric cards, tabs, expanders, alerts are styled with `#161b22` background, `#30363d` borders, `#c9d1d9` text

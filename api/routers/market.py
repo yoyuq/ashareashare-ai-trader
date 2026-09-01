@@ -20,7 +20,7 @@ async def get_stock_info(symbol: str):
     data_router = get_router()
     analyzer = get_analyzer()
 
-    from data.providers.base import DataFrequency, DataRequest
+    from data.providers.base import DataRequest
 
     try:
         req = DataRequest.recent(symbol, days=365)
@@ -73,7 +73,7 @@ async def market_regime():
     data_router = get_router()
     detector = get_detector()
 
-    from data.providers.base import DataFrequency, DataRequest
+    from data.providers.base import DataRequest
 
     try:
         req = DataRequest.recent("sh.000300", days=365)
@@ -157,7 +157,7 @@ def _is_market_open(dt: datetime | None = None) -> dict:
     elif _AFTERNOON_OPEN <= now_time < _AFTERNOON_CLOSE:
         return {"is_open": True, "status": "afternoon_session", "detail": "午盘交易中 13:00-15:00", "last_trade_date": now_date.isoformat()}
     elif now_time < _MORNING_OPEN:
-        return {"is_open": False, "status": "pre_open", "detail": f"未开盘, 9:30开盘", "last_trade_date": _last_trade_date(now_date)}
+        return {"is_open": False, "status": "pre_open", "detail": "未开盘, 9:30开盘", "last_trade_date": _last_trade_date(now_date)}
     elif _MORNING_CLOSE <= now_time < _AFTERNOON_OPEN:
         return {"is_open": False, "status": "lunch_break", "detail": "午间休市, 13:00开盘", "last_trade_date": _last_trade_date(now_date)}
     else:
@@ -212,18 +212,22 @@ async def realtime_market():
                 headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
             resp.encoding = "gbk"
             for line in resp.text.strip().split("\n"):
-                if "=" not in line or "~" not in line: continue
+                if "=" not in line or "~" not in line:
+                    continue
                 try:
                     code = line.split("=", 1)[0].replace("v_", "").strip()
                     fields = line.split("=", 1)[1].strip('"').split("~")
-                    if len(fields) < 10: continue
+                    if len(fields) < 10:
+                        continue
                     name = {v: k for k, v in idx_codes.items()}.get(code, code)
                     out[name] = {
                         "price": round(float(fields[3]), 2) if fields[3] else 0,
                         "pct": round(float(fields[32]), 2) if len(fields) > 32 and fields[32] else 0,
                     }
-                except (ValueError, IndexError): continue
-        except Exception: pass
+                except (ValueError, IndexError):
+                    continue
+        except Exception:
+            pass
         return out
 
     async def _fetch_movers(fid):
@@ -267,16 +271,20 @@ async def realtime_market():
                 headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
             resp.encoding = "gbk"
             for line in resp.text.strip().split("\n"):
-                if "=" not in line or "~" not in line: continue
+                if "=" not in line or "~" not in line:
+                    continue
                 try:
                     fields = line.split("=", 1)[1].strip('"').split("~")
-                    if len(fields) < 10: continue
+                    if len(fields) < 10:
+                        continue
                     out.append({"name": fields[1], "code": fields[2],
                         "price": round(float(fields[3]), 2) if fields[3] else 0,
                         "pct": round(float(fields[32]), 2) if len(fields) > 32 and fields[32] else 0,
                         "volume": int(fields[6]) if fields[6] else 0})
-                except (ValueError, IndexError): continue
-        except Exception: pass
+                except (ValueError, IndexError):
+                    continue
+        except Exception:
+            pass
         return out
 
     indices, top_up, top_down, watchlist = await asyncio.gather(

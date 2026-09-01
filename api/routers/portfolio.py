@@ -218,18 +218,22 @@ async def portfolio_mtm():
             )
             resp.encoding = "gbk"
             for line in resp.text.strip().split("\n"):
-                if "=" not in line or "~" not in line: continue
+                if "=" not in line or "~" not in line:
+                    continue
                 try:
                     fields = line.split("=", 1)[1].strip('"').split("~")
-                    if len(fields) < 10: continue
+                    if len(fields) < 10:
+                        continue
                     code = fields[2]
                     for sym in symbols:
                         if sym.endswith(code):
                             price = float(fields[3]) if fields[3] else 0
                             prices[sym] = price
                             names[sym] = fields[1]
-                except (ValueError, IndexError): continue
-        except Exception: pass
+                except (ValueError, IndexError):
+                    continue
+        except Exception:
+            pass
 
         # 计算浮动盈亏
         account = data.get("account", {})

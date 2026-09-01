@@ -7,7 +7,6 @@
 import asyncio
 import concurrent.futures
 import json as _json
-import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -270,7 +269,9 @@ def get_full_market():
     if "total_mv" in df.columns:
         mv = df["total_mv"].dropna()
         if len(mv) > 100:
-            q80 = mv.quantile(0.8); q50 = mv.quantile(0.5); q20 = mv.quantile(0.2)
+            q80 = mv.quantile(0.8)
+            q50 = mv.quantile(0.5)
+            q20 = mv.quantile(0.2)
             df["mv_tier"] = df["total_mv"].apply(
                 lambda x: "🟢大盘" if x > q80 else ("🟡中盘" if x > q50 else ("🟠小盘" if x > q20 else "🔴微盘"))
             )
@@ -348,23 +349,39 @@ def _guess_sector(code: str) -> str:
         return "北交所"
     if code_str.startswith(("60", "68")):  # 上交所
         num = int(code_str[:3]) if len(code_str) >= 3 else 0
-        if 36 <= num <= 39: return "银行"
-        if 48 == num: return "券商"
-        if code_str.startswith("688"): return "科创板"
-        if num in (16, 19): return "能源"
-        if num in (11, 15): return "交运"
-        if num in (17, 18): return "材料"
-        if num in (10, 58): return "工业"
-        if num in (50, 51): return "消费"
-        if num in (55, 56): return "医药"
-        if num in (53, 54): return "地产"
-        if num in (57, 59): return "可选消费"
-        if num in (60, 61): return "金融"
-        if num in (63, 64): return "科技"
-        if num in (65, 66): return "公用事业"
+        if 36 <= num <= 39:
+            return "银行"
+        if 48 == num:
+            return "券商"
+        if code_str.startswith("688"):
+            return "科创板"
+        if num in (16, 19):
+            return "能源"
+        if num in (11, 15):
+            return "交运"
+        if num in (17, 18):
+            return "材料"
+        if num in (10, 58):
+            return "工业"
+        if num in (50, 51):
+            return "消费"
+        if num in (55, 56):
+            return "医药"
+        if num in (53, 54):
+            return "地产"
+        if num in (57, 59):
+            return "可选消费"
+        if num in (60, 61):
+            return "金融"
+        if num in (63, 64):
+            return "科技"
+        if num in (65, 66):
+            return "公用事业"
         return "其他"
     else:  # 深交所
         num = int(code_str[:3]) if len(code_str) >= 3 else 0
-        if num in (1, 2): return "主板"
-        if num == 3: return "创业板"
+        if num in (1, 2):
+            return "主板"
+        if num == 3:
+            return "创业板"
         return "深市"

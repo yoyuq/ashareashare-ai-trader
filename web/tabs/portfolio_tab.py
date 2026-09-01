@@ -58,7 +58,7 @@ def render():
         initial = portfolio.get("initial_capital", 100000)
         total_return = (total_value / initial - 1) * 100 if initial > 0 else 0
         win_count = sum(1 for p in positions if p.get("unrealized_pnl", 0) > 0)
-        loss_count = sum(1 for p in positions if p.get("unrealized_pnl", 0) < 0)
+        loss_count = sum(1 for p in positions if p.get("unrealized_pnl", 0) < 0)  # noqa: F841 (展示对称性保留)
 
         # ── 实时价格 (紧凑 fragment, 只刷该字段) ──
         fragment_portfolio_live()

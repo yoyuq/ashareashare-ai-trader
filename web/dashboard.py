@@ -7,8 +7,6 @@ A股智能分析Agent Dashboard v6.0 — 入口 (结构重构 v6.0)
   web/tabs/*.py      — 每 tab 一个模块, 暴露 render()
 本文件: set_page_config + 主题 + sidebar + tab 派发 + footer
 """
-import asyncio
-import concurrent.futures
 import os
 import sys
 from datetime import datetime
@@ -17,7 +15,9 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from dotenv import load_dotenv; load_dotenv()
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv()
 
 from web.api_client import api_get  # noqa: E402
 from web.data import _run_async, init_components  # noqa: E402
@@ -55,7 +55,8 @@ with st.sidebar:
         strategies = km.list_strategies()
         strat_count = len(strategies)
     except Exception:
-        agent_count = 0; strat_count = 0
+        agent_count = 0
+        strat_count = 0
 
     st.markdown(f"""
     <div style="background-color:var(--ds-bg2,#161b22);border:1px solid var(--ds-border,#30363d);border-radius:8px;padding:12px;margin:8px 0">

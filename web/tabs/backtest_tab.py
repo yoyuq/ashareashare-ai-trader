@@ -54,11 +54,13 @@ def render():
                             if strat._e is None:
                                 q = int(broker.account.cash * 0.3 / c / 100) * 100
                                 if q >= 100:
-                                    broker.buy(sym, q); strat._e = today_
+                                    broker.buy(sym, q)
+                                    strat._e = today_
                             else:
                                 p = broker.account.positions.get(sym)
                                 if p and (today_ - strat._e).days >= 10:
-                                    broker.sell(sym, p.quantity); strat._e = None
+                                    broker.sell(sym, p.quantity)
+                                    strat._e = None
                         strat._e = None
                         return eng.run(strat, progress_bar=False), sbt
 

@@ -123,7 +123,7 @@ def render():
                                     wr = d.get("win_rate", 0) * 100
                                     sr = d.get("sharpe", 0)
                                     clr = "#3fb950" if sr >= 1 else ("#f0883e" if sr >= 0 else "#f85149")
-                                    h += f'<tr style="border-bottom:1px solid var(--ds-bg3,#21262d)">'
+                                    h += '<tr style="border-bottom:1px solid var(--ds-bg3,#21262d)">'
                                     h += f'<td style="padding:2px 6px;color:var(--ds-text,#c9d1d9)">{d.get("symbol", "")}</td>'
                                     h += f'<td style="padding:2px 6px;color:var(--ds-text2,#8b949e)">{d.get("trades", 0)}</td>'
                                     h += f'<td style="padding:2px 6px;color:var(--ds-text,#c9d1d9)">{wr:.0f}%</td>'
