@@ -52,6 +52,12 @@ docker-compose.override.yml
 htmlcov/
 .coverage
 
+# ====== 研究产物 (策略 alpha, 不公开) ======
+reports/**
+!reports/.gitkeep
+.mcp.json
+test_zhipu_*.txt
+
 # ====== Jupyter ======
 .ipynb_checkpoints/
 *.ipynb
