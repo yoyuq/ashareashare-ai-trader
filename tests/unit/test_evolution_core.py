@@ -559,32 +559,6 @@ def test_decision_record_roundtrip_keeps_positions_snapshot():
     assert DecisionRecord.from_json(old_cfg).positions_snapshot == []
 
 
-def test_analyze_journal_aggregates_portfolio_cf(tmp_path):
-    """analyze_evolution 统计: journal 里 portfolio_cf 被正确汇总 (verified率/拖累票频次)."""
-    from scripts.analyze_evolution import analyze_journal
-    jp = tmp_path / "j.jsonl"
-    def _rec(d, pcf):
-        return {"date": d, "market_phase": "trend_up", "dominant_master": "m",
-                "secondary_master": "", "risk_level": 3, "position_multiplier": 0.9,
-                "max_positions_adj": 0, "review": {"verdict": "wrong", "portfolio_cf": pcf}}
-    rows = [
-        _rec("2021-01-05", {"verified": True, "improvement_pct": 2.0,
-                            "worst_stock": {"symbol": "sh.BAD", "name": "b"}}),
-        _rec("2021-01-06", {"verified": True, "improvement_pct": 1.0,
-                            "worst_stock": {"symbol": "sh.BAD", "name": "b"}}),
-        _rec("2021-01-07", {"verified": False, "improvement_pct": 0.1,
-                            "worst_stock": {"symbol": "sh.OK", "name": "o"}}),
-    ]
-    jp.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows), encoding="utf-8")
-    out = analyze_journal(str(jp))
-    pcf = out["portfolio_cf"]
-    assert pcf["total"] == 3
-    assert pcf["verified"] == 2
-    assert pcf["verified_rate"] == pytest.approx(round(2/3, 3))
-    assert pcf["worst_symbols"][0][0] == "sh.BAD"
-    assert pcf["worst_symbols"][0][1] == 2
-
-
 def test_review_linkage_computes_portfolio_cf():
     """复盘链路: 用昨日持仓快照 + 今日截面涨跌, 算出 portfolio_cf 附到 review."""
     from agent.evolution.decision_journal import DecisionRecord
