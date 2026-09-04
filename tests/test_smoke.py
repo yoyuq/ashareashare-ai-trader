@@ -35,13 +35,11 @@ class TestDataLayer:
 
     def test_provider_imports(self):
         """所有Provider可导入"""
-        from data.providers import AKShareProvider, BaostockProvider, AlternativeDataProvider
+        from data.providers import AKShareProvider, BaostockProvider
         ak = AKShareProvider()
         assert ak.name == "AKShare"
         bs = BaostockProvider()
         assert bs.name == "BaoStock"
-        alt = AlternativeDataProvider()
-        assert alt.name == "AlternativeData"
 
     def test_router_singleton(self):
         """DataRouter单例"""
@@ -52,14 +50,6 @@ class TestDataLayer:
         status = router.status
         assert "akshare" in status
         assert "baostock" in status
-
-    def test_cache_layer(self):
-        """CacheLayer可实例化"""
-        from data.cache import CacheLayer
-        cache = CacheLayer()
-        assert cache.prefix == "ashare"
-        # Redis未连接时也应正常降级
-        assert cache.enabled == False  # 未connect,false
 
     def test_pit_processor(self):
         """PIT处理器逻辑正确"""
@@ -76,17 +66,8 @@ class TestDataLayer:
         assert disclose_q1 == date(2024, 4, 30)
 
     def test_db_models(self):
-        """数据库模型可导入"""
-        from data.storage.models import (
-            Base, StockInfo, KlineDaily, KlineMinute,
-            RealtimeQuote, Financials, SignalLog,
-            AlternativeDataSnapshot, FactorICLog,
-        )
-        # 验证表名
-        assert StockInfo.__tablename__ == "stock_info"
-        assert KlineDaily.__tablename__ == "kline_daily"
-        assert SignalLog.__tablename__ == "signal_log"
-        assert FactorICLog.__tablename__ == "factor_ic_log"
+        """数据库模型已随 data/storage 平行 ORM 层移除 (持久化走 sqlite3/JSON)"""
+        assert not (Path(__file__).parent.parent / "data" / "storage").exists()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -753,8 +734,8 @@ class TestIntegration:
         # Data
         from data import (
             DataRouter, get_data_router,
-            AKShareProvider, BaostockProvider, AlternativeDataProvider,
-            CacheLayer, PITProcessor,
+            AKShareProvider, BaostockProvider,
+            PITProcessor,
         )
         # Analysis
         from analysis import (
@@ -789,7 +770,7 @@ class TestIntegration:
         """requirements.txt与pyproject.toml一致"""
         req_path = Path(__file__).parent.parent / "requirements.txt"
         content = req_path.read_text(encoding="utf-8")
-        core_packages = ["akshare", "numpy", "pandas", "langgraph", "langchain"]
+        core_packages = ["akshare", "numpy", "pandas", "langgraph", "openai"]
         for pkg in core_packages:
             assert pkg in content.lower(), f"缺少依赖: {pkg}"
 

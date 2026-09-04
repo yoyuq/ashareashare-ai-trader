@@ -4,7 +4,7 @@
 Pipeline:
   Phase 1: 全市场分析 (5884只)
     → 规则预筛 (多因子打分) → Top 300
-    → [Ollama本地模型] LLM精筛 → Top 100
+    → DeepSeek Flash 精筛 → Top 100
     → DeepSeek深度分析 → BUY/HOLD/SELL + 评分
     → 保存结果到 reports/
 
@@ -313,9 +313,6 @@ async def get_market_diagnostic(
 
     失败时返回保守默认值, 不中断主流程.
     """
-    import os
-    from openai import AsyncOpenAI
-
     default_diag = {
         "risk_level": 3,
         "position_multiplier": 0.9,
@@ -405,22 +402,21 @@ async def get_market_diagnostic(
         # 4. 调用 LLM (user_msg 构造抽成共享函数, 供 OPRO 评估样本对齐 — v5.1)
         user_msg = _diagnostic_user_msg(snapshot_txt, macro_context)
 
-        client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            timeout=45.0,
-        )
-        resp = await client.chat.completions.create(
-            model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+        # v6.1 统一记账: 直连 AsyncOpenAI → ModelRouter (预算分账/重试单源)
+        from models.router import get_shared_router
+        rr = await get_shared_router().route(
             messages=[
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_msg},
             ],
+            task_type="market_diagnosis",
+            max_retries=1,
             temperature=temperature,
             max_tokens=800,
             extra_body={"thinking": {"type": "disabled"}},
+            timeout=45.0,
         )
-        content = (resp.choices[0].message.content or "").strip()
+        content = (rr.response or "").strip()
         if content.startswith("```"):
             content = content.strip("`")
             if content.lower().startswith("json"):
@@ -778,7 +774,7 @@ async def phase1_analyze(
             df_top = await _flash_screen(df_top, top_k=100, regime=screen_regime)
             logger.info(f"Flash精筛后: {len(df_top)} 只 (regime={_regime})")
         except Exception as e:
-            logger.warning(f"LLM精筛跳过 (Ollama不可用): {e}")
+            logger.warning(f"LLM精筛跳过: {e}")
 
     # 1d. DeepSeek深度分析
     # v3.2: 注入 regime 门控 + 情绪上下文 (动量按体制打折, 估值/防御优先) — 主循环生效
@@ -810,6 +806,10 @@ async def phase1_analyze(
     deep_results = await _deepseek_analyze(df_deep, thinking=thinking_mode, regime_ctx=regime_ctx,
                                            macro_context=load_macro_context())
     logger.info(f"DeepSeek分析完成: {len(deep_results)} 只")
+    if not deep_results:
+        # v6.1 零模拟纪律: LLM 全批失败 → 响亮报错, 不静默继续 (否则下游规则引擎拿空结果造空仓)
+        logger.error("LLM 深析全批失败 (0 只) — 零模拟纪律, 不以空结果继续")
+        raise RuntimeError("phase1: _deepseek_analyze 返回 0 结果, LLM 链路整体失败")
 
     # 1e. 市场诊断官 (v4.0 — 5位大师 + 自我进化)
     # 独立于选股，只输出风险等级和仓位调节建议。诊断模式下用它来调节规则选股。
@@ -1114,7 +1114,7 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
                         blind: bool = False,
                         regime: str = "range_bound",
                         offensive: bool = False) -> pd.DataFrame:
-    """DeepSeek V4-Flash 精筛 (替代 Ollama, 更快更强)
+    """DeepSeek V4-Flash 精筛 (ModelRouter 统一路由, 更快更强)
 
     v3.3: 注入市场语境 — 决定初筛选股倾向 (进攻/防御/均衡), 避免 100 只候选永远防御。
       bull  → 优先强势/动量/放量突破 (进攻)
@@ -1122,16 +1122,9 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
       range → 均衡
       offensive=True → 强制进攻 (无视 regime, 用于抱团/窄幅动量牛等广度失真场景)
     """
-    from openai import AsyncOpenAI
-    import os
+    from models.router import get_shared_router
 
-    client = AsyncOpenAI(
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-        timeout=60.0,
-    )
-    model = "deepseek-v4-flash"
-
+    router = get_shared_router()
     batch_size = 25
     all_scores = {}
 
@@ -1173,15 +1166,17 @@ async def _flash_screen(df: pd.DataFrame, top_k: int = 100,
             f"只返回JSON数组[{{\"code\":\"..\",\"score\":0}}]按score降序:\n" + "\n".join(lines)
         )
         try:
-            resp = await client.chat.completions.create(
-                model=model,
+            rr = await router.route(
                 messages=[{"role": "user", "content": prompt}],
+                task_type="flash_screen",
+                max_retries=1,
                 temperature=0.0, max_tokens=2000,
                 # v3.1 修复: 禁用 thinking — 否则批处理输出全进 reasoning_content,
                 # content 为空, JSON 解析失败 → 静默返回空结果 (40天回放 0 交易根因)
                 extra_body={"thinking": {"type": "disabled"}},
+                timeout=60.0,
             )
-            content = resp.choices[0].message.content.strip()
+            content = (rr.response or "").strip()
             if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
             items = json.loads(content)
             if isinstance(items, list):
@@ -1232,14 +1227,9 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
         macro_context: 宏观/政策/国际形势上下文 (来自 macro_context.py 缓存),
                       注入系统提示词, 让选股显式结合宏观环境.
     """
-    from openai import AsyncOpenAI
-    import os
+    from models.router import get_shared_router
 
-    client = AsyncOpenAI(
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-        timeout=240.0,  # v3.1: thinking 批次可到 48-110s+, 120s 会超时截断只剩首批
-    )
+    router = get_shared_router()
 
     # v3.1: thinking 开时仍用 batch 20 — 小批次 (10) 会让模型思考更深,
     # reasoning 吃光 16000 预算导致 content 为空. batch 20 反而经济.
@@ -1309,12 +1299,16 @@ async def _deepseek_analyze(df_top: pd.DataFrame, thinking: bool = False,
         for retry in range(3):
             for t_on, mt, eb in attempts:
                 try:
-                    resp = await client.chat.completions.create(
-                        model=os.getenv("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"),
+                    rr = await router.route(
                         messages=[{"role":"system","content": system_prompt}, {"role":"user","content": prompt}],
+                        task_type="deep_analysis",
+                        # 外层已有 3 次重试循环, router 层不再重试 (避免重试×重试放大)
+                        max_retries=0,
                         temperature=0.3, max_tokens=mt, extra_body=eb,
+                        # v3.1: thinking 批次可到 48-110s+, 90s 客户端默认会截断, 显式放宽
+                        timeout=240.0,
                     )
-                    content = (resp.choices[0].message.content or "").strip()
+                    content = (rr.response or "").strip()
                     if content.startswith("```"): content = content.split("\n",1)[1].rsplit("```",1)[0]
                     items = json.loads(content)
                     if isinstance(items, list) and items:
@@ -2264,9 +2258,17 @@ async def run_full_day(
     skip_analyze: bool = False,
     enable_evolution: bool = True,
     cold_tilt: bool = False,
+    force: bool = False,
 ) -> dict:
     """全市场AI选股 — 每日自主工作流"""
     today = today_cn().isoformat()
+    # v6.1 交易日守卫: 周末A股休市, 行情缓存不会更新, 跑全流程只会烧 LLM 预算并
+    # 用陈旧数据做决策。默认周末直接退出; --force 显式逃生 (节假日守卫不在此层,
+    # 由缓存滞后降级 _effective_dry_run_for_lag 兜底)。 FORCE_RUN env 供任务计划绕过。
+    if not force and os.getenv("FORCE_RUN", "").lower() not in ("1", "true", "yes"):
+        if today_cn().weekday() >= 5:
+            logger.warning(f"{today} 为周末 (A股休市) — 跳过全流程。--force 可强制运行。")
+            return {"date": today, "analysis": "skipped_weekend", "trade": {}, "summary": {}}
     logger.info(f"========== 全市场AI选股 Workflow: {today} ==========")
 
     if reset:
@@ -2415,13 +2417,15 @@ async def run_full_day(
 async def main():
     parser = argparse.ArgumentParser(description="全市场AI选股 — 每日自主工作流")
     parser.add_argument("--dry-run", action="store_true", help="仅分析,不交易")
-    parser.add_argument("--no-llm", action="store_true", help="跳过Ollama LLM层")
+    parser.add_argument("--no-llm", action="store_true", help="跳过LLM层 (仅规则引擎)")
     parser.add_argument("--reset", action="store_true", help="重置账户")
     parser.add_argument("--skip-analyze", action="store_true", help="跳过分析(使用已有结果)")
     parser.add_argument("--no-evolution", action="store_true",
                         help="禁用自我进化系统 (默认开启)")
     parser.add_argument("--cold-tilt", action="store_true",
                         help="冷落模式: 选股池=低换手(被冷落)bottom-N tilt (跑赢指数构造)")
+    parser.add_argument("--force", action="store_true",
+                        help="绕过周末守卫强制运行 (节假日守卫由缓存滞后降级兜底)")
     args = parser.parse_args()
 
     result = await run_full_day(
@@ -2431,6 +2435,7 @@ async def main():
         skip_analyze=args.skip_analyze,
         enable_evolution=not args.no_evolution,
         cold_tilt=args.cold_tilt,
+        force=args.force,
     )
 
     s = result["summary"]

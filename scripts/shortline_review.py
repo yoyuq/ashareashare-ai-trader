@@ -23,7 +23,7 @@ import pandas as pd
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from minute_collector import (ENTRY_MIN, EXIT_MIN, MINUTE_DIR, BOOK_DIR,   # noqa: E402
-                              JOURNAL_FP, COST_RT)
+                              JOURNAL_FP, COST_RT, INDEX_CODES)
 
 REVIEW_FP = ROOT / "reports" / "agent_loop" / "shortline_review.md"
 PRIOR_MEDIAN = -0.0016   # 41 天窗口先验 (10:00→尾盘, 冻结引用)
@@ -59,8 +59,9 @@ def round_trips(jrn: list[dict]) -> list[dict]:
 
 
 def intraday_gap(day_fp: Path) -> dict | None:
-    """单日: 开→高均值 (不可实现) vs 10:00→14:55 均值 (可实现口径近似)。"""
+    """单日: 开→高均值 (不可实现) vs 10:00→14:55 均值 (可实现口径近似)。排除指数行。"""
     m = pd.read_parquet(day_fp)
+    m = m[~m["symbol"].isin(INDEX_CODES)]
     gaps = []
     for sym, g in m.groupby("symbol"):
         g = g.sort_values("time")
@@ -132,7 +133,11 @@ def main() -> int:
     for day in days[-5:]:
         mfp = MINUTE_DIR / f"{day}.parquet"
         bfp = BOOK_DIR / f"{day}.parquet" if BOOK_DIR.exists() else None
-        ms = f"分时{pd.read_parquet(mfp).symbol.nunique()}票" if mfp.exists() else "分时缺失"
+        if mfp.exists():
+            _mdf = pd.read_parquet(mfp)
+            ms = f"分时{_mdf[~_mdf.symbol.isin(INDEX_CODES)].symbol.nunique()}票"
+        else:
+            ms = "分时缺失"
         bs = f"盘口{len(pd.read_parquet(bfp))}快照" if bfp and bfp.exists() else "盘口缺失"
         lines.append(f"- {day}: {ms} | {bs}")
     lines += ["", "> 复盘只报告不改规则; 规则变更仅限判定日后新预注册 (prereg_shortline_intraday.md)"]

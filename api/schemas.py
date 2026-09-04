@@ -132,15 +132,3 @@ class DecisionsResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
     total: int
     decisions: List[Dict[str, Any]]
-
-
-class CompetitionBenchmarkResponse(BaseModel):
-    """竞赛Benchmark响应"""
-    model_config = ConfigDict(extra="allow")
-    status: str = "ok"
-    total_score: float
-    max_score: float = 80.0
-    percentage: Optional[float] = None
-    modules: Dict[str, Any]
-    elapsed_s: float
-    mode: str

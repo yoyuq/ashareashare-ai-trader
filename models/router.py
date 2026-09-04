@@ -203,6 +203,7 @@ class ModelRouter:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         extra_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ) -> RouteResult:
         """
         统一调用 deepseek-v4-flash
@@ -215,6 +216,8 @@ class ModelRouter:
             max_tokens: 最大输出 token (None 用默认 16384)
             extra_body: 额外请求体 (如 {"thinking": {"type": "disabled"}});
                         None 时非 tools 路径不传 (向后兼容)
+            timeout: 单次请求超时秒 (None 用客户端默认 request_timeout);
+                     长批次任务 (深度分析 thinking) 需放宽, 防截断
 
         Returns:
             RouteResult
@@ -224,6 +227,7 @@ class ModelRouter:
         result = await self._execute_with_fallback(
             tier, messages, max_retries,
             temperature=temperature, max_tokens=max_tokens, extra_body=extra_body,
+            timeout=timeout,
         )
         result.metadata["task_type"] = task_type
         return result
@@ -295,6 +299,7 @@ class ModelRouter:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         extra_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ) -> RouteResult:
         """执行请求,失败时按指数退避重试"""
         last_error = None
@@ -304,7 +309,7 @@ class ModelRouter:
                 response, usage = await self._call_model(
                     messages, tools=tools,
                     temperature=temperature, max_tokens=max_tokens,
-                    extra_body=extra_body,
+                    extra_body=extra_body, timeout=timeout,
                 )
                 latency = (datetime.now() - start).total_seconds() * 1000
 
@@ -343,6 +348,7 @@ class ModelRouter:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         extra_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ) -> tuple[str, dict]:
         """调用 DeepSeek V4-Flash"""
         if self._deepseek_client is None:
@@ -354,6 +360,9 @@ class ModelRouter:
             "temperature": temperature if temperature is not None else 0.3,
             "max_tokens": max_tokens if max_tokens is not None else 16384,
         }
+        if timeout is not None:
+            # 单次请求级超时 (openai SDK 支持, 覆盖客户端默认 request_timeout)
+            kwargs["timeout"] = timeout
 
         if tools:
             kwargs["tools"] = tools

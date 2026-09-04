@@ -4,7 +4,7 @@ FastAPI REST API — A股智能分析Agent (v6.0 结构重构)
 本文件: app 创建 + CORS + 认证/限频中间件 + /health + 路由注册 + schema re-export。
   api/schemas.py      — Pydantic 请求/响应模型 (此处 re-export 保持 `server.XXX` 兼容)
   api/deps.py         — 组件单例工厂 (get_router/get_knowledge/...)
-  api/routers/*.py    — 领域路由 (market/analysis/chat/portfolio/decisions/competition/bot)
+  api/routers/*.py    — 领域路由 (market/analysis/chat/portfolio/decisions/bot)
 
 端点总览:
   GET  /health                       — 健康检查
@@ -39,8 +39,8 @@ load_dotenv()
 
 app = FastAPI(
     title="A股智能分析Agent API",
-    version="3.0-competition",
-    description="AI驱动的A股量化分析助手 — REST API (第八届AI智能体开发应用赛)",
+    version="6.1",
+    description="AI驱动的A股量化分析助手 — REST API",
 )
 
 # CORS: 白名单收敛 (v5.6 P0-8) — 未配置 CORS_ORIGINS 时默认关闭跨域 (生产安全)。
@@ -156,7 +156,6 @@ from api.schemas import (  # noqa: E402
     ChatHistoryResponse,
     ChatRequest,
     ChatResponse,
-    CompetitionBenchmarkResponse,
     DecisionsResponse,
     HealthResponse,
     RegimeResponse,
@@ -169,7 +168,7 @@ __all__ = [
     "app",
     "AnalyzeRequest", "AnalyzeResponse", "BacktestRequest", "BacktestResponse",
     "ChatHistoryResponse", "ChatRequest", "ChatResponse",
-    "CompetitionBenchmarkResponse", "DecisionsResponse", "HealthResponse",
+    "DecisionsResponse", "HealthResponse",
     "RegimeResponse", "StockInfoResponse", "StrategiesResponse", "TaskResult",
 ]
 
@@ -214,14 +213,13 @@ async def health_check():
 # 领域路由注册 (path 与拆分前逐字一致)
 # ═══════════════════════════════════════════════════════════════
 
-from api.routers import analysis, bot, chat, competition, decisions, market, portfolio  # noqa: E402
+from api.routers import analysis, bot, chat, decisions, market, portfolio  # noqa: E402
 
 app.include_router(market.router)
 app.include_router(analysis.router)
 app.include_router(chat.router)
 app.include_router(portfolio.router)
 app.include_router(decisions.router)
-app.include_router(competition.router)
 app.include_router(bot.router)
 
 

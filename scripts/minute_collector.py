@@ -48,6 +48,10 @@ INDEX_CODES = ["sh.000001", "sz.399006"]
 
 _wl_cache: dict = {}
 
+# 强制直连 (bat/环境变量代理残留会使腾讯分时整体失败)
+_SESSION = requests.Session()
+_SESSION.trust_env = False
+
 
 def _force_utf8() -> None:
     for name in ("stdout", "stderr"):
@@ -63,7 +67,7 @@ def _is_mainboard(sym: str) -> bool:
     return sym.startswith("sh.60") or sym.startswith("sz.00")
 
 
-def last_two_days(today: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def last_two_days(today: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.Timestamp]:
     """最近两个 < today 的交易日面板 (d0=最近日, d1=其前一日, 供 prev_close)。"""
     df = pd.read_parquet(PANEL_FP)
     df["date"] = pd.to_datetime(df["date"])
@@ -107,7 +111,7 @@ def fetch_minute(sym: str) -> tuple[str, list[tuple]] | None:
     """腾讯分时: 返回 (date, [(HH:MM, price, cum_volume, cum_amount), ...])。"""
     code = sym.replace("sh.", "sh").replace("sz.", "sz")
     url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={code}"
-    r = requests.get(url, timeout=10)
+    r = _SESSION.get(url, timeout=10)
     r.raise_for_status()
     j = r.json()
     d = j["data"][code]["data"]
@@ -135,12 +139,18 @@ def upsert_minute(today: str, sym: str, rows: list[tuple]) -> int:
 
 
 def capture_breadth(today: str, now: datetime) -> None:
-    """≥14:55 全市场广度快照 (涨跌停近似/上涨占比)。"""
+    """≥14:55 全市场广度快照 (涨跌停近似/上涨占比), 每交易日仅一条 (同日去重)。"""
+    if SENTIMENT_FP.exists():
+        for line in SENTIMENT_FP.read_text(encoding="utf-8").splitlines():
+            if line.strip() and json.loads(line).get("date") == today:
+                return  # 已有当日快照, 不重复追加
     from refresh_market_cache import fetch_tencent, bootstrap_symbols
     quotes = fetch_tencent(bootstrap_symbols())
     if not quotes or len(quotes) < 3000:
         raise RuntimeError(f"全市场快照不足: {len(quotes) if quotes else 0}")
-    chg = [q["pct_change"] for q in quotes.values() if q.get("pct_change")]
+    # 分母含平盘股 (0.0), 仅剔缺失; up_ratio 分母=可判定家数
+    chg = [q["pct_change"] for q in quotes.values()
+           if q.get("pct_change") is not None]
     up = sum(1 for c in chg if c > 0)
     down = sum(1 for c in chg if c < 0)
     limit_up = sum(1 for c in chg if c >= 9.5)
@@ -189,10 +199,12 @@ def judge_trades(today: str, now: datetime, wl: list[str]) -> None:
             gain30 = p10 / pc - 1
             vol_frac = (e["cum_amount"].iloc[-1] / pv) if pv else None
             trig = gain30 > GAIN_TH and vol_frac is not None and vol_frac >= VOL_FRAC_TH
-            append_journal({"date": today, "symbol": sym, "event": "in",
-                            "price": p10, "gain30": round(gain30, 4),
-                            "vol_frac": None if vol_frac is None else round(vol_frac, 4),
-                            "triggered": bool(trig)})
+            rec = {"date": today, "symbol": sym, "event": "in",
+                   "price": p10, "gain30": round(gain30, 4),
+                   "vol_frac": None if vol_frac is None else round(vol_frac, 4),
+                   "triggered": bool(trig)}
+            append_journal(rec)
+            jrn.append(rec)  # 同步内存, 尾窗同轮 in→out 判定可见 (防 15:05 收窗丢笔)
             events_today.add("in")
         # 卖出判定 (仅对已触发的入场)
         ins = [r for r in jrn if r["date"] == today and r["symbol"] == sym
