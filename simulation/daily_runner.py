@@ -2350,11 +2350,12 @@ async def run_full_day(
                     if r.get("action") == "BUY":
                         code = r.get("code", "")
                         # 获取当时价格 (v3.0: 复用统一行情 helper, 修复未导入 requests 的 F821)
+                        # v6.1 零模拟: 行情失败记 None (缺失如实), 不伪造 0 元价
                         try:
                             prefix = _tencent_prefix(code)
                             price, _pct = _tencent_quote(f"{prefix}.{code}")
                         except Exception:
-                            price = 0
+                            price = None
 
                         today_entry["buys"].append({
                             "code": code, "name": r.get("name", ""),
