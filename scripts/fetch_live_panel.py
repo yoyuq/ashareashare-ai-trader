@@ -10,6 +10,8 @@
 """
 from __future__ import annotations
 
+import json
+import socket
 import sys
 import time
 import warnings
@@ -26,9 +28,27 @@ from data.full_market_cache import read_full_market_cache  # noqa: E402
 from forward_register_cold_lowvol import _filter_liquid  # noqa: E402
 
 PANEL_FP = ROOT / "replay_data" / "live_panel.parquet"
+REGISTRY_FP = ROOT / "simulation_data" / "forward_validation" / "registry.json"
 LOOKBACK_DAYS = 70          # 自然日, ≈46 交易日 (std20 需要 20)
 TOP_N = 1000
 _FIELDS = "date,code,open,high,low,close,volume,amount,turn,pctChg,peTTM,pbMRQ,tradestatus,isST"
+
+
+def _registry_basket_symbols() -> set[str]:
+    """前瞻 bet 冻结持仓并入抓取清单 (冷落票换手低会掉出 amount top-1000,
+    不并入则面板永远缺持仓票 → 前瞻跟踪断链, 2026-09-06 crowding_watch 首跑发现)."""
+    if not REGISTRY_FP.exists():
+        return set()
+    reg = json.loads(REGISTRY_FP.read_text(encoding="utf-8"))
+    raw = reg.get("bets", {})
+    out: set[str] = set()
+    for b in (raw.values() if isinstance(raw, dict) else raw):
+        if not isinstance(b, dict):
+            continue
+        for c in (b.get("entry") or {}).get("basket_symbols", []) or []:
+            c = str(c)
+            out.add(("sh." if c.startswith("6") else "sz.") + c)
+    return out
 
 
 def _force_utf8() -> None:
@@ -75,6 +95,7 @@ def _query_one(bs, symbol: str, start: str, end: str) -> pd.DataFrame | None:
 
 def main() -> int:
     _force_utf8()
+    socket.setdefaulttimeout(20)  # Baostock 挂起防护 (无此设置曾卡 65min+, 09-06)
     import baostock as bs
 
     df_cache, cache_date = read_full_market_cache()
@@ -84,22 +105,24 @@ def main() -> int:
     liq = _filter_liquid(df_cache).nlargest(TOP_N, "amount")
     # symbol: cache code 6位 → baostock sh./sz.
     syms = [f"sh.{c}" if str(c).startswith("6") else f"sz.{c}" for c in liq["code"].astype(str)]
-    print(f"流动池 {len(syms)} 只 (cache {cache_date}, top{TOP_N} by amount)")
+    syms += sorted(_registry_basket_symbols() - set(syms))  # 冻结持仓并入 (去重)
+    print(f"流动池 {len(syms)} 只 (cache {cache_date}, top{TOP_N} by amount + registry 持仓)")
 
+    full_start = (pd.Timestamp(cache_date) - pd.Timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
     end = pd.Timestamp(cache_date).strftime("%Y-%m-%d")
-    start = (pd.Timestamp(cache_date) - pd.Timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
 
-    # 增量: 已有面板则续抓新日期
+    # 增量: 已有面板则续抓新日期; 新并入的票按全 lookback 补历史
+    existing_syms: set[str] = set()
     existing_max = None
     if PANEL_FP.exists():
-        old = pd.read_parquet(PANEL_FP, columns=["date"])
-        existing_max = pd.to_datetime(old["date"]).max()
-        if existing_max >= pd.Timestamp(cache_date):
-            print(f"面板已最新 ({existing_max.date()}), 无需抓取")
+        old_meta = pd.read_parquet(PANEL_FP, columns=["date", "symbol"])
+        existing_max = pd.to_datetime(old_meta["date"]).max()
+        existing_syms = set(old_meta["symbol"].astype(str).unique())
+        if existing_max >= pd.Timestamp(cache_date) and set(syms) <= existing_syms:
+            print(f"面板已最新 ({existing_max.date()}) 且持仓票齐全, 无需抓取")
             return 0
-        if existing_max is not None:
-            start = (existing_max + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        print(f"增量模式: {start} → {end}")
+        print(f"增量模式: 存量票续抓起点 {(existing_max + pd.Timedelta(days=1)).date() if existing_max else full_start} → {end}; "
+              f"新票 {sorted(set(syms) - existing_syms)[:8]}... 按全 lookback 补")
 
     lg = bs.login()
     if lg.error_code != "0":
@@ -107,9 +130,20 @@ def main() -> int:
         return 2
 
     parts, failed = [], []
+    inc_start = None
+    if existing_max is not None:
+        inc_start = (existing_max + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     try:
         for i, sym in enumerate(syms):
-            d = _query_one(bs, sym, start, end)
+            if sym not in existing_syms:
+                s_start = full_start
+            else:
+                # 存量票: 从上次日期+1续抓; 无新数据 (非交易日/缓存未更新) 直接跳过,
+                # 否则 baostock 起始>终止 10004009 硬报错 (09-06 事故)
+                s_start = (existing_max + pd.Timedelta(days=1)).strftime("%Y-%m-%d") if existing_max is not None else full_start
+                if s_start > end:
+                    continue
+            d = _query_one(bs, sym, s_start, end)
             if d is None:
                 failed.append(sym)
                 continue
@@ -132,10 +166,10 @@ def main() -> int:
         return 0
 
     new = pd.concat(parts, ignore_index=True)
-    if PANEL_FP.exists() and existing_max is not None:
+    if PANEL_FP.exists():
         old = pd.read_parquet(PANEL_FP)
-        old = old[old["date"] < start]  # 防重
         new = pd.concat([old, new], ignore_index=True)
+        new = new.drop_duplicates(subset=["symbol", "date"], keep="last")  # 防重 (含新补票全历史)
     new.to_parquet(PANEL_FP, index=False)
     print(f"面板已写: {PANEL_FP}  rows={len(new)}  "
           f"日期 {pd.to_datetime(new['date']).min().date()} → {pd.to_datetime(new['date']).max().date()}")

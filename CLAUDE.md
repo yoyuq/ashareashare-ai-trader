@@ -125,6 +125,18 @@ python scripts/learn_external.py --report                          # 学习元�
 
 **交互式学习入口 (v5.11)**: `agent/chat_agent.py` 新增 4 个工具 — `search_trading_strategy`(联网搜策略)、`judge_trading_strategy`(真实回测给留/删判断)、`suggest_backtest_windows`(纯 LLM 荐回测区间, 基于 `_WINDOW_REGIME` 窗口状态标注)、`learn_trading_strategy`(完整学习落库, `n=3`)。慢工具(联网/回测/学习)超时放宽到 300s, 快工具仍 15s。
 
+### Strategy Research Track (策略研究轨道, v5.12+)
+
+A/B 实验纪律 (细节与结果为私有研究产物, 存 `reports/agent_loop/`, 不入库): 预注册判据先写死 → 数据门 probe (真·时点历史, 零模拟) → 建库冻结 parquet → 回测 → FAIL 即入墙不调参; 基准 = 匹配 universe, 不许只比指数。研究产物 gitignore (`.gitignore` 已排除 `reports/**`)。
+
+| 环节 | Entry Point |
+|------|------------|
+| 历史数据建库 (时点/PIT) | `scripts/build_gdhs_history.py` (股东户数) / `scripts/build_disclosure_timing.py` (披露时间表) / `scripts/fetch_lhb_history.py` (龙虎榜) / `scripts/fetch_live_panel.py` (实时面板增量) |
+| 因子/事件 A/B 回测 | `scripts/run_gdhs_factor.py` / `scripts/run_disclosure_timing.py` 等 `run_*.py` (每实验一个脚本, gate 逐字执行) |
+| 前瞻 OOS 验证 | `scripts/forward_register_*.py` (注册 bet) / `scripts/forward_track.py` (每交易日快照 → registry.json) |
+| 监控测量层 (只读) | `scripts/crowding_watch.py` (篮子拥挤度/换手分位) / `scripts/attention_collector.py` (人气榜采集) |
+| 任务计划运维 | `scripts/downgrade_daily_live_weekly.py` / `scripts/fix_scheduled_tasks.ps1` (schtasks /query /xml 管道输出是 UTF-8 非 UTF-16; /create /xml 要求 UTF-16 文件) |
+
 ### Dashboard / API Module Layout (v6.0)
 
 - `web/dashboard.py` is a thin entry (~180 lines): theme → sidebar → tab dispatch. Loaders live in `web/data.py` (`@st.cache_data`), shared HTTP in `web/api_client.py`, each tab in `web/tabs/<name>.py` exposing `render()` (lazy-imported in the `if/elif` dispatch). `@st.fragment` functions stay at module top level (Streamlit requirement).
@@ -160,3 +172,4 @@ China stock APIs (EastMoney, AKShare) may need a proxy for non-China IPs. The pr
 | Risk evaluation | `analysis/risk_controls.py::PortfolioRiskManager` |
 | Knowledge/strategies | `knowledge/manager.py::KnowledgeManager` |
 | Live real-time data fetch | `data/providers/tencent_provider.py` (or curl `qt.gtimg.cn`) |
+| Research loop anchors (private) | `reports/agent_loop/PLAYBOOK.md` (判定史/墙, append-only) + `PHASE2.md` (活计划) — gitignored, agent-loop 每次 tick 必读 |
