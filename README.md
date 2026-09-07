@@ -2,7 +2,7 @@
 
 > AI驱动的A股量化分析与策略研究平台 — 多源数据 → 多智能体分析 → 回测验证 → 纸面交易 → 前瞻 OOS 验证 → 自主学习闭环
 
-[![Tests](https://github.com/hjl/ashare-ai-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/hjl/ashare-ai-trader/actions/workflows/ci.yml)
+[![Tests](https://github.com/yoyuq/ashareashare-ai-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/yoyuq/ashareashare-ai-trader/actions/workflows/ci.yml)
 ![Version](https://img.shields.io/badge/version-6.1-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-green)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
@@ -13,7 +13,7 @@
 
 ```bash
 # 1. 克隆 + 虚拟环境
-git clone https://github.com/hjl/ashare-ai-trader.git
+git clone https://github.com/yoyuq/ashareashare-ai-trader.git
 cd ashare-ai-trader
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
@@ -32,15 +32,6 @@ python scripts/run_daily_analysis.py --no-llm --symbols sh.600519,sz.300750
 # 5. 启动 Dashboard
 streamlit run web/dashboard.py
 ```
-
-### Docker 一键部署
-
-```bash
-docker compose up -d          # 启动全部服务(API+DB+Redis)
-curl http://localhost:8000/health
-```
-
----
 
 ## 架构
 
@@ -113,7 +104,7 @@ ashare-ai-trader/
 ├── models/             # LLM 模型层 (单模型路由 + 成本监控)
 ├── backtest/           # 回测引擎 (事件驱动 + A股券商模拟 + 6层过拟合防控)
 ├── simulation/         # 模拟交易 (paper_trader / portfolio / daily_runner)
-├── killtest/           # 三路信号验证 (Rule/Random/LLM 前向收益对比)
+├── killtest/           # 三路信号验证 (v3 历史验证工具, 仅测试引用)
 ├── knowledge/          # 知识库 (YAML规则/参考md/ChromaDB向量库)
 ├── notify/             # 通知系统
 ├── api/                # REST API (v6.0 模块化)
@@ -126,15 +117,14 @@ ashare-ai-trader/
 │   └── tabs/               # 9 个 tab 模块
 ├── scripts/            # 自动化与研究脚本 (见下表)
 ├── tests/              # 测试 (离线 + 网络)
-├── config/             # YAML 配置
-└── docker/             # Docker 部署
+└── config/             # YAML 配置
 ```
 
 ### scripts/ 速查
 
 | 类别 | 代表脚本 |
 |------|---------|
-| 每日流程 | `run_daily_analysis.py` / `morning_buy.py` / `evening_sell.py` / `evening_summary.py` |
+| 每日流程 | `run_daily_analysis.py` (手动 CLI) · `python -m simulation.daily_runner` (调度入口) |
 | 回测对比 | `backtest_compare.py` / `historical_replay.py` / `compare_replay_ab.py` |
 | 数据建库 | `fetch_live_panel.py` (实时面板增量) / `fetch_lhb_history.py` (龙虎榜) / `build_gdhs_history.py` (股东户数) / `build_disclosure_timing.py` (披露时间表) / `fetch_restricted_release.py` (解禁) / `fetch_dividends.py` / `fetch_delisted_daily.py` (退市股并入) |
 | 前瞻验证 | `forward_register_*.py` (bet 注册) / `forward_track.py` (纸面跟踪快照) |
@@ -216,7 +206,7 @@ python -c "from knowledge.manager import KnowledgeManager; km=KnowledgeManager()
 | 编排 | LangGraph |
 | 回测 | 自研事件驱动引擎 |
 | Web | FastAPI + Streamlit |
-| 部署 | Docker Compose / Windows 任务计划 |
+| 部署 | Windows 任务计划 |
 
 ---
 

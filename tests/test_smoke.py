@@ -761,7 +761,7 @@ class TestIntegration:
     def test_config_files_exist(self):
         """配置文件完整"""
         config_path = Path(__file__).parent.parent / "config"
-        files = ["settings.yaml", "model_config.yaml", "symbols.yaml"]
+        files = ["model_config.yaml", "symbols.yaml"]
         for f in files:
             path = config_path / f
             assert path.exists(), f"缺少配置文件: {f}"

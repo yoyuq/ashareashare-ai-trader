@@ -59,7 +59,6 @@ all = [
     "tushare>=1.4.0",
     "streamlit>=1.35.0",
     "mcp>=1.0.0",
-    "uiautomation>=2.0.0",
 ]
 
 [tool.ruff]

@@ -50,7 +50,7 @@ def render():
     # 加载本地持仓数据
     portfolio = get_portfolio_state()
     if not portfolio:
-        st.info("暂无持仓数据。运行 `python scripts/morning_buy.py` 开始模拟交易。")
+        st.info("暂无持仓数据。运行 `python -m simulation.daily_runner` 开始模拟交易。")
     else:
         cash = portfolio.get("cash", 0)
         total_value = portfolio.get("total_value", 0)

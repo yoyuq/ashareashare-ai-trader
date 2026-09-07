@@ -135,7 +135,7 @@ A/B 实验纪律 (细节与结果为私有研究产物, 存 `reports/agent_loop/
 | 因子/事件 A/B 回测 | `scripts/run_gdhs_factor.py` / `scripts/run_disclosure_timing.py` 等 `run_*.py` (每实验一个脚本, gate 逐字执行) |
 | 前瞻 OOS 验证 | `scripts/forward_register_*.py` (注册 bet) / `scripts/forward_track.py` (每交易日快照 → registry.json) |
 | 监控测量层 (只读) | `scripts/crowding_watch.py` (篮子拥挤度/换手分位) / `scripts/attention_collector.py` (人气榜采集) |
-| 任务计划运维 | `scripts/downgrade_daily_live_weekly.py` / `scripts/fix_scheduled_tasks.ps1` (schtasks /query /xml 管道输出是 UTF-8 非 UTF-16; /create /xml 要求 UTF-16 文件) |
+| 任务计划运维 | `scripts/fix_scheduled_tasks.ps1` (schtasks /query /xml 管道输出是 UTF-8 非 UTF-16; /create /xml 要求 UTF-16 文件) |
 
 ### Dashboard / API Module Layout (v6.0)
 
